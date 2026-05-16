@@ -1,5 +1,22 @@
 # 进度记录
 
+## 2026-05-17（D-090 技术栈执行优化）
+
+### 已完成
+
+- `docs/technical-stack-and-prototype-plan.md` 升级为 v0.19，新增 D-090 执行优化口径。
+- `docs/p0a-execution-plan.md` 升级为 v0.17，将 `uv + pyproject.toml` 依赖分组、`pnpm + Zustand`、sqlite-vec capability probe、File Inspection Z0a/Z0b 分层、optional Provider 后置和 evidence-first RAG 写入开工 Checklist、W1-W3 任务与验收。
+- `docs/testing-strategy.md` 升级为 v0.17，补充依赖分组、optional provider 缺失、sqlite-vec 三态、File Inspection 分层、Zustand SSE 状态和 evidence-first RAG 测试口径。
+- `docs/project-background-brief.md` 升级为 v0.2，同步后续 Agent 实现前检查点。
+- README 已同步 D-090 Done 记录与相关文档版本。
+- `docs/development-plan.md` 升级为 v0.44，新增 D-090 决策记录，并保留 D-089 GitHub private repo 上传记录。
+
+### 验收
+
+- 本轮仍为文档-only：未新增运行时代码、migration、OpenAPI 文件、endpoint 或依赖。
+- P0-Z0a 首批实现口径已收敛为先验证 Source → Chunk → Knowledge Unit → Review → embedding fallback → Retrieval → Evidence Pack → evidence-only answer。
+- OCR、ASR、reranker、外部 LLM 质量、PostgreSQL、独立向量库、GraphRAG、多 Agent 和外部工具执行继续作为后置能力，不阻塞首批工程骨架。
+
 ## 2026-05-17（D-089 GitHub private repo 上传）
 
 ### 已完成

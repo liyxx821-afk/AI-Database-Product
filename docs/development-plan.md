@@ -1,8 +1,8 @@
 # 开发计划
 
-版本：v0.43  
+版本：v0.44
 日期：2026-05-17  
-状态：已完成完整 P0 架构升级、技术选型细化、File Inspection 架构细化、切片前准备层、结构化整理检查门、知识切片质量闭环、安全运维横切层、实现前契约去重、检查门映射收敛、P0-Z0a/Z0b 竖切、ProcessingJob 契约收紧、切片执行 profile、AI 结构化整理 profile、D-077 实现边界收敛、D-079 结构化整理与存储映射收敛、D-080 知识调用 / AI 智能体 / 前端交互收敛、D-081/D-082/D-083 实现前边界修正、D-084 跨文档同步、D-085 Z0a 调用锚点与反馈 / citation 边界修正、D-086 后续 Agent 项目背景说明书、D-087 本地 Git 管理基础、D-088 README 对齐后的技术栈优化，以及 D-089 GitHub private repo 上传（D-066 - D-089）
+状态：已完成完整 P0 架构升级、技术选型细化、File Inspection 架构细化、切片前准备层、结构化整理检查门、知识切片质量闭环、安全运维横切层、实现前契约去重、检查门映射收敛、P0-Z0a/Z0b 竖切、ProcessingJob 契约收紧、切片执行 profile、AI 结构化整理 profile、D-077 实现边界收敛、D-079 结构化整理与存储映射收敛、D-080 知识调用 / AI 智能体 / 前端交互收敛、D-081/D-082/D-083 实现前边界修正、D-084 跨文档同步、D-085 Z0a 调用锚点与反馈 / citation 边界修正、D-086 后续 Agent 项目背景说明书、D-087 本地 Git 管理基础、D-088 README 对齐后的技术栈优化、D-089 GitHub private repo 上传，以及 D-090 技术栈执行优化（D-066 - D-090）
 
 ## 1. 当前阶段状态
 
@@ -10,6 +10,7 @@
 
 已完成：
 
+- **技术栈执行优化（D-090）**：将当前技术栈优化意见落到执行文档：`docs/technical-stack-and-prototype-plan.md` 升级为 v0.19，补齐 `uv + pyproject.toml` 依赖分组、`pnpm + Zustand` 前端状态、sqlite-vec capability probe、File Inspection Z0a/Z0b 分层、evidence-first RAG 执行顺序和统一开发命令；`docs/p0a-execution-plan.md` 升级为 v0.17，将上述约束写入开工 Checklist、W1-W3 任务和验收；`docs/testing-strategy.md` 升级为 v0.17，补充依赖分组、optional provider 缺失、sqlite-vec 三态、File Inspection 分层、Zustand SSE 状态和 evidence-first RAG 测试口径；`docs/project-background-brief.md` 升级为 v0.2，同步后续 Agent 实现前检查点。本轮仍为文档-only，不新增运行时代码、migration、OpenAPI、endpoint 或依赖。
 - **GitHub private repo 上传（D-089）**：创建并绑定 GitHub private repo `ChenchenChen001/ai-database-product`，`origin` 指向 `https://github.com/ChenchenChen001/ai-database-product.git`；以 `main` 为首个远程分支完成项目文档基线提交与推送。仓库保持 private，本轮未公开。
 - **README 对齐后的技术栈优化（D-088）**：根据 README 入口文档，把 `docs/technical-stack-and-prototype-plan.md` 升级为 v0.18，新增 P0-Z0a 最小可执行栈、完整 P0 扩展栈和 P1/P2 后置栈；明确首批工程只以 Electron + React + Vite + TypeScript、FastAPI sidecar、SQLite + sqlite-vec、local filesystem、local_sqlite_worker、SSE、Repository 抽象、Pydantic、Alembic、FTS5、embedding fallback、Evidence Pack 和 evidence-only answer 跑通闭环；PyMuPDF、pdfplumber、PaddleOCR、Whisper、bge-m3、bge-reranker-v2 等按波次接入，PostgreSQL、独立向量库、GraphRAG、Redis/Celery、WebSocket 必需通道、多 Agent 和外部工具执行继续后置。本轮仍为文档-only，不新增运行时代码、migration、OpenAPI 或 endpoint。
 - **本地 Git 管理基础（D-087）**：初始化本地 Git 仓库，默认分支为 `main`；新增 `.gitignore`、`.gitattributes` 和 `docs/git-management.md`；忽略本地临时文件、密钥、数据库、上传资料、日志、构建产物和模型权重；设置 Markdown 文本行尾和 PDF / 图片二进制处理。本轮未创建 commit、未配置 remote、未推送。
@@ -31,7 +32,7 @@
 - **实现前契约收紧（D-068）**：根据当前方案评审，统一 embedding profile / dimension、Provider capability status、local_sqlite_worker + SSE 可恢复状态流和 route-level 实施映射。`mock_fixed_384` 被明确为 fallback profile，384 维不再是 P0 全局默认；Provider 状态统一为 `available / fallback / unavailable / disabled / error`；SSE 使用 `event_seq` / `Last-Event-ID` 续读。
 - **P0 技术选型细化（D-067）**：根据三张技术选型图，把上传、状态反馈、存储、队列、解析、OCR、ASR、数据清洗、Metadata/标签、Embedding、Rerank、RAG、Text-to-SQL、监控等能力落成 P0 默认栈 / P1 可选栈 / P2 暂缓栈；默认保持桌面本地优先、FastAPI、SQLite + sqlite-vec、开源优先和可恢复降级。
 - **完整 P0 入库与知识处理平台升级（D-066）**：根据五张架构图，将原 P0-A / P0-B 轻量闭环升级为 P0-Core / P0-File / P0-AI / P0-RAG 四切片；账号预埋、文件上传、完整性校验、Parser Router、解析任务、切片质量、AI 结构化、Embedding、Hybrid Retrieval、Evidence Pack、Citation、RAG answer / evidence-only fallback 和用户记录均进入 P0。
-- **文档同步完成**：已同步 `docs/git-management.md` v0.2、`docs/project-background-brief.md` v0.1、`docs/product-architecture.md` v0.14、`docs/mvp-scope.md` v0.13、`docs/architecture-design-plan.md` v1.3、`docs/data-model.md` v0.19-draft、`docs/api-design.md` v0.18-draft、`docs/api-implementation-plan.md` v0.17-draft、`docs/p0a-execution-plan.md` v0.16、`docs/technical-stack-and-prototype-plan.md` v0.18、`docs/ai-provider-architecture.md` v0.12、`docs/testing-strategy.md` v0.16、`docs/rag-pipeline.md` v0.7-draft、`docs/knowledge-invocation-system-design-plan.md` v0.10、`docs/error-handling-and-observability.md` v0.6、`docs/text-to-sql.md` v0.4-draft、README 与进度记录。
+- **文档同步完成**：已同步 `docs/git-management.md` v0.2、`docs/project-background-brief.md` v0.2、`docs/product-architecture.md` v0.14、`docs/mvp-scope.md` v0.13、`docs/architecture-design-plan.md` v1.3、`docs/data-model.md` v0.19-draft、`docs/api-design.md` v0.18-draft、`docs/api-implementation-plan.md` v0.17-draft、`docs/p0a-execution-plan.md` v0.17、`docs/technical-stack-and-prototype-plan.md` v0.19、`docs/ai-provider-architecture.md` v0.12、`docs/testing-strategy.md` v0.17、`docs/rag-pipeline.md` v0.7-draft、`docs/knowledge-invocation-system-design-plan.md` v0.10、`docs/error-handling-and-observability.md` v0.6、`docs/text-to-sql.md` v0.4-draft、README 与进度记录。
 - **RAG + Embedding 向量库执行口径（D-065）**：新增 `docs/rag-pipeline.md`，明确 RAG 不是数据库本身，Embedding + Vector Index 才是向量库层；P0-AI 必须包含 `embeddings` 表、`EmbeddingRepository` 和 `VectorStoreService` 抽象，sqlite-vec 运行时可以降级但不能绕开向量层；P0-RAG 做 Evidence Pack、Citation、RAG answer / evidence-only fallback。
 - **向量存储与 RAG 路径（用户确认 + D-063）**：正式冻结为 **主库 SQLite + sqlite-vec + `embeddings` 表混合检索**；P0 **不**引入与主库分离的独立向量数据库（Milvus / Pinecone 等）；RAG 定义为检索 + 证据组装 + Provider answer/fallback 流水线。同步更新 `docs/data-model.md`、`docs/technical-stack-and-prototype-plan.md`、`docs/mvp-scope.md`、`docs/product-architecture.md`、`docs/ai-provider-architecture.md`。
 - 完成第四轮架构优化 8 条建议落地：
@@ -1128,6 +1129,7 @@ docs/progress.md
 | D-087 | 本地 Git 管理基础 | 初始化本地 Git 仓库，默认分支 `main`；新增 `.gitignore`、`.gitattributes` 和 `docs/git-management.md`；忽略本地临时文件、密钥、数据库、上传资料、日志、构建产物和模型权重；本轮不创建 commit、不配置 remote、不推送 | 项目即将从文档架构进入工程实现，需要在首个代码骨架前建立版本基线、敏感文件排除策略和后续协作规则 | 已确认 |
 | D-088 | README 对齐后的技术栈优化 | `docs/technical-stack-and-prototype-plan.md` 升级为 v0.18；根据 README 入口口径新增 P0-Z0a 最小可执行栈、完整 P0 扩展栈、P1/P2 后置栈；明确首批工程以 Electron / React / FastAPI / SQLite / local worker / SSE / Evidence Pack / evidence-only answer 跑通闭环，Provider 和高级检索能力按波次接入 | README 已成为后续 Agent 的主要入口，如果技术栈文档只保留完整工具矩阵，后续实现容易把 OCR/ASR/reranker/GraphRAG/独立向量库等可选或后置能力误认为首批必装依赖 | 已确认 |
 | D-089 | GitHub private repo 上传 | 创建 GitHub private repo `ChenchenChen001/ai-database-product`，绑定为 `origin`，并推送 `main` 首个文档基线提交；仓库保持 private，不公开 | 用户要求上传到 GitHub 且不公开；当前文件体量可直接 Git 推送，PDF 约 5MB，暂不需要 Git LFS | 已确认 |
+| D-090 | 技术栈执行优化 | `docs/technical-stack-and-prototype-plan.md` 升级为 v0.19，`docs/p0a-execution-plan.md` 与 `docs/testing-strategy.md` 升级为 v0.17，`docs/project-background-brief.md` 升级为 v0.2；工程开工口径固定为 `uv + pyproject.toml` 依赖分组、`pnpm + Zustand` 前端状态、sqlite-vec capability probe、File Inspection Z0a/Z0b 分层、optional Provider 后置和 evidence-first RAG | 用户要求“执行优化”；需要把前一轮技术栈优化意见转成后续代码工程可直接照做的依赖、状态、能力探测、测试和命令约束，而不是停留在建议层 | 已确认 |
 
 ## 8. 架构验收清单
 
@@ -1350,7 +1352,7 @@ docs/progress.md
 2. 按 `docs/api-design.md` v0.18-draft 与 `docs/api-implementation-plan.md` v0.17-draft 生成 OpenAPI / route skeleton；D-080-D085 只影响 retrieval / RAG response schema 示例和 Z0a/Z2 持久化边界，不新增 endpoint。
 3. 优先实现 `JobRepository`、`ProcessingEventService`、ProcessingJob 状态机和 active job 幂等，再接 upload / inspect / parse。
 4. 为 sensitive evidence 增加 `sensitive_access_grants` DTO / repository / contract tests，覆盖过期、撤销、scope 不匹配和二次复用。
-5. 按 `docs/p0a-execution-plan.md` v0.16 创建 P0-Core 工程骨架，并在 W1 即补上合同测试和 P0 smoke test。
+5. 按 `docs/p0a-execution-plan.md` v0.17 创建 P0-Core 工程骨架，并在 W1 即补上合同测试和 P0 smoke test；首批只阻塞 `uv` 的 `core + dev` 依赖组、`pnpm` workspace、Zustand 状态、sqlite-vec capability probe 和 P0-Z0a evidence-first smoke。
 6. 进入代码前确认开发期应用名、Bundle ID、Product ID、数据目录名和 Keychain service 占位。
 
 完成这些事项后，进入 P0-Core W1 工程骨架创建。

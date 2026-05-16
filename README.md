@@ -66,7 +66,7 @@ docs/
 文档说明：
 
 - [AGENTS.md](./AGENTS.md)：项目长期开发准则、产品定位、技术原则和 Codex 工作规则。
-- [docs/project-background-brief.md](./docs/project-background-brief.md)：项目背景说明书 v0.1，面向后续 Agent 的快速接手入口，概括项目为什么存在、目标用户、当前架构、冻结技术选择、P0-Z0a/Z0b/Z1/Z2 边界、常见误区和推荐阅读顺序。
+- [docs/project-background-brief.md](./docs/project-background-brief.md)：项目背景说明书 v0.2，面向后续 Agent 的快速接手入口，概括项目为什么存在、目标用户、当前架构、冻结技术选择、P0-Z0a/Z0b/Z1/Z2 边界、常见误区、推荐阅读顺序和 D-090 技术栈执行优化后的实现前检查点。
 - [docs/architecture-design-plan.md](./docs/architecture-design-plan.md)：知识库构建系统架构设计计划 v1.3，只覆盖材料入库、知识单元生成、确认、索引和可追溯，不代表完整产品总架构；已补齐知识切片质量闭环与 AI 结构化整理 profile。
 - [docs/product-architecture.md](./docs/product-architecture.md)：产品总架构 v0.14，说明完整 P0 如何由 P0-Core / P0-File / P0-AI / P0-RAG 四切片落地，并纳入 File Inspection、知识切片质量闭环、AI 结构化整理 profile、知识调用 profile、D-081-D085 调用边界、隐式单 Agent、前端交互契约、安全运维横切层与 P0-Z0a/Z0b 竖切。
 - [docs/data-model.md](./docs/data-model.md)：数据模型 v0.19-draft，定义账号预埋、上传、文件、File Inspection、解析、切片前准备层、检查门映射、知识切片质量、切片执行 profile、AI 结构化整理 profile、D-079 结构化整理子字段与存储映射、D-080 调用 profile 元数据、D-081/D-082/D-083/D-085 调用边界与 profile schema、安全运维事件、事件枚举单一来源、知识单元、向量、RAG answer、用户记录对象、Provider capability/fallback 元数据和 P0-Z0a/Z0b/Z1/Z2 迁移波次。
@@ -237,6 +237,7 @@ P0 技术栈：
   - `docs/technical-stack-and-prototype-plan.md` 升级为 v0.19，新增 D-090 执行优化口径。
   - `docs/p0a-execution-plan.md` 升级为 v0.17，将依赖分组、Zustand、sqlite-vec capability probe、File Inspection Z0a/Z0b 分层、optional Provider 后置写入开工 Checklist 与 W1-W3 任务。
   - `docs/testing-strategy.md` 升级为 v0.17，补充 D-090 对依赖分组、optional provider 缺失、sqlite-vec 三态、File Inspection 分层、Zustand SSE 状态和 evidence-first RAG 的测试口径。
+  - `docs/project-background-brief.md` 升级为 v0.2，同步后续 Agent 实现前检查点。
   - 本轮仍为文档-only 优化，未新增运行时代码、migration、OpenAPI 文件、endpoint 或依赖。
 - 已完成 README 对齐后的技术栈优化：
   - `docs/technical-stack-and-prototype-plan.md` 升级为 v0.18，新增 D-088 技术栈优化口径。
