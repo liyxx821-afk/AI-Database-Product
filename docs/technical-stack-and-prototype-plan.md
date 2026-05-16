@@ -1,8 +1,8 @@
 # 技术栈与 P0 原型实施计划
 
-版本：v0.19  
+版本：v0.20  
 日期：2026-05-17  
-状态：已同步——完整 P0 四切片 + P0-Z0a/Z0b 竖切 + ProcessingJob + 切片前准备层 / 结构化整理检查门 + 知识切片质量闭环 + 安全运维横切层 + 技术选型矩阵 + Provider capability 契约收紧 + 切片执行 profile + AI 结构化整理 profile + D-079 存储映射 + D-080 知识调用 / implicit_agent / D-081-D085 调用 schema、反馈策略与前端系统技术矩阵 + D-088 README 对齐后的技术栈优化 + D-090 技术栈执行优化
+状态：已同步——完整 P0 四切片 + P0-Z0a/Z0b 竖切 + ProcessingJob + 切片前准备层 / 结构化整理检查门 + 知识切片质量闭环 + 安全运维横切层 + 技术选型矩阵 + Provider capability 契约收紧 + 切片执行 profile + AI 结构化整理 profile + D-079 存储映射 + D-080 知识调用 / implicit_agent / D-081-D085 调用 schema、反馈策略与前端系统技术矩阵 + D-088 README 对齐后的技术栈优化 + D-090 技术栈执行优化 + D-091 技术栈工程化验收门槛
 
 ## 1. 文档目的
 
@@ -280,6 +280,110 @@ pnpm dev
 pnpm test
 pnpm smoke:p0-z0a
 ```
+
+### 2.4 技术栈工程化验收门槛（D-091）
+
+D-091 将“技术栈建议”进一步压成首批工程必须通过的验收门槛。后续创建代码工程时，只有通过以下门槛，才允许继续接 OCR、ASR、reranker、LLM provider、GraphRAG 或外部服务。
+
+#### 最小依赖 CI Gate
+
+首批 CI / 本地 smoke 必须提供一个只安装最小依赖的验证路径：
+
+```bash
+uv sync --extra core --extra dev
+pnpm install
+pnpm typecheck
+uv run ruff check .
+uv run pytest
+pnpm smoke:p0-z0a
+```
+
+`smoke:p0-z0a` 的验收链固定为：
+
+```text
+health
+→ SQLite migration
+→ text_import / Markdown import
+→ rule chunk
+→ KU candidate / review confirm
+→ mock_fixed_384 embedding fallback
+→ retrieval_log
+→ evidence_pack / evidence_items
+→ ai_answer(output_type=evidence_only_answer)
+```
+
+禁止把 `file / ai / ocr / asr` extras、真实 embedding、reranker、LLM、Redis、PostgreSQL、独立向量库或 GraphRAG 写入 `smoke:p0-z0a` 的前置条件。
+
+#### Provider 延迟加载门槛
+
+optional provider 必须全部延迟加载。业务代码不得在模块 import 阶段直接导入 PyMuPDF、PaddleOCR、Whisper、bge-m3、bge-reranker-v2 或 LLM SDK。
+
+ProviderRegistry 必须返回以下最小字段：
+
+```yaml
+provider_key:
+capability:
+capability_status: available | disabled | unavailable | fallback | error
+fallback_reason:
+load_error_class:
+load_error_message:
+checked_at:
+```
+
+验收要求：
+
+- optional provider 缺失时，应用启动、migration、health、text_import 和 evidence-only smoke 仍通过；
+- `load_error_message` 必须脱敏，不能包含 API Key、用户原文或本地私密路径；
+- 业务层只消费 capability status，不直接判断某个第三方包是否安装。
+
+#### Electron Sidecar 生命周期门槛
+
+Electron Main 必须把 FastAPI sidecar 当作受控本地进程管理，而不是假设后端永远存在。
+
+首批至少验证：
+
+| 场景 | 期望行为 |
+|---|---|
+| sidecar 正常启动 | Renderer 通过注入的 local API base 调用 `/api/health` |
+| 端口被占用 | 自动选择可用端口或返回明确 `sidecar_port_unavailable` |
+| sidecar 启动失败 | UI 显示可恢复错误，日志写入本地 system log |
+| sidecar 崩溃 | Electron 记录退出码，允许重启，不丢当前 job snapshot |
+| 应用退出 | sidecar 被正常关闭，避免残留进程 |
+
+#### typed fetch + error envelope 门槛
+
+前端所有 API 调用必须经过 typed fetch wrapper。不得在页面组件内直接散写 `fetch`。
+
+wrapper 的最小职责：
+
+- 自动注入 `request_id`；
+- 统一解析成功响应和 error envelope；
+- 将 `recoverable`、`fallback_reason`、`capability_status` 映射给 Toast / Banner / Error Boundary；
+- 对 SSE 断线提供 job snapshot 恢复入口；
+- 只在幂等 GET / snapshot 查询上做 retry，禁止对写接口默认重试。
+
+#### sqlite-vec 三态一致性门槛
+
+sqlite-vec capability probe 必须在四处表达一致：
+
+1. `/api/system/status`；
+2. Provider capability summary；
+3. VectorStoreService 当前模式；
+4. Query Explanation / Citation Trace 中的检索路径说明。
+
+若 probe 为 `degraded` 或 `unavailable`，系统仍要写入 `embeddings` 表和 embedding profile 信息，但不得把 fallback ranking 描述为真实 vector search。
+
+#### Evidence-first 不变量
+
+P0-Z0a 任何回答都必须满足：
+
+- 先写 `retrieval_log`；
+- 再写 `evidence_pack`；
+- 再写 `evidence_items`；
+- 再生成 `citation_trace_summary` 和 `query_explanation`；
+- 最后才写 `ai_answer(output_type=evidence_only_answer)`。
+
+如果任一 evidence step 失败，应返回 evidence error，不得生成看似来自知识库的无来源回答。
 
 ---
 
