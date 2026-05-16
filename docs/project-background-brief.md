@@ -1,8 +1,8 @@
 # 项目背景说明书
 
-版本：v0.4
+版本：v0.5
 日期：2026-05-17  
-状态：供后续 Agent 快速接手使用的项目背景入口；已同步 D-090 技术栈执行优化口径、D-091 工程化验收门槛与 D-092 代码骨架前置契约；不替代 `README.md`、`docs/product-architecture.md`、`docs/data-model.md` 或 `docs/p0a-execution-plan.md`
+状态：供后续 Agent 快速接手使用的项目背景入口；已同步 D-090 技术栈执行优化口径、D-091 工程化验收门槛、D-092 代码骨架前置契约与 D-093 桌面运行时硬化；不替代 `README.md`、`docs/product-architecture.md`、`docs/data-model.md` 或 `docs/p0a-execution-plan.md`
 
 ## 1. 本说明书的用途
 
@@ -561,8 +561,8 @@ P0-Z0a 必须在 LLM 缺失时仍能完成：
 
 - `docs/data-model.md` v0.20-draft 的 P0-Z0a migration 对象、trace chain 和 Evidence Pack 失败态已冻结；
 - `docs/api-design.md` v0.18-draft 的 Z0a / Z2 endpoint 边界没有扩大；
-- `docs/api-implementation-plan.md` v0.18-draft 的 service / repository / transaction 边界、OpenAPI 类型生成、trace chain 和 migration 波次命名清楚；
-- `docs/technical-stack-and-prototype-plan.md` v0.21 的 D-091 工程化验收门槛与 D-092 代码骨架前置契约已进入开工约束；
-- `docs/testing-strategy.md` v0.19 的 Z0a fixture、D-090 技术栈执行优化测试口径、D-091 工程化 gate 和 D-092 前置契约测试已能转成合同测试；
-- `docs/p0a-execution-plan.md` v0.19 的 W1 / W2 任务、依赖分组、Zustand 状态、typed fetch、sidecar lifecycle、sqlite-vec capability probe、Provider manifest / lazy-load、OpenAPI 类型生成、trace chain、migration 波次命名和 File Inspection 分层可被拆成实际工程任务；
+- `docs/api-implementation-plan.md` v0.19-draft 的 service / repository / transaction 边界、OpenAPI 类型生成、trace chain、migration 波次命名和桌面运行时 API 约束清楚；
+- `docs/technical-stack-and-prototype-plan.md` v0.22 的 D-091 工程化验收门槛、D-092 代码骨架前置契约与 D-093 桌面运行时硬化已进入开工约束；
+- `docs/testing-strategy.md` v0.20 的 Z0a fixture、D-090 技术栈执行优化测试口径、D-091 工程化 gate、D-092 前置契约测试和 D-093 桌面运行时硬化测试已能转成合同测试；
+- `docs/p0a-execution-plan.md` v0.20 的 W1 / W2 任务、依赖分组、Zustand 状态、typed fetch、sidecar lifecycle、sqlite-vec capability probe、Provider manifest / lazy-load、OpenAPI 类型生成、trace chain、migration 波次命名、local session token、SQLite 数据保护、worker heartbeat、runtime status bar 和 File Inspection 分层可被拆成实际工程任务；
 - README、开发计划和进度记录与真实实现保持一致。

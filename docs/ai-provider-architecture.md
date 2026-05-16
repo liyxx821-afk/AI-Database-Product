@@ -1,8 +1,8 @@
 # AI Provider 架构
 
-版本：v0.13
+版本：v0.14
 日期：2026-05-17  
-状态：P0 开源优先能力注册中心 + Provider 类型边界 + File Inspection capability + 切片前准备 / 结构恢复 capability + Chunking capability + 切片执行 profile adapter 边界 + AI 结构化整理 profile 边界 + D-079 子能力收敛 + D-082 InvocationProfileSchema v1 / D-083 feedback_policy 边界 + Provider fallback 契约 + capability API 对齐 + D-092 Provider manifest
+状态：P0 开源优先能力注册中心 + Provider 类型边界 + File Inspection capability + 切片前准备 / 结构恢复 capability + Chunking capability + 切片执行 profile adapter 边界 + AI 结构化整理 profile 边界 + D-079 子能力收敛 + D-082 InvocationProfileSchema v1 / D-083 feedback_policy 边界 + Provider fallback 契约 + capability API 对齐 + D-092 Provider manifest + D-093 Provider 能力面板
 
 ## 1. 文档目的
 
@@ -104,6 +104,8 @@ default_enabled:
 disable_reason:
 fallback_provider_key:
 user_visible:
+network_required:
+api_key_required:
 ```
 
 约束：
@@ -113,6 +115,27 @@ user_visible:
 - `import_path` 只能由 ProviderRegistry probe 使用，业务 service 不直接导入；
 - `fallback_provider_key` 必须指向 `system_rules`、`mock_fixed_384` 或 evidence-only 等已登记 fallback；
 - `user_visible=false` 的 mock / system provider 不作为真实 AI 能力对用户承诺。
+- `network_required` 与 `api_key_required` 必须进入 Settings 展示和诊断摘要。
+
+### 2.8 D-093 Provider 能力面板
+
+Provider manifest 同时服务运行时路由和桌面 Settings UI。P0 Settings → AI Providers 至少展示：
+
+| 字段 | UI 用途 |
+|---|---|
+| capability | 说明该 provider 影响 parser / embedding / rerank / answer 等哪类能力 |
+| capability_status | 显示 available / fallback / unavailable / disabled / error |
+| provider_type | 区分 system / local_adapter / mock / commercial |
+| network_required | 明确是否会联网 |
+| api_key_required | 明确是否需要系统 Keychain 中的 API Key |
+| fallback_provider_key | 告知用户当前降级到哪个能力 |
+| disable_reason / load_error_class | 帮助用户理解缺依赖或禁用原因 |
+
+约束：
+
+- `mock` 和 `system` provider 可以出现在诊断摘要中，但不能在 UI 中被包装成真实 AI 模型；
+- commercial provider 默认 disabled，用户显式配置 Keychain 后才可用；
+- 诊断包只导出 provider status、fallback 和错误类型，不导出 API Key、prompt、用户原文或完整本地路径。
 
 ---
 

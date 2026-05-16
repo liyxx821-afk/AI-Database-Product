@@ -1,8 +1,8 @@
 # 测试与评估策略
 
-版本：v0.19
+版本：v0.20
 日期：2026-05-17  
-状态：完整 P0 入库、P0-Z0a/Z0b 竖切、ProcessingJob、File Inspection、切片前准备层、结构化整理检查门、知识切片质量闭环、安全运维横切层、检查门映射单一来源、事件枚举单一来源、切片执行 profile fixture、AI 结构化整理 profile 与 D-079 存储映射 fixture、D-080 知识调用 / implicit_agent / D-081-D085 调用边界、profile schema、反馈策略与前端状态 fixture、向量检索与 RAG 验收策略 + provider fallback fixture + D-090 技术栈执行优化测试口径 + D-091 工程化验收门槛 + D-092 代码骨架前置契约测试口径
+状态：完整 P0 入库、P0-Z0a/Z0b 竖切、ProcessingJob、File Inspection、切片前准备层、结构化整理检查门、知识切片质量闭环、安全运维横切层、检查门映射单一来源、事件枚举单一来源、切片执行 profile fixture、AI 结构化整理 profile 与 D-079 存储映射 fixture、D-080 知识调用 / implicit_agent / D-081-D085 调用边界、profile schema、反馈策略与前端状态 fixture、向量检索与 RAG 验收策略 + provider fallback fixture + D-090 技术栈执行优化测试口径 + D-091 工程化验收门槛 + D-092 代码骨架前置契约测试口径 + D-093 桌面运行时硬化测试口径
 
 ## 1. 文档目的
 
@@ -126,6 +126,19 @@ D-092 后，首批工程还必须补充以下测试：
 - SQLite 性能基线测试：1K / 10K KU fixture 下记录 FTS5、metadata filter、fallback ranking 和 Evidence Pack 组装耗时。
 - Zustand store slice 测试：workspace / job / review / retrieval / citation 五个 slice 独立可测，React Context 不承载跨域任务状态。
 - Evidence failure type 测试：覆盖 `no_retrieval_result / insufficient_evidence / permission_blocked / citation_binding_failed / vector_degraded`，失败时不得写 `ai_answer`。
+
+### 2.8 D-093 桌面运行时硬化测试口径
+
+D-093 后，首批桌面工程必须补充以下测试：
+
+- Sidecar local auth 测试：无 `X-Local-Session-Token`、错误 token、重启后的旧 token 都被拒绝；正确 token 可通过 health 和业务 API。
+- 绑定地址测试：sidecar 只监听 `127.0.0.1`；不得监听 `0.0.0.0`。
+- Main/preload 注入测试：Renderer 页面不能硬编码 API base 或裸 `fetch("http://localhost")`；typed fetch wrapper 统一注入 token 与 `trace_id`。
+- SQLite 数据保护测试：WAL、busy_timeout、foreign_keys、quick_check、migration lock、pre-migration backup 均可验证；模拟损坏库时返回 `database_integrity_failed` 并进入只读恢复。
+- Worker isolation 测试：长任务进入 ProcessingJob + worker；worker crash 后 health 仍返回 sidecar 存活，并给出 `worker_unavailable` 或 recoverable job 状态。
+- Runtime status bar 测试：sidecar、DB、worker、provider、job 五类状态能从系统状态 API 映射到 UI。
+- Provider settings panel 测试：manifest 中 `user_visible / provider_type / fallback_provider_key / network_required / api_key_required` 能正确展示；mock/system 不显示为真实 AI 能力。
+- 最小诊断包测试：导出的诊断包包含脱敏日志、provider status、recent jobs、system status；不得包含 API Key、用户原文、数据库文件或完整私密路径。
 
 ---
 

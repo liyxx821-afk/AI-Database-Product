@@ -1,14 +1,14 @@
 # 桌面应用架构
 
-版本：v0.4
+版本：v0.5
 日期：2026-05-17
-状态：已同步完整 P0 入库、文件处理、开源优先 AI、P0-RAG 桌面边界与 D-092 sidecar 打包验证 spike
+状态：已同步完整 P0 入库、文件处理、开源优先 AI、P0-RAG 桌面边界、D-092 sidecar 打包验证 spike 与 D-093 桌面运行时硬化
 
 ## 1. 文档目的
 
 本文档解决一个核心问题：
 
-> 产品定位为桌面软件，但当前技术架构（React + FastAPI + PostgreSQL）是标准 Web 客户端-服务器模式。如何让 P0 产出一个用户可以双击启动的桌面应用，而不是需要手动启动多个服务的开发环境？
+> 产品定位为桌面软件，当前技术架构是 React + FastAPI sidecar + SQLite 本地数据库。如何让 P0 产出一个用户可以双击启动的桌面应用，而不是需要手动启动多个服务的开发环境？
 
 本文档定义：
 
@@ -164,6 +164,29 @@ Electron main
 - 应用退出时 sidecar 被清理，不残留后台进程；
 - 本 spike 不要求正式签名、自动更新、完整安装器或正式品牌资源。
 
+### 3.6 D-093 Sidecar 本地安全通信
+
+P0 虽然只在本机运行，但 `localhost` 端口仍可能被其他本机进程访问。D-093 要求 sidecar 通信增加本地会话保护：
+
+```text
+Electron Main
+→ 选择 127.0.0.1 dynamic_port
+→ 生成 local_session_token
+→ spawn FastAPI sidecar，并通过环境变量或启动参数传入 token
+→ health check 使用 token
+→ preload 暴露 api base 和受控请求能力
+→ typed fetch wrapper 注入 X-Local-Session-Token / X-Trace-Id
+```
+
+约束：
+
+- sidecar 只绑定 `127.0.0.1`，不监听 `0.0.0.0` 或局域网地址；
+- Renderer 不保存长期 token，不硬编码端口；
+- token 只在当前应用会话有效，sidecar 重启后轮换；
+- token 不进入日志、诊断包、崩溃报告或持久配置；
+- FastAPI middleware 对缺失、错误或过期 token 返回 `sidecar_auth_failed`；
+- 端口冲突、sidecar 启动失败和 token 校验失败必须进入主进程状态栏与诊断报告。
+
 ---
 
 ## 4. 数据库部署：SQLite
@@ -230,6 +253,28 @@ Linux:   ~/.config/KnowledgeBase/
 
 用户可以在设置中自定义数据目录。
 
+### 4.5 D-093 SQLite 数据保护
+
+桌面软件的核心风险不是并发量，而是本地用户数据损坏、迁移失败或路径混乱。P0-Z0a 数据库初始化必须包含：
+
+| 保护项 | P0 要求 |
+|---|---|
+| WAL | 启动后设置 `PRAGMA journal_mode=WAL` |
+| busy timeout | 设置 `PRAGMA busy_timeout`，避免短暂写锁直接变成失败 |
+| foreign keys | 设置 `PRAGMA foreign_keys=ON` |
+| user_version | 使用 SQLite `user_version` 或 migration table 对齐 Alembic revision |
+| integrity check | 启动时执行轻量 `PRAGMA quick_check`；失败进入只读恢复状态 |
+| migration lock | migration / restore 期间禁止业务写入，API 返回 `migration_in_progress` |
+| pre-migration backup | migration / restore 前复制 `.db`、`.db-wal`、`.db-shm` 到 `backups/` |
+| single writer | 写入型重任务通过 `local_sqlite_worker` 串行化 |
+
+数据目录规则：
+
+- 数据库、WAL、上传缓存、source 文件、preview、backup 和日志只写入 app data dir；
+- packaged app 不得写入源码目录或应用安装目录；
+- 数据目录迁移必须先完成备份，再切换配置；
+- 如果完整恢复失败，必须保留原目录并给出 `data_dir_move_failed` 或 `database_integrity_failed`。
+
 ---
 
 ## 5. 前后端通信
@@ -240,7 +285,9 @@ Renderer Process 通过 **localhost HTTP** 连接 FastAPI sidecar：
 
 ```text
 Renderer (React)
-  → fetch('http://localhost:{dynamic_port}/api/...')
+  → typed fetch wrapper
+  → http://127.0.0.1:{dynamic_port}/api/...
+  → headers: X-Local-Session-Token / X-Trace-Id
   → FastAPI sidecar 处理
   → 返回 JSON 响应
 ```
@@ -248,7 +295,8 @@ Renderer (React)
 端口分配：
 
 - Sidecar 启动时动态选择可用端口
-- Main Process 通过 IPC 将端口号传递给 Renderer
+- Main Process 通过 secure preload 将 API base 与本地会话 token 注入 Renderer
+- 页面组件不得直接拼接 URL 或调用裸 `fetch`
 
 ### 5.2 Electron IPC 使用场景
 

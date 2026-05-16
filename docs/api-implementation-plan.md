@@ -1,8 +1,8 @@
 # API Route-Level 实施计划
 
-版本：v0.18-draft
+版本：v0.19-draft
 日期：2026-05-17  
-状态：P0 API 实施映射草案——四切片 + P0-Z0a/Z0b 竖切 + 切片前准备层 / 结构化整理检查门 / 知识切片质量闭环 / 安全运维横切层 / 检查门映射单一来源 / 事件枚举单一来源 / ProcessingJob / sensitive grant / evidence-only / 切片执行 profile / AI 结构化整理 profile / D-079 存储映射契约对齐 / D-080 知识调用 profile 与 implicit_agent / D-081-D085 调用边界、profile schema、Z0a 锚点与前端状态契约对齐 / D-092 OpenAPI 类型生成、trace chain 与 migration 波次命名
+状态：P0 API 实施映射草案——四切片 + P0-Z0a/Z0b 竖切 + 切片前准备层 / 结构化整理检查门 / 知识切片质量闭环 / 安全运维横切层 / 检查门映射单一来源 / 事件枚举单一来源 / ProcessingJob / sensitive grant / evidence-only / 切片执行 profile / AI 结构化整理 profile / D-079 存储映射契约对齐 / D-080 知识调用 profile 与 implicit_agent / D-081-D085 调用边界、profile schema、Z0a 锚点与前端状态契约对齐 / D-092 OpenAPI 类型生成、trace chain 与 migration 波次命名 / D-093 桌面运行时 API 约束
 
 ## 1. 文档目的
 
@@ -72,6 +72,18 @@ D-092 后，API 层还必须满足以下工程约束：
 - typed fetch wrapper 只能消费生成的 TypeScript API types，不允许页面组件手写长期 DTO。
 - 所有请求进入 API 层时生成或继承 `trace_id`，并把 `trace_id` 传递给 ProcessingJob、SSE event、retrieval log、Evidence Pack 和 AIAnswer。
 - Alembic migration 文件名必须携带 `z0a / z0b / z1 / z2` 波次；Z0a migration 不得创建 P0-Z1/Z2 后置对象。
+
+### 2.3 D-093：桌面运行时 API 约束
+
+D-093 后，API 层必须显式支持桌面软件运行形态：
+
+- FastAPI sidecar 只绑定 `127.0.0.1`，并通过 middleware 校验 `X-Local-Session-Token`；
+- `X-Trace-Id` 由 typed fetch wrapper 注入，API middleware 负责补齐缺失值并写入日志上下文；
+- API response 不返回 local session token，不在 error `details` 暴露完整本地路径；
+- `GET /api/health` 必须区分 `sidecar_starting / ready / degraded`，并包含 DB、worker、provider manifest 的摘要状态；
+- migration / restore / backup 期间写接口返回 `migration_in_progress` 或 `backup_in_progress`，不得部分写入；
+- `local_sqlite_worker` 失去 heartbeat 时，长任务接口返回 `worker_unavailable`，但 health endpoint 仍可说明 sidecar 存活；
+- 诊断导出接口只导出脱敏后的 runtime summary、provider status、recent jobs 和日志，不包含 DB 文件、API Key、用户原文或完整私密路径。
 
 ---
 

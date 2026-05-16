@@ -1,5 +1,24 @@
 # 进度记录
 
+## 2026-05-17（D-093 桌面运行时硬化）
+
+### 已完成
+
+- `docs/technical-stack-and-prototype-plan.md` 升级为 v0.22，新增 D-093 桌面运行时硬化。
+- `docs/desktop-architecture.md` 升级为 v0.5，补齐 sidecar 本地会话 token、`127.0.0.1` 绑定、SQLite WAL / quick_check / pre-migration backup 和 Main 注入式 API 配置。
+- `docs/p0a-execution-plan.md` 升级为 v0.20，将 sidecar local auth、Main-injected API config、SQLite data safety、worker isolation、runtime status bar、Provider settings panel 和最小诊断包写入 W1/W2 gate。
+- `docs/testing-strategy.md` 升级为 v0.20，补充 D-093 对 sidecar token、绑定地址、preload 注入、SQLite 数据保护、worker heartbeat、状态栏、Provider 面板和诊断包的测试口径。
+- `docs/api-implementation-plan.md` 升级为 v0.19-draft，补充 D-093 桌面运行时 API 约束。
+- `docs/error-handling-and-observability.md` 升级为 v0.8，新增 `sidecar_auth_failed`、`database_integrity_failed` 和 `worker_unavailable`。
+- `docs/ai-provider-architecture.md` 升级为 v0.14，补充 Provider 能力面板与 `network_required / api_key_required` manifest 字段。
+- `docs/project-background-brief.md` 升级为 v0.5；README 与 `docs/development-plan.md` 已同步 D-093。
+
+### 验收
+
+- 本轮仍为文档-only：未新增运行时代码、migration、OpenAPI 文件、endpoint 或依赖。
+- D-093 不改变当前技术栈选择：仍为 Electron + React + Vite + TypeScript、FastAPI sidecar、SQLite + sqlite-vec、local filesystem、local_sqlite_worker、SSE、ProviderRegistry 和 evidence-only fallback。
+- 新增契约用于防止后续工程只在开发态运行：必须验证本地端口安全、打包态路径、数据库保护、后台任务隔离、桌面状态可见性和脱敏诊断。
+
 ## 2026-05-17（D-092 代码骨架前置契约优化）
 
 ### 已完成

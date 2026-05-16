@@ -1,8 +1,8 @@
 # 技术栈与 P0 原型实施计划
 
-版本：v0.21
+版本：v0.22
 日期：2026-05-17  
-状态：已同步——完整 P0 四切片 + P0-Z0a/Z0b 竖切 + ProcessingJob + 切片前准备层 / 结构化整理检查门 + 知识切片质量闭环 + 安全运维横切层 + 技术选型矩阵 + Provider capability 契约收紧 + 切片执行 profile + AI 结构化整理 profile + D-079 存储映射 + D-080 知识调用 / implicit_agent / D-081-D085 调用 schema、反馈策略与前端系统技术矩阵 + D-088 README 对齐后的技术栈优化 + D-090 技术栈执行优化 + D-091 技术栈工程化验收门槛 + D-092 代码骨架前置契约优化
+状态：已同步——完整 P0 四切片 + P0-Z0a/Z0b 竖切 + ProcessingJob + 切片前准备层 / 结构化整理检查门 + 知识切片质量闭环 + 安全运维横切层 + 技术选型矩阵 + Provider capability 契约收紧 + 切片执行 profile + AI 结构化整理 profile + D-079 存储映射 + D-080 知识调用 / implicit_agent / D-081-D085 调用 schema、反馈策略与前端系统技术矩阵 + D-088 README 对齐后的技术栈优化 + D-090 技术栈执行优化 + D-091 技术栈工程化验收门槛 + D-092 代码骨架前置契约优化 + D-093 桌面运行时硬化
 
 ## 1. 文档目的
 
@@ -530,6 +530,112 @@ Evidence-first 不变量需要更细的失败类型。P0-Z0a 至少区分：
 | `vector_degraded` | sqlite-vec 不可用，仅使用 fallback ranking |
 
 这些失败态必须进入 Query Explanation、前端 citation panel 和测试 fixture。失败时不得生成无来源回答。
+
+### 2.6 桌面运行时硬化（D-093）
+
+D-093 不改变 Electron + React + Vite + TypeScript、FastAPI sidecar、SQLite + sqlite-vec 的技术栈选择，而是把“电脑软件真实运行时”前置为 W1/W2 阻塞契约。
+
+#### Sidecar 本地安全通信
+
+Renderer 不得直接假设 `localhost` 等于可信边界。P0 sidecar 必须只监听 `127.0.0.1`，并由 Electron Main 在启动时生成一次性本地会话 token。
+
+运行链路：
+
+```text
+Electron Main
+→ 选择 dynamic_port
+→ 生成 local_session_token
+→ 启动 FastAPI sidecar
+→ health check 携带 token
+→ preload 只暴露 api_base + token handle
+→ typed fetch 注入 X-Local-Session-Token 与 X-Trace-Id
+```
+
+约束：
+
+- Renderer 不硬编码端口、token 或 API base；
+- token 不写入日志、诊断包或持久配置；
+- FastAPI middleware 拒绝缺失或错误 token 的请求；
+- CORS 只允许应用自身来源，不能开放任意本机页面；
+- sidecar 重启后 token 必须轮换，旧 token 失效。
+
+#### SQLite 桌面数据保护
+
+P0-Z0a 的数据库初始化必须包含桌面级保护，而不是只建表：
+
+| 项 | 要求 |
+|---|---|
+| WAL | 启用 `PRAGMA journal_mode=WAL` |
+| busy timeout | 设置 `PRAGMA busy_timeout`，避免前端误判短暂写锁为崩溃 |
+| foreign keys | 启用 `PRAGMA foreign_keys=ON` |
+| migration lock | migration 期间禁止业务写入，返回 `migration_in_progress` |
+| auto backup | migration / restore 前自动备份 `.db`、`.db-wal`、`.db-shm` |
+| integrity check | 启动时执行轻量 integrity check，失败进入只读恢复提示 |
+| single writer | 重写入任务通过 `local_sqlite_worker` 串行化 |
+
+本地数据目录必须和源码目录分离；任何日志、数据库、上传缓存、preview、backup 都写入 app data dir。
+
+#### Main 注入式 Typed API
+
+D-092 已要求 OpenAPI → TypeScript 类型生成。D-093 进一步要求 API 配置只能由 Electron Main / preload 注入：
+
+```text
+Main runtime config
+→ secure preload bridge
+→ typed fetch wrapper
+→ page components
+```
+
+页面组件只能使用 typed fetch wrapper 或领域 service hook，不得出现裸 `fetch("http://localhost...")`。
+
+#### 重任务隔离
+
+FastAPI route 只负责校验、创建 job snapshot 和返回状态；解析、chunk、embedding、index rebuild、RAG evidence build 等任务由 worker 执行。
+
+P0-Z0a 必须覆盖：
+
+- job 取消；
+- recoverable retry；
+- worker heartbeat；
+- crash 后 active job 恢复；
+- SSE event 与 job snapshot 对齐；
+- 任务失败不阻塞 sidecar health。
+
+#### 桌面工作台 Shell
+
+P0 首屏必须是 Knowledge Workspace，不是网页式 landing page 或纯聊天页。最小 shell：
+
+```text
+左侧：space / folder / tag / source navigation
+中间：source / knowledge unit / review workspace
+右侧：citation / query explanation / provider status panel
+底部：sidecar / DB / worker / provider / job status bar
+设置：data directory / backup / diagnostics / AI providers
+```
+
+#### Provider 能力面板
+
+Provider manifest 不只服务代码，也必须服务 Settings UI：
+
+- 显示 provider 是否可用、禁用、缺依赖或 fallback；
+- 显示是否联网、是否本地运行、是否需要 API Key；
+- 显示当前 fallback provider；
+- `mock` / `system` 不得包装成真实 AI 能力；
+- 禁止在日志和诊断包中包含 API Key 或用户原文。
+
+#### 最小诊断包
+
+P0-Z0a 应先实现最小诊断导出，不等完整 P0：
+
+| 文件 | 内容 |
+|---|---|
+| `system-status.json` | app version、platform、data dir hash、sidecar status、DB status |
+| `provider-status.json` | manifest capability、fallback、load error class |
+| `recent-jobs.json` | 最近 job snapshot 与 event summary |
+| `logs/main.log` | 脱敏后的 Electron Main 日志 |
+| `logs/sidecar.log` | 脱敏后的 sidecar 日志 |
+
+诊断包不得包含 API Key、用户原文、未脱敏本地路径或数据库文件。
 
 ---
 

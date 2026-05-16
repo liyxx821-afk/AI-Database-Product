@@ -1,8 +1,8 @@
 # 错误处理与可观测性
 
-版本：v0.7
+版本：v0.8
 日期：2026-05-17  
-状态：P0 错误码 + UI 消息 + 诊断报告 + 日志策略草案 + File Inspection 错误码 + 知识切片质量事件 + 安全运维横切层 + D-083 feedback_policy / FrontendStateContract + 事件枚举单一来源 + API envelope 单一来源 + D-092 trace chain
+状态：P0 错误码 + UI 消息 + 诊断报告 + 日志策略草案 + File Inspection 错误码 + 知识切片质量事件 + 安全运维横切层 + D-083 feedback_policy / FrontendStateContract + 事件枚举单一来源 + API envelope 单一来源 + D-092 trace chain + D-093 桌面运行时诊断
 
 ## 1. 文档目的
 
@@ -116,14 +116,14 @@ trace_id
 | HTTP | 含义 | 典型业务码 |
 |---|---|---|
 | 400 | 请求字段不合法 | validation_error / invalid_permission_value |
-| 401 | 未授权 | unauthorized（P1） |
+| 401 | 未授权 | unauthorized（P1） / sidecar_auth_failed |
 | 403 | 权限不足 | permission_denied / agent_call_not_allowed / api_key_must_use_ipc |
 | 404 | 对象不存在 | not_found |
 | 409 | 资源冲突 | duplicate_resource / review_required |
 | 422 | 业务规则不满足 | unsupported_source_origin / mock_only / agent_not_supported_in_p0 / provider_capability_unavailable |
 | 429 | 限流 | rate_limited（P1） |
 | 500 | 服务端异常 | internal_error |
-| 503 | 暂不可用 | migration_in_progress / backup_in_progress / database_busy / ai_provider_unavailable / data_dir_move_failed |
+| 503 | 暂不可用 | migration_in_progress / backup_in_progress / database_busy / database_integrity_failed / worker_unavailable / ai_provider_unavailable / data_dir_move_failed |
 
 ### 3.3 错误码命名规范
 
@@ -170,14 +170,17 @@ file_quarantined
 ```text
 internal_error
 database_busy
+database_integrity_failed
 migration_in_progress
 backup_in_progress
 ai_provider_unavailable
 data_dir_move_failed
 agent_not_supported_in_p0
 api_key_must_use_ipc
+sidecar_auth_failed
 sidecar_unreachable          # 仅 Renderer / Main 层使用
 sidecar_starting             # 启动期间所有业务请求降级该码
+worker_unavailable
 ```
 
 Renderer / Main 层（不走 HTTP，但纳入诊断报告）：
@@ -191,6 +194,16 @@ file_read_error
 file_write_error
 unsupported_platform
 ```
+
+### 4.1 D-093 桌面运行时错误
+
+| 错误码 | 来源 | UI 行为 |
+|---|---|---|
+| `sidecar_auth_failed` | FastAPI middleware 校验本地会话 token 失败 | 阻断请求，提示重启 sidecar；写入主进程日志 |
+| `database_integrity_failed` | 启动 quick check 或 migration 前检查失败 | 进入只读恢复提示，禁止继续写入 |
+| `worker_unavailable` | `local_sqlite_worker` 心跳丢失或无法接管任务 | 状态栏显示任务系统异常，允许导出诊断报告 |
+
+这些错误不得把 local token、数据库完整路径或用户原文写入 `details`。
 
 ---
 

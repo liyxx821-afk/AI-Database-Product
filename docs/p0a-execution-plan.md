@@ -1,8 +1,8 @@
 # P0 执行计划
 
-版本：v0.19
+版本：v0.20
 日期：2026-05-17  
-状态：已升级为 P0-Core / P0-File / P0-AI / P0-RAG 完整执行计划 + P0-Z0a/Z0b 竖切 / ProcessingJob / File Inspection / 切片前准备层 / 结构化整理检查门 / 知识切片质量闭环 / 安全运维横切层 / 检查门映射契约细化 / 切片执行 profile 收敛 / AI 结构化整理 profile 与 D-079 存储映射收敛 / D-080 知识调用 profile 与前端状态契约收敛 / D-081-D085 实现前边界修正 / D-090 技术栈执行优化 / D-091 技术栈工程化验收门槛 / D-092 代码骨架前置契约优化
+状态：已升级为 P0-Core / P0-File / P0-AI / P0-RAG 完整执行计划 + P0-Z0a/Z0b 竖切 / ProcessingJob / File Inspection / 切片前准备层 / 结构化整理检查门 / 知识切片质量闭环 / 安全运维横切层 / 检查门映射契约细化 / 切片执行 profile 收敛 / AI 结构化整理 profile 与 D-079 存储映射收敛 / D-080 知识调用 profile 与前端状态契约收敛 / D-081-D085 实现前边界修正 / D-090 技术栈执行优化 / D-091 技术栈工程化验收门槛 / D-092 代码骨架前置契约优化 / D-093 桌面运行时硬化
 
 ## 1. 文档目的
 
@@ -29,7 +29,7 @@ P0 当前不是轻量建库闭环，而是完整入库与知识处理平台：
 - [ ] `docs/mvp-scope.md` v0.13 已确认 P0 四切片与 P0-Z0a / Z0b / Z1 / Z2 波次、D-080 调用/Agent/前端边界。
 - [ ] `docs/data-model.md` v0.20-draft 已确认 P0-Z0a blocking 对象、Z0b 补齐对象、检查门映射、事件枚举单一来源、切片前准备、chunk quality/source metadata、`chunk_execution_profile`、`structured_organization`、D-079 存储映射、D-080 profile、D-081/D-082/D-083/D-085 调用边界、D-092 trace chain / Evidence Pack 失败态与 Provider capability/fallback 元数据。
 - [ ] `docs/api-design.md` v0.18-draft 已确认 Upload / File / Job Events / Parse / Chunk Build / KU Extract / Retrieval / RAG / System Status API、ProcessingJob、sensitive grant、provider capability status、chunk summary 执行 profile、D-079 structuring summary 与 D-080-D085 query/ranking/citation/feedback 响应。
-- [ ] `docs/api-implementation-plan.md` v0.18-draft 已确认 route-service-repository 映射、`ChunkBuildService` 执行 profile、`KnowledgeExtractionService` 结构化整理 profile、D-079 review payload 边界、D-080-D085 RetrievalPreview / Evidence / RAG 实施边界与 D-092 OpenAPI 类型生成 / trace chain / migration 波次命名。
+- [ ] `docs/api-implementation-plan.md` v0.19-draft 已确认 route-service-repository 映射、`ChunkBuildService` 执行 profile、`KnowledgeExtractionService` 结构化整理 profile、D-079 review payload 边界、D-080-D085 RetrievalPreview / Evidence / RAG 实施边界、D-092 OpenAPI 类型生成 / trace chain / migration 波次命名与 D-093 桌面运行时 API 约束。
 - [ ] `docs/rag-pipeline.md` v0.8-draft 已确认 RAG answer / evidence-only fallback、Evidence Pack 失败态、chunk quality 风险展示与 D-080-D085 调用路由。
 
 ### 2.2 技术决策
@@ -52,6 +52,7 @@ P0 当前不是轻量建库闭环，而是完整入库与知识处理平台：
 - [ ] 前端：Electron + React + Vite + TypeScript + Zustand；状态默认 SSE、Toast、Error Boundary、Loading Skeleton、Auth Guard。
 - [ ] 工程化门槛：W1 必须具备最小依赖 CI gate、optional provider 延迟加载、typed fetch wrapper、sidecar 生命周期验证、sqlite-vec 三态一致性和 evidence-first smoke。
 - [ ] 代码骨架前置契约：W1 必须冻结 OpenAPI → TypeScript 类型生成、Provider manifest、trace chain、migration 波次命名、SQLite 性能基线脚本、Zustand store slices 和 Evidence Pack 失败态。
+- [ ] 桌面运行时硬化：W1 必须验证 local session token、127.0.0.1 sidecar 绑定、SQLite WAL / backup / integrity check、worker heartbeat、状态栏 runtime summary 和最小诊断包。
 
 ### 2.3 产品命名与本地数据目录
 
@@ -137,6 +138,20 @@ D-092 要求代码骨架创建前先冻结以下契约：
 | SQLite 性能基线 | `pnpm bench:sqlite` 或等价脚本 | 1K / 10K KU 检索与 Evidence Pack 组装有可重复结果 |
 | Zustand store slices | `workspaceStore / jobStore / reviewStore / retrievalStore / citationStore` | 页面不临时创建跨域大状态 |
 | Evidence failure types | `no_retrieval_result / insufficient_evidence / permission_blocked / citation_binding_failed / vector_degraded` | 失败时返回解释，不写无来源 answer |
+
+### 3.0.4 D-093 桌面运行时硬化
+
+D-093 要求 W1/W2 不只跑通开发态功能，还必须证明桌面软件运行边界真实成立：
+
+| Gate | 必须证明 | 不允许 |
+|---|---|---|
+| Sidecar local auth | sidecar 只绑定 `127.0.0.1`，请求必须携带本地会话 token | Renderer 裸连 localhost 或端口/token 硬编码 |
+| Main-injected API config | API base、token、trace 注入都由 Main/preload 控制 | 页面组件拼 URL 或读取持久 token |
+| SQLite data safety | WAL、busy_timeout、foreign_keys、quick_check、pre-migration backup 启用 | migration 失败后无法恢复或写入源码目录 |
+| Worker isolation | 长任务通过 job + worker 执行，health 不被重任务阻塞 | API route 同步执行 OCR/embedding/index rebuild |
+| Runtime status bar | sidecar / DB / worker / provider / job 状态可见 | 用户看到空白页但不知道哪层失败 |
+| Provider settings panel | manifest 状态、联网属性、fallback 和 API Key 需求可见 | mock/system 被包装成真实 AI 能力 |
+| Minimal diagnostics | 可导出脱敏 logs、provider status、recent jobs、system status | 诊断包包含 API Key、原文、DB 或完整私密路径 |
 
 ### 3.1 P0 默认工具落地
 
