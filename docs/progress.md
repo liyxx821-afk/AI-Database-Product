@@ -1,5 +1,26 @@
 # 进度记录
 
+## 2026-05-17（D-092 代码骨架前置契约优化）
+
+### 已完成
+
+- `docs/technical-stack-and-prototype-plan.md` 升级为 v0.21，新增 D-092 代码骨架前置契约。
+- `docs/p0a-execution-plan.md` 升级为 v0.19，将 OpenAPI → TypeScript 类型生成、Provider manifest、trace chain、migration 波次命名、SQLite 1K/10K 性能基线、Zustand store slices 和 Evidence Pack 失败态写入开工 Checklist、W1/W5 任务与验收。
+- `docs/testing-strategy.md` 升级为 v0.19，补充 D-092 对类型生成、sidecar 打包 spike、Provider manifest、trace chain、migration 命名、SQLite baseline、Zustand slices 和 evidence failure 的测试口径。
+- `docs/data-model.md` 升级为 v0.20-draft，补齐 `trace_id` 字段映射、ProcessingJob / event / retrieval / Evidence Pack / AIAnswer 链路和 Evidence Pack `failure_type` 约束。
+- `docs/api-implementation-plan.md` 升级为 v0.18-draft，补充 OpenAPI 生成、TypeScript 类型生成、trace chain 和 Alembic migration 波次命名。
+- `docs/desktop-architecture.md` 升级为 v0.4，补充 FastAPI sidecar packaged / pseudo-packaged 验证 spike。
+- `docs/ai-provider-architecture.md` 升级为 v0.13，补充 Provider manifest 字段与 lazy-load 约束。
+- `docs/error-handling-and-observability.md` 升级为 v0.7，补充 `trace_id → request_id → job_id → event_seq → retrieval_log_id → evidence_pack_id → ai_answer_id` 诊断链。
+- `docs/rag-pipeline.md` 升级为 v0.8-draft，补充 Evidence Pack 失败态：`no_retrieval_result / insufficient_evidence / permission_blocked / citation_binding_failed / vector_degraded`。
+- `docs/project-background-brief.md` 升级为 v0.4；README 与 `docs/development-plan.md` 已同步 D-092。
+
+### 验收
+
+- 本轮仍为文档-only：未新增运行时代码、migration、OpenAPI 文件、endpoint 或依赖。
+- D-092 不改变当前技术栈选择：仍为 Electron + React + Vite + TypeScript、FastAPI sidecar、SQLite + sqlite-vec、local filesystem、local_sqlite_worker、SSE、ProviderRegistry 和 evidence-only fallback。
+- 新增契约用于后续真正创建代码骨架时固定 DTO 生成、Provider 装载、trace 诊断、migration 命名、前端状态拆分、性能基线和不可回答失败态，避免跨模块实现漂移。
+
 ## 2026-05-17（D-091 技术栈工程化验收门槛）
 
 ### 已完成

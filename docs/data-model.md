@@ -1,8 +1,8 @@
-# 数据模型 v0.19-draft
+# 数据模型 v0.20-draft
 
-版本：v0.19-draft  
+版本：v0.20-draft
 日期：2026-05-17  
-状态：草案——完整 P0 入库与知识处理平台 + 切片前准备层 / 切片执行 profile / AI 结构化整理 profile / D-079 结构化整理子字段与存储映射 / D-080 知识调用 profile 与隐式 Agent / D-081 调用持久化边界 / D-082 InvocationProfileSchema v1 / D-083 前端状态与反馈策略 / D-085 Z0a 调用锚点、反馈和 citation 边界修正 / 知识切片质量闭环 / 安全运维横切层 / 检查门映射单一来源 / 事件枚举单一来源 / P0-Z0a/Z0b 最小迁移 / ProcessingJob / sensitive grant / evidence-only 契约收紧
+状态：草案——完整 P0 入库与知识处理平台 + 切片前准备层 / 切片执行 profile / AI 结构化整理 profile / D-079 结构化整理子字段与存储映射 / D-080 知识调用 profile 与隐式 Agent / D-081 调用持久化边界 / D-082 InvocationProfileSchema v1 / D-083 前端状态与反馈策略 / D-085 Z0a 调用锚点、反馈和 citation 边界修正 / D-092 trace chain 与 Evidence Pack 失败态 / 知识切片质量闭环 / 安全运维横切层 / 检查门映射单一来源 / 事件枚举单一来源 / P0-Z0a/Z0b 最小迁移 / ProcessingJob / sensitive grant / evidence-only 契约收紧
 
 ## 1. 文档目的
 
@@ -151,6 +151,27 @@ D-080 不新增大表，不改变 P0 SQLite + sqlite-vec + FTS5 主库混合策�
 | `feedback_signal` | `feedback_events`；Z2 可同步到 `retrieval_feedback` | click、favorite、useful、not useful、bad citation、missing source；只影响排序建议，不改 confirmed knowledge |
 | `implicit_agent` | Z0a 写 `ai_answers.metadata_json.agent_context`；Z2 的 `invocation_requests.agent_id` 仍固定 null | P0 只有隐式主 Agent，不创建可配置 Agent 实体 |
 | `frontend_state_contract` | API response summary + `processing_status_events` / `system_logs` | 上传进度、AI 思考、检索失败、无权限、网络异常、空结果、citation 和反馈按钮状态 |
+
+### 2.8.3 D-092 trace chain 与 Evidence failure 映射
+
+D-092 不新增首批平级大表，但要求 P0-Z0a 对象可通过同一 `trace_id` 串联。实现时可以先用结构化字段保存 `trace_id`；若某些 Z0a response-only 对象暂不落库，也必须在 API response 和诊断日志中保留同一链路。
+
+```text
+trace_id
+→ request_id
+→ job_id
+→ event_seq
+→ retrieval_log_id
+→ evidence_pack_id
+→ ai_answer_id
+```
+
+落库规则：
+
+- `processing_jobs` 和 `processing_status_events` 必须可关联到同一 `trace_id`，用于上传、解析、切片、embedding 和 RAG answer 的诊断聚合。
+- `retrieval_logs`、`evidence_packs`、`ai_answers` 建议直接结构化保存 `trace_id`；`request_id` 在 Z0a 可为空或只存在于 response/log summary。
+- Evidence Pack 失败态使用 `evidence_packs.failure_type` 表达：`no_retrieval_result / insufficient_evidence / permission_blocked / citation_binding_failed / vector_degraded`。
+- 除 `vector_degraded` 且证据仍充分的 evidence-only 降级场景外，Evidence Pack 出现不可回答失败态时不得写入 `ai_answers`。
 
 D-082 profile envelope 是所有调用 profile 的最小外壳：
 
@@ -1469,6 +1490,9 @@ relation_suggestion
 | 字段 | 类型建议 | 说明 |
 |---|---|---|
 | id | uuid | Retrieval Log ID |
+| trace_id | uuid/text nullable | D-092 trace chain；与 request、job、Evidence Pack、Answer 和诊断报告对齐 |
+| request_id | uuid nullable | Invocation Request；Z0a response/log summary 可为空 |
+| job_id | uuid nullable | 若本次检索由异步 job 触发，关联 ProcessingJob |
 | user_id | uuid | 用户 |
 | project_id | uuid nullable | 项目 |
 | query | text | 查询文本 |
@@ -1504,6 +1528,7 @@ relation_suggestion
 | 字段 | 类型建议 | 说明 |
 |---|---|---|
 | id | uuid | Job ID |
+| trace_id | uuid/text nullable | D-092 trace chain；同一用户动作链路内保持稳定 |
 | user_id | uuid | 用户 |
 | file_id | uuid nullable | 对应 File；inspect / preview / parse 可先绑定 file |
 | source_id | uuid nullable | 对应 Source；text_import / chunk / extract / embed 可绑定 source |
@@ -1537,6 +1562,7 @@ relation_suggestion
 | 字段 | 类型建议 | 说明 |
 |---|---|---|
 | id | uuid | Event ID |
+| trace_id | uuid/text nullable | D-092 trace chain；可直接保存或通过 job_id 关联同一 trace |
 | event_seq | integer | 同一 job 内单调递增；SSE 使用为 `id:`，客户端用 `Last-Event-ID` 续读 |
 | source_id | uuid nullable | 对应 Source；Source 创建前的 inspect / preview 可为空 |
 | job_id | uuid nullable | 对应 Job |
@@ -1656,6 +1682,7 @@ P0 安全与运维横切层不新增大批表，默认复用 `audit_logs`、`sys
 `system_logs.metadata_json` 的建议 keys：
 
 ```text
+trace_id
 request_id
 route
 duration_ms
@@ -1744,9 +1771,11 @@ P0 不强制完整数据库加密、ClamAV daemon、Docker Sandbox、企业审�
 | 字段 | 类型建议 | 说明 |
 |---|---|---|
 | id | uuid | Evidence Pack ID |
+| trace_id | uuid/text nullable | D-092 trace chain；与 retrieval log / answer / job events 对齐 |
 | retrieval_log_id | uuid nullable | Z0a 可实现锚点；指向本次 retrieval preview / answer 的 `retrieval_logs` |
 | request_id | uuid nullable | Invocation Request；P0-Z0a 无 invocation 持久化时为空 |
 | retrieval_plan_id | uuid nullable | Retrieval Plan；P0-Z0a 无 plan 持久化时为空 |
+| failure_type | text nullable | D-092 Evidence Pack 失败态：no_retrieval_result / insufficient_evidence / permission_blocked / citation_binding_failed / vector_degraded |
 | query_trace | jsonb | 查询轨迹 |
 | ranking_summary | jsonb | 排序摘要 |
 | permission_notes | text[] | 权限说明 |
@@ -1775,6 +1804,7 @@ P0 不强制完整数据库加密、ClamAV daemon、Docker Sandbox、企业审�
 | 字段 | 类型建议 | 说明 |
 |---|---|---|
 | id | uuid | AIAnswer ID |
+| trace_id | uuid/text nullable | D-092 trace chain；与 evidence_pack / retrieval_log / job events 对齐 |
 | retrieval_log_id | uuid nullable | Z0a 可实现锚点；与 evidence pack / retrieval log 对齐 |
 | request_id | uuid nullable | Invocation Request；P0-Z0a 无 invocation 持久化时为空 |
 | evidence_pack_id | uuid nullable | Evidence Pack；P0-Z0a `evidence_only_answer` 必须绑定 |
@@ -1792,6 +1822,7 @@ P0-Z0a 约束：
 - `evidence_only_answer` 必须绑定 `evidence_pack_id`，并优先通过 `retrieval_log_id` 串起 query summary、strategy route、ranking summary 和 citation trace summary。
 - `request_id` / `retrieval_plan_id` 在 P0-Z0a 可为空；P0-Z2 启用 `invocation_requests` / `retrieval_plans` 后再由应用层或迁移约束要求非空。
 - `output_type` 只能是 `evidence_only_answer`，内容由 Evidence Pack、Citation label、Query Explanation 和 evidence gaps 模板化生成，不调用 LLM。
+- 若 Evidence Pack 的 `failure_type` 为 `no_retrieval_result / insufficient_evidence / permission_blocked / citation_binding_failed`，不得写入 `ai_answers`；`vector_degraded` 只有在关键词 / metadata / citation 证据仍充分时才允许生成 `evidence_only_answer`。
 - `rag_answer` 只在 P0-Z2 或 Provider 可用的增强路径中启用，且必须记录 `provider_key`、`provider_version`、`capability_status` 和 fallback 行为。
 
 ### 7.6 answer_citations
@@ -2004,7 +2035,7 @@ ALTER
 
 ## 11. 冻结门槛
 
-本文档目前是 v0.19-draft。在进入首个 **Schema stable** 冻结标签前必须确认：
+本文档目前是 v0.20-draft。在进入首个 **Schema stable** 冻结标签前必须确认：
 
 - P0 四切片：P0-Core / P0-File / P0-AI / P0-RAG。
 - P0-Z0a / P0-Z0b / P0-Z1 / P0-Z2 迁移波次；P0-Z0a 不得被完整 P0 对象清单拖慢。

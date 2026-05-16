@@ -1,8 +1,8 @@
 # 测试与评估策略
 
-版本：v0.18
+版本：v0.19
 日期：2026-05-17  
-状态：完整 P0 入库、P0-Z0a/Z0b 竖切、ProcessingJob、File Inspection、切片前准备层、结构化整理检查门、知识切片质量闭环、安全运维横切层、检查门映射单一来源、事件枚举单一来源、切片执行 profile fixture、AI 结构化整理 profile 与 D-079 存储映射 fixture、D-080 知识调用 / implicit_agent / D-081-D085 调用边界、profile schema、反馈策略与前端状态 fixture、向量检索与 RAG 验收策略 + provider fallback fixture + D-090 技术栈执行优化测试口径 + D-091 工程化验收门槛
+状态：完整 P0 入库、P0-Z0a/Z0b 竖切、ProcessingJob、File Inspection、切片前准备层、结构化整理检查门、知识切片质量闭环、安全运维横切层、检查门映射单一来源、事件枚举单一来源、切片执行 profile fixture、AI 结构化整理 profile 与 D-079 存储映射 fixture、D-080 知识调用 / implicit_agent / D-081-D085 调用边界、profile schema、反馈策略与前端状态 fixture、向量检索与 RAG 验收策略 + provider fallback fixture + D-090 技术栈执行优化测试口径 + D-091 工程化验收门槛 + D-092 代码骨架前置契约测试口径
 
 ## 1. 文档目的
 
@@ -113,6 +113,19 @@ D-091 后，以下测试必须进入首批工程回归基线：
 - typed fetch 测试：页面级 API 调用不得绕过 wrapper；wrapper 必须解析 error envelope，并把 `recoverable`、`fallback_reason`、`capability_status` 传给 Toast / Banner / Error Boundary。
 - sqlite-vec 一致性测试：三态 probe 在 `/api/system/status`、Provider summary、VectorStoreService、Query Explanation 中完全一致；`degraded / unavailable` 时不得声称使用真实 vector search。
 - Evidence-first 不变量测试：强制 evidence pack 或 evidence items 写入失败时，系统应返回 evidence error，不得写入 `ai_answer`。
+
+### 2.7 D-092 代码骨架前置契约测试口径
+
+D-092 后，首批工程还必须补充以下测试：
+
+- OpenAPI 类型生成测试：导出 `openapi.json`，生成 TypeScript API types，运行 `pnpm typecheck`；禁止前端手写漂移 DTO。
+- Sidecar 打包 spike 测试：在 packaged 或 pseudo-packaged 形态下启动 FastAPI sidecar，验证 health、日志目录、端口选择和优雅退出。
+- Provider manifest 测试：每个 provider capability 都能从 manifest 读出 `extra_group / import_path / probe_function / fallback_provider_key`，lazy-load 不依赖散落 import。
+- Trace chain 测试：同一用户动作从 HTTP request、ProcessingJob、SSE event、retrieval log、Evidence Pack 到 answer 都可用同一 `trace_id` 串起。
+- Migration 波次测试：Alembic 文件名和内容标记 `z0a / z0b / z1 / z2`；Z0a migration 不创建 Z1/Z2 后置对象。
+- SQLite 性能基线测试：1K / 10K KU fixture 下记录 FTS5、metadata filter、fallback ranking 和 Evidence Pack 组装耗时。
+- Zustand store slice 测试：workspace / job / review / retrieval / citation 五个 slice 独立可测，React Context 不承载跨域任务状态。
+- Evidence failure type 测试：覆盖 `no_retrieval_result / insufficient_evidence / permission_blocked / citation_binding_failed / vector_degraded`，失败时不得写 `ai_answer`。
 
 ---
 

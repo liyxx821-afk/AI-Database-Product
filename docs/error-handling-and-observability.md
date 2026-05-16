@@ -1,8 +1,8 @@
 # 错误处理与可观测性
 
-版本：v0.6  
+版本：v0.7
 日期：2026-05-17  
-状态：P0 错误码 + UI 消息 + 诊断报告 + 日志策略草案 + File Inspection 错误码 + 知识切片质量事件 + 安全运维横切层 + D-083 feedback_policy / FrontendStateContract + 事件枚举单一来源 + API envelope 单一来源
+状态：P0 错误码 + UI 消息 + 诊断报告 + 日志策略草案 + File Inspection 错误码 + 知识切片质量事件 + 安全运维横切层 + D-083 feedback_policy / FrontendStateContract + 事件枚举单一来源 + API envelope 单一来源 + D-092 trace chain
 
 ## 1. 文档目的
 
@@ -86,6 +86,30 @@ P0 必须保证：
 - `details`：结构化诊断信息，前端按 `code` 反查 UI 文案时使用。
 - `request_id`：每次请求生成的 UUID，写入 sidecar 日志 + Renderer 控制台 + 诊断报告。
 - `documentation_url`：P1 启用，P0 留空字段。
+
+### 3.1.1 D-092 Trace Chain
+
+`request_id` 只标识一次 HTTP 请求；跨 Electron、FastAPI、worker、SSE 和 RAG 证据链时必须使用 `trace_id` 串联。
+
+P0-Z0a 最小链路：
+
+```text
+trace_id
+→ request_id
+→ job_id
+→ event_seq
+→ retrieval_log_id
+→ evidence_pack_id
+→ ai_answer_id
+```
+
+约束：
+
+- Renderer 发起用户动作时创建或继承 `trace_id`；
+- FastAPI middleware 将 `trace_id` 写入日志上下文；
+- ProcessingJob、processing_status_events、retrieval_logs、evidence_packs、ai_answers 都保留或可关联到同一 `trace_id`；
+- SSE 的 `event_seq` 与 `trace_id` 一起进入诊断报告；
+- 诊断报告按 `trace_id` 聚合，但不得包含用户原文、API Key 或未脱敏本地私密路径。
 
 ### 3.2 HTTP 状态码映射
 

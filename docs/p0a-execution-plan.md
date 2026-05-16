@@ -1,8 +1,8 @@
 # P0 执行计划
 
-版本：v0.18
+版本：v0.19
 日期：2026-05-17  
-状态：已升级为 P0-Core / P0-File / P0-AI / P0-RAG 完整执行计划 + P0-Z0a/Z0b 竖切 / ProcessingJob / File Inspection / 切片前准备层 / 结构化整理检查门 / 知识切片质量闭环 / 安全运维横切层 / 检查门映射契约细化 / 切片执行 profile 收敛 / AI 结构化整理 profile 与 D-079 存储映射收敛 / D-080 知识调用 profile 与前端状态契约收敛 / D-081-D085 实现前边界修正 / D-090 技术栈执行优化 / D-091 技术栈工程化验收门槛
+状态：已升级为 P0-Core / P0-File / P0-AI / P0-RAG 完整执行计划 + P0-Z0a/Z0b 竖切 / ProcessingJob / File Inspection / 切片前准备层 / 结构化整理检查门 / 知识切片质量闭环 / 安全运维横切层 / 检查门映射契约细化 / 切片执行 profile 收敛 / AI 结构化整理 profile 与 D-079 存储映射收敛 / D-080 知识调用 profile 与前端状态契约收敛 / D-081-D085 实现前边界修正 / D-090 技术栈执行优化 / D-091 技术栈工程化验收门槛 / D-092 代码骨架前置契约优化
 
 ## 1. 文档目的
 
@@ -27,10 +27,10 @@ P0 当前不是轻量建库闭环，而是完整入库与知识处理平台：
 ### 2.1 文档冻结确认
 
 - [ ] `docs/mvp-scope.md` v0.13 已确认 P0 四切片与 P0-Z0a / Z0b / Z1 / Z2 波次、D-080 调用/Agent/前端边界。
-- [ ] `docs/data-model.md` v0.19-draft 已确认 P0-Z0a blocking 对象、Z0b 补齐对象、检查门映射、事件枚举单一来源、切片前准备、chunk quality/source metadata、`chunk_execution_profile`、`structured_organization`、D-079 存储映射、D-080 profile、D-081/D-082/D-083/D-085 调用边界与 Provider capability/fallback 元数据。
+- [ ] `docs/data-model.md` v0.20-draft 已确认 P0-Z0a blocking 对象、Z0b 补齐对象、检查门映射、事件枚举单一来源、切片前准备、chunk quality/source metadata、`chunk_execution_profile`、`structured_organization`、D-079 存储映射、D-080 profile、D-081/D-082/D-083/D-085 调用边界、D-092 trace chain / Evidence Pack 失败态与 Provider capability/fallback 元数据。
 - [ ] `docs/api-design.md` v0.18-draft 已确认 Upload / File / Job Events / Parse / Chunk Build / KU Extract / Retrieval / RAG / System Status API、ProcessingJob、sensitive grant、provider capability status、chunk summary 执行 profile、D-079 structuring summary 与 D-080-D085 query/ranking/citation/feedback 响应。
-- [ ] `docs/api-implementation-plan.md` v0.17-draft 已确认 route-service-repository 映射、`ChunkBuildService` 执行 profile、`KnowledgeExtractionService` 结构化整理 profile、D-079 review payload 边界与 D-080-D085 RetrievalPreview / Evidence / RAG 实施边界。
-- [ ] `docs/rag-pipeline.md` v0.7-draft 已确认 RAG answer / evidence-only fallback、chunk quality 风险展示与 D-080-D085 调用路由。
+- [ ] `docs/api-implementation-plan.md` v0.18-draft 已确认 route-service-repository 映射、`ChunkBuildService` 执行 profile、`KnowledgeExtractionService` 结构化整理 profile、D-079 review payload 边界、D-080-D085 RetrievalPreview / Evidence / RAG 实施边界与 D-092 OpenAPI 类型生成 / trace chain / migration 波次命名。
+- [ ] `docs/rag-pipeline.md` v0.8-draft 已确认 RAG answer / evidence-only fallback、Evidence Pack 失败态、chunk quality 风险展示与 D-080-D085 调用路由。
 
 ### 2.2 技术决策
 
@@ -51,6 +51,7 @@ P0 当前不是轻量建库闭环，而是完整入库与知识处理平台：
 - [ ] 知识调用：规则 `query_understanding_profile`、`retrieval_strategy_profile`、`ranking_profile`、`citation_trace_profile`；LLM rewrite / reranker / GraphRAG 缺失时 graceful fallback。
 - [ ] 前端：Electron + React + Vite + TypeScript + Zustand；状态默认 SSE、Toast、Error Boundary、Loading Skeleton、Auth Guard。
 - [ ] 工程化门槛：W1 必须具备最小依赖 CI gate、optional provider 延迟加载、typed fetch wrapper、sidecar 生命周期验证、sqlite-vec 三态一致性和 evidence-first smoke。
+- [ ] 代码骨架前置契约：W1 必须冻结 OpenAPI → TypeScript 类型生成、Provider manifest、trace chain、migration 波次命名、SQLite 性能基线脚本、Zustand store slices 和 Evidence Pack 失败态。
 
 ### 2.3 产品命名与本地数据目录
 
@@ -122,6 +123,21 @@ W1-W2 的验收不只看功能能否跑通，还要看技术栈边界是否被�
 
 这些 gate 应进入 `pnpm smoke:p0-z0a` 或等价脚本，作为后续接入增强 Provider 前的回归基线。
 
+### 3.0.3 D-092 代码骨架前置契约
+
+D-092 要求代码骨架创建前先冻结以下契约：
+
+| 契约 | W1/W2 交付物 | 验收方式 |
+|---|---|---|
+| OpenAPI 类型生成 | `scripts/export-openapi.py`、`pnpm generate:api-types`、生成的 TS API types | Pydantic schema 改动后生成类型并通过 `pnpm typecheck` |
+| Sidecar 打包 spike | packaged 或 pseudo-packaged FastAPI sidecar health check | 打包形态可启动、写日志、优雅退出 |
+| Provider manifest | provider capability manifest | lazy-load、Settings 展示、测试 fixture 均读 manifest |
+| Trace chain | `trace_id / request_id / job_id / event_seq / retrieval_log_id / evidence_pack_id / ai_answer_id` 贯穿规则 | 诊断报告可按 trace 聚合 |
+| Migration 波次命名 | Alembic 文件名显式含 `z0a / z0b / z1 / z2` | migration review 不混入后置对象 |
+| SQLite 性能基线 | `pnpm bench:sqlite` 或等价脚本 | 1K / 10K KU 检索与 Evidence Pack 组装有可重复结果 |
+| Zustand store slices | `workspaceStore / jobStore / reviewStore / retrievalStore / citationStore` | 页面不临时创建跨域大状态 |
+| Evidence failure types | `no_retrieval_result / insufficient_evidence / permission_blocked / citation_binding_failed / vector_degraded` | 失败时返回解释，不写无来源 answer |
+
 ### 3.1 P0 默认工具落地
 
 | 能力 | P0 默认 | 缺失时行为 |
@@ -175,8 +191,11 @@ P0-Z0a 技术栈执行口径：
 - 创建 Electron + React + FastAPI + SQLite monorepo。
 - 创建 `pyproject.toml` optional dependency groups：`core / file / ai / ocr / asr / dev`。
 - 创建 `pnpm-workspace.yaml`，固定 `apps/web`、Electron 主进程和共享脚本的 Node 工作区。
+- 创建 OpenAPI 导出与类型生成脚本：`uv run python scripts/export-openapi.py`、`pnpm generate:api-types`。
 - 创建最小依赖 smoke gate：只安装 `core + dev` 时可运行 health、migration、text_import、rule chunk、KU review、embedding fallback、retrieval/evidence-only。
+- 创建 sidecar 打包 spike：最小 packaged / pseudo-packaged FastAPI sidecar 可 health check、写日志、优雅退出。
 - 创建 Alembic 迁移工具链。
+- Alembic migration 文件名按 `z0a / z0b / z1 / z2` 波次命名，不把后置对象混入 Z0a。
 - 创建 users / user_profiles / auth_identities / roles / access_policies。
 - 实现 `GET /api/auth/status`。
 - 登录 / 注册 / Token 写接口返回 `auth_not_enabled_in_p0`。
@@ -184,10 +203,14 @@ P0-Z0a 技术栈执行口径：
 - 建立统一 error envelope、request_id、核心错误码。
 - 建立基础 audit_logs / system_logs。
 - 前端建立 Zustand store：workspace、job events、review queue、retrieval session、citation panel；React Context 只放 API base、auth status 和 theme。
+- 前端固定 Zustand slices：`workspaceStore`、`jobStore`、`reviewStore`、`retrievalStore`、`citationStore`。
 - 前端建立 typed fetch wrapper：统一 request_id、error envelope、recoverable、fallback_reason、capability_status 和写接口 retry 禁止规则。
 - Electron Main 建立 sidecar lifecycle manager：启动、端口选择、health check、崩溃退出码记录、重启入口和应用退出清理。
 - ProviderRegistry 建立 optional provider lazy loader：缺失 PyMuPDF、PaddleOCR、Whisper、bge-m3、reranker 或 LLM SDK 时只返回 capability status，不影响启动。
+- ProviderRegistry 建立 provider manifest，记录 provider_key、capability、extra_group、import_path、probe_function、fallback_provider_key 和 user_visible。
+- 建立 trace chain 规则：Electron、FastAPI、worker、SSE、Evidence Pack 均写 `trace_id`。
 - 实现 sqlite-vec capability probe：`available / degraded / unavailable` 三态，写入 system status；不可用时不阻塞启动。
+- 创建 SQLite 性能基线脚本，至少覆盖 1K / 10K KU 的 FTS5、metadata filter、fallback ranking 和 Evidence Pack 组装。
 
 验收：
 
@@ -199,6 +222,10 @@ P0-Z0a 技术栈执行口径：
 - `pnpm smoke:p0-z0a` 或等价脚本存在，并证明最小依赖路径不需要 OCR / ASR / reranker / LLM。
 - sidecar 端口冲突和启动失败能返回明确错误状态，不导致 Renderer 空白页。
 - 页面 API 调用统一走 typed fetch wrapper，error envelope 能映射到 Toast / Error Boundary。
+- OpenAPI 导出的 TS 类型参与前端 typecheck。
+- sidecar 打包 spike 在临时 app data dir 下能启动、写日志并退出清理。
+- migration 文件名和内容符合 Z0a/Z0b 波次边界。
+- SQLite 1K / 10K KU 基线脚本能稳定输出结果。
 
 ### W2：P0-File 上传、接收、完整性校验
 
@@ -317,6 +344,7 @@ P0-Z0a 技术栈执行口径：
 - 实现 `retrieval_strategy_profile`：simple_fact / concept_explanation / timeline / file_lookup / relationship_analysis / summary_synthesis / complex_hybrid。
 - 在 API response summary 与 retrieval log 中保存 query / strategy / ranking / citation profile；Invocation Request / Retrieval Plan 持久化顺延到 P0-Z2。
 - 实现 Evidence Pack build。
+- 实现 Evidence Pack 失败态：`no_retrieval_result / insufficient_evidence / permission_blocked / citation_binding_failed / vector_degraded`。
 - 接入 bge-reranker-v2 optional；不可用时使用 hybrid merge score。
 - 实现 `ranking_profile`：hybrid score + metadata 权重 + source reliability + feedback weight。
 - 实现 `citation_trace_profile`：chunk/source/file/page/paragraph/text span。
@@ -333,6 +361,7 @@ P0-Z0a 技术栈执行口径：
 - Query Explanation 展示 query understanding、strategy route、结构化过滤、关键词、向量、ranking、reranker / merge score 和 fallback 信息。
 - 关系分析在 P0 只读取 confirmed relation 或 relation_suggestion evidence，不运行 GraphRAG。
 - 有 `chunk_quality_checks.status=warning/failed` 的 evidence item 必须带质量风险提示。
+- Evidence Pack 失败时返回可解释失败态，不写 `ai_answer`。
 
 ### W6：P0-RAG Answer、反馈回流、E2E 验收
 

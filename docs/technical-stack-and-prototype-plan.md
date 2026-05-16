@@ -1,8 +1,8 @@
 # 技术栈与 P0 原型实施计划
 
-版本：v0.20
+版本：v0.21
 日期：2026-05-17  
-状态：已同步——完整 P0 四切片 + P0-Z0a/Z0b 竖切 + ProcessingJob + 切片前准备层 / 结构化整理检查门 + 知识切片质量闭环 + 安全运维横切层 + 技术选型矩阵 + Provider capability 契约收紧 + 切片执行 profile + AI 结构化整理 profile + D-079 存储映射 + D-080 知识调用 / implicit_agent / D-081-D085 调用 schema、反馈策略与前端系统技术矩阵 + D-088 README 对齐后的技术栈优化 + D-090 技术栈执行优化 + D-091 技术栈工程化验收门槛
+状态：已同步——完整 P0 四切片 + P0-Z0a/Z0b 竖切 + ProcessingJob + 切片前准备层 / 结构化整理检查门 + 知识切片质量闭环 + 安全运维横切层 + 技术选型矩阵 + Provider capability 契约收紧 + 切片执行 profile + AI 结构化整理 profile + D-079 存储映射 + D-080 知识调用 / implicit_agent / D-081-D085 调用 schema、反馈策略与前端系统技术矩阵 + D-088 README 对齐后的技术栈优化 + D-090 技术栈执行优化 + D-091 技术栈工程化验收门槛 + D-092 代码骨架前置契约优化
 
 ## 1. 文档目的
 
@@ -11,7 +11,7 @@
 当前已经存在：
 
 - `docs/product-architecture.md`：产品总架构。
-- `docs/data-model.md`：数据模型 v0.19-draft。
+- `docs/data-model.md`：数据模型 v0.20-draft。
 - `docs/mvp-scope.md`：P0 / P1 / P2 范围。
 - `docs/api-design.md`：P0 API 草案。
 - `docs/text-to-sql.md`：P0 查询契约。
@@ -384,6 +384,152 @@ P0-Z0a 任何回答都必须满足：
 - 最后才写 `ai_answer(output_type=evidence_only_answer)`。
 
 如果任一 evidence step 失败，应返回 evidence error，不得生成看似来自知识库的无来源回答。
+
+### 2.5 代码骨架前置契约优化（D-092）
+
+D-092 不改变 Electron + React + Vite + TypeScript、FastAPI sidecar、SQLite + sqlite-vec 的技术栈选择，而是补齐进入代码骨架前必须冻结的工程契约。
+
+#### OpenAPI 到 TypeScript 类型生成
+
+FastAPI / Pydantic 是 API schema 单一来源。前端不得手写长期维护的 API DTO 类型。
+
+建议工程命令：
+
+```bash
+uv run python scripts/export-openapi.py
+pnpm generate:api-types
+pnpm typecheck
+```
+
+约束：
+
+- `openapi.json` 由 FastAPI app 导出并纳入 smoke / CI artifact；
+- TypeScript API types 由 OpenAPI 生成，typed fetch wrapper 只消费生成类型；
+- Pydantic schema 变更后，`pnpm generate:api-types` 与 `pnpm typecheck` 必须通过；
+- 禁止页面组件临时定义与 API response 同名但字段不同的类型。
+
+#### Sidecar 打包验证 Spike
+
+W1 不只验证开发态 `uvicorn --reload`，还必须做一次最小打包 spike：
+
+```text
+Electron main
+→ packaged or pseudo-packaged FastAPI sidecar
+→ temporary app data dir
+→ /api/health
+→ graceful shutdown
+```
+
+验收关注：
+
+- Python runtime 路径和资源路径可解析；
+- sidecar 日志写入本地 app data 日志目录；
+- 端口选择、health check、退出清理在打包形态下仍可工作；
+- spike 不要求正式签名、自动更新或完整安装包。
+
+#### Provider Manifest
+
+ProviderRegistry 必须有 manifest，而不是散落在代码里的 import / probe 逻辑。
+
+manifest 最小字段：
+
+```yaml
+provider_key:
+capability:
+provider_type: system | local_adapter | mock | commercial
+extra_group:
+import_path:
+probe_function:
+default_enabled:
+disable_reason:
+fallback_provider_key:
+user_visible:
+```
+
+Provider lazy-load、capability probe、Settings 展示和测试 fixture 都从 manifest 读取。
+
+#### Trace Chain
+
+`request_id` 只覆盖单次 HTTP 请求，不足以追踪跨进程任务。P0-Z0a 必须贯穿：
+
+```text
+trace_id
+→ request_id
+→ job_id
+→ event_seq
+→ retrieval_log_id
+→ evidence_pack_id
+→ ai_answer_id
+```
+
+约束：
+
+- Electron、FastAPI、worker、SSE、Evidence Pack 日志都必须带 `trace_id`；
+- `request_id` 可以变，`trace_id` 在同一用户动作链中保持稳定；
+- 诊断报告必须能按 `trace_id` 聚合相关日志和 job events；
+- 不记录用户原文、API Key 或未脱敏本地私密路径。
+
+#### Migration 波次命名
+
+Alembic migration 文件名必须显式标记波次，避免 Z1/Z2 对象混入首批 schema：
+
+```text
+0001_z0a_core_auth_project.py
+0002_z0a_source_chunk_review.py
+0003_z0a_embedding_retrieval_evidence.py
+0004_z0b_file_recovery_citation_audit.py
+```
+
+首批 migration review 必须检查：
+
+- 文件名波次与 `docs/data-model.md` 的 Z0a/Z0b/Z1/Z2 对象一致；
+- Z0a 不创建 `memories`、`retrieval_feedback`、完整 `invocation_requests` 或非阻塞关系图对象；
+- migration downgrade 不删除用户源文件，只回退 schema。
+
+#### SQLite 性能基线
+
+P0 继续使用 SQLite，但 W1/W2 必须建立可重复性能脚本：
+
+```bash
+pnpm bench:sqlite
+```
+
+最小基线：
+
+| 数据量 | 必测项 |
+|---|---|
+| 1K KU | FTS5 keyword、metadata filter、retrieval log + evidence pack |
+| 10K KU | FTS5 keyword、metadata filter、fallback vector ranking、Evidence Pack 组装 |
+
+性能结果写入本地测试输出，不作为产品遥测上传。
+
+#### Zustand Store Slices
+
+前端状态在代码创建前固定 slice 边界：
+
+| Store | 职责 |
+|---|---|
+| `workspaceStore` | 当前 project / folder / active source / navigation context |
+| `jobStore` | ProcessingJob snapshot、SSE event、retry / recover action |
+| `reviewStore` | KU candidate、review queue、confirmed / ignored action |
+| `retrievalStore` | query、retrieval log、strategy summary、ranking state |
+| `citationStore` | evidence pack、citation trace、source/chunk focus |
+
+React Context 仍只放 API base、auth status、theme 和 feature flags。
+
+#### Evidence Pack 失败态
+
+Evidence-first 不变量需要更细的失败类型。P0-Z0a 至少区分：
+
+| failure_type | 含义 |
+|---|---|
+| `no_retrieval_result` | 检索没有返回可用候选 |
+| `insufficient_evidence` | 候选存在，但不足以回答 |
+| `permission_blocked` | 命中内容受权限或 sensitive grant 限制 |
+| `citation_binding_failed` | 证据无法绑定 Source / Chunk / text span |
+| `vector_degraded` | sqlite-vec 不可用，仅使用 fallback ranking |
+
+这些失败态必须进入 Query Explanation、前端 citation panel 和测试 fixture。失败时不得生成无来源回答。
 
 ---
 
@@ -853,7 +999,7 @@ P1 迁移到 PostgreSQL + pgvector 的条件：需要真实 embedding provider �
 
 迁移优先顺序：
 
-P0 必建迁移按四个切片组织，但首批 blocking migration 只覆盖 P0-Z0a；Z0b/Z1/Z2 按 `docs/data-model.md` v0.19-draft 波次补齐。D-080-D085 的调用 profile、Z0a 锚点、feedback policy 和 citation trace 复用现有 retrieval / evidence / answer / feedback JSON 字段，不新增迁移波次。
+P0 必建迁移按四个切片组织，但首批 blocking migration 只覆盖 P0-Z0a；Z0b/Z1/Z2 按 `docs/data-model.md` v0.20-draft 波次补齐。D-080-D085 的调用 profile、Z0a 锚点、feedback policy 和 citation trace 复用现有 retrieval / evidence / answer / feedback JSON 字段；D-092 的 `trace_id` 与 Evidence Pack `failure_type` 进入首批可追踪字段。
 
 1. P0-Z0a：users / projects / folders / tags / upload_tasks / files / file_integrity_checks / file_inspection_results / processing_jobs / processing_status_events / sources / parse_tasks / parse_warnings / chunks / knowledge_units / knowledge_unit_chunks / embeddings / review_tasks / retrieval_logs / evidence_packs / evidence_items / ai_answers。
 2. P0-Z0b：user_profiles / auth_identities / roles / access_policies / upload_parts / source_descriptions / chunk_quality_checks / knowledge_unit_tags / answer_citations / sensitive_access_grants / audit_logs / system_logs。

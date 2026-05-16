@@ -1,8 +1,8 @@
 # API Route-Level 实施计划
 
-版本：v0.17-draft  
+版本：v0.18-draft
 日期：2026-05-17  
-状态：P0 API 实施映射草案——四切片 + P0-Z0a/Z0b 竖切 + 切片前准备层 / 结构化整理检查门 / 知识切片质量闭环 / 安全运维横切层 / 检查门映射单一来源 / 事件枚举单一来源 / ProcessingJob / sensitive grant / evidence-only / 切片执行 profile / AI 结构化整理 profile / D-079 存储映射契约对齐 / D-080 知识调用 profile 与 implicit_agent / D-081-D085 调用边界、profile schema、Z0a 锚点与前端状态契约对齐
+状态：P0 API 实施映射草案——四切片 + P0-Z0a/Z0b 竖切 + 切片前准备层 / 结构化整理检查门 / 知识切片质量闭环 / 安全运维横切层 / 检查门映射单一来源 / 事件枚举单一来源 / ProcessingJob / sensitive grant / evidence-only / 切片执行 profile / AI 结构化整理 profile / D-079 存储映射契约对齐 / D-080 知识调用 profile 与 implicit_agent / D-081-D085 调用边界、profile schema、Z0a 锚点与前端状态契约对齐 / D-092 OpenAPI 类型生成、trace chain 与 migration 波次命名
 
 ## 1. 文档目的
 
@@ -62,6 +62,16 @@ local_user / project / folder / tag
 ```
 
 P0-Z0a 的验收重点是端到端数据链路、ProcessingJob 可恢复、引用可追溯和错误可解释，并返回 D-080 的 `query_understanding_profile`、`retrieval_strategy_profile`、`ranking_profile`、`citation_trace_profile` 的最小摘要。D-081 后，P0-Z0a 不持久化 `invocation_requests` / `retrieval_plans` / `memories` / `retrieval_feedback`；这些对象在 P0-Z2 补齐。D-082 要求响应遵循 `InvocationProfileSchema v1`；D-083 要求返回 `feedback_policy` 和前端可消费的状态摘要；D-085 要求 Z0a 通过 `retrieval_log_id` / `evidence_pack_id` 串起 Evidence / Answer，citation 返回 evidence item / trace summary 而不是持久化 citation id。P0-Z0b 同周补齐账号预埋表、分片恢复、source description、citation 明细、sensitive grant、审计日志和前端状态契约；P0-Z1 再补齐关系、质量事件和增强 parser；P0-Z2 再补齐 invocation plan、memory draft、feedback、implicit_agent provider answer 和完整 RAG provider 复盘。
+
+### 2.2 D-092：OpenAPI / TypeScript / Migration 前置契约
+
+D-092 后，API 层还必须满足以下工程约束：
+
+- FastAPI / Pydantic schema 是 OpenAPI 单一来源；前端 DTO 必须从 `openapi.json` 生成。
+- 工程需提供 `scripts/export-openapi.py` 或等价脚本，并提供 `pnpm generate:api-types`。
+- typed fetch wrapper 只能消费生成的 TypeScript API types，不允许页面组件手写长期 DTO。
+- 所有请求进入 API 层时生成或继承 `trace_id`，并把 `trace_id` 传递给 ProcessingJob、SSE event、retrieval log、Evidence Pack 和 AIAnswer。
+- Alembic migration 文件名必须携带 `z0a / z0b / z1 / z2` 波次；Z0a migration 不得创建 P0-Z1/Z2 后置对象。
 
 ---
 

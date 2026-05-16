@@ -1,8 +1,8 @@
 # 桌面应用架构
 
-版本：v0.3  
-日期：2026-05-14  
-状态：已同步完整 P0 入库、文件处理、开源优先 AI 与 P0-RAG 桌面边界
+版本：v0.4
+日期：2026-05-17
+状态：已同步完整 P0 入库、文件处理、开源优先 AI、P0-RAG 桌面边界与 D-092 sidecar 打包验证 spike
 
 ## 1. 文档目的
 
@@ -140,6 +140,29 @@ P0 阶段推荐将 Python 环境和 FastAPI 应用通过以下方式打包：
 | 要求用户安装 Python | 最简单 | 用户体验差 | 仅开发阶段 |
 
 P0 开发阶段可以先要求本地 Python 环境，P0 发布前使用 PyInstaller 打包。
+
+### 3.5 D-092 Sidecar 打包验证 Spike
+
+W1 必须做一次最小打包验证，避免只在开发态 `uvicorn --reload` 下成立。
+
+最小链路：
+
+```text
+Electron main
+→ packaged 或 pseudo-packaged FastAPI sidecar
+→ temporary app data dir
+→ dynamic local port
+→ /api/health
+→ graceful shutdown
+```
+
+验收：
+
+- Python runtime 路径、资源路径和 app data 路径在打包形态下可解析；
+- sidecar 日志写入本地日志目录，不写入源码目录；
+- 端口冲突时可换端口或返回 `sidecar_port_unavailable`；
+- 应用退出时 sidecar 被清理，不残留后台进程；
+- 本 spike 不要求正式签名、自动更新、完整安装器或正式品牌资源。
 
 ---
 

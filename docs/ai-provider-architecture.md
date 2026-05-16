@@ -1,8 +1,8 @@
 # AI Provider 架构
 
-版本：v0.12  
+版本：v0.13
 日期：2026-05-17  
-状态：P0 开源优先能力注册中心 + Provider 类型边界 + File Inspection capability + 切片前准备 / 结构恢复 capability + Chunking capability + 切片执行 profile adapter 边界 + AI 结构化整理 profile 边界 + D-079 子能力收敛 + D-082 InvocationProfileSchema v1 / D-083 feedback_policy 边界 + Provider fallback 契约 + capability API 对齐
+状态：P0 开源优先能力注册中心 + Provider 类型边界 + File Inspection capability + 切片前准备 / 结构恢复 capability + Chunking capability + 切片执行 profile adapter 边界 + AI 结构化整理 profile 边界 + D-079 子能力收敛 + D-082 InvocationProfileSchema v1 / D-083 feedback_policy 边界 + Provider fallback 契约 + capability API 对齐 + D-092 Provider manifest
 
 ## 1. 文档目的
 
@@ -86,6 +86,33 @@ P1：商业 Provider、质量评估集、成本统计和更完整路由增强
 D-082 的 `InvocationProfileSchema v1` 是业务 profile envelope，不要求把每个工具名都升级为 Provider capability。ProviderRegistry 只登记会影响路由和降级决策的能力，例如 query rewrite、rerank、LLM answer、embedding、parser、OCR、ASR。`rewrite_status=not_needed` 是规则判断结果，不应被记录为 LLM Provider fallback；只有“需要改写但 Provider 缺失/失败”才写 `capability_status=fallback|unavailable` 和 `fallback_reason`。
 
 每次启用新 Provider 必须经过 mock / open-source baseline 对比测试。
+
+### 2.7 D-092 Provider Manifest
+
+ProviderRegistry 必须由 manifest 驱动，不允许每个 service 自己散写 import、probe 和 fallback。
+
+manifest 最小字段：
+
+```yaml
+provider_key:
+capability:
+provider_type: system | local_adapter | mock | commercial
+extra_group:
+import_path:
+probe_function:
+default_enabled:
+disable_reason:
+fallback_provider_key:
+user_visible:
+```
+
+约束：
+
+- lazy-load、capability probe、Settings 展示、测试 fixture 都读取 manifest；
+- `extra_group` 对应 `pyproject.toml` optional dependency group；
+- `import_path` 只能由 ProviderRegistry probe 使用，业务 service 不直接导入；
+- `fallback_provider_key` 必须指向 `system_rules`、`mock_fixed_384` 或 evidence-only 等已登记 fallback；
+- `user_visible=false` 的 mock / system provider 不作为真实 AI 能力对用户承诺。
 
 ---
 

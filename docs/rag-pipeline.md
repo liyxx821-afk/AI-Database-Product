@@ -1,8 +1,8 @@
 # RAG 与 Embedding 向量检索管线
 
-版本：v0.7-draft  
+版本：v0.8-draft
 日期：2026-05-17  
-状态：草案——明确 P0-Z0a evidence-only、P0-Z2 RAG answer、embedding profile registry、chunk quality/source metadata 风险、D-080 query / strategy / ranking / citation trace / feedback profile、D-081-D085 调用持久化边界 / InvocationProfileSchema v1 / feedback_policy / Z0a retrieval_log 锚点与 provider fallback
+状态：草案——明确 P0-Z0a evidence-only、P0-Z2 RAG answer、embedding profile registry、chunk quality/source metadata 风险、D-080 query / strategy / ranking / citation trace / feedback profile、D-081-D085 调用持久化边界 / InvocationProfileSchema v1 / feedback_policy / Z0a retrieval_log 锚点与 provider fallback / D-092 Evidence Pack 失败态
 
 ## 1. 文档目的
 
@@ -118,6 +118,20 @@ P0-RAG 必须让用户看到：
 - citation 能否回到 Chunk ID、Source/File、页码/段落/text span；
 - 哪些证据强，哪些只是推理线索。
 - P0-Z0a 默认只生成 evidence-only answer，不调用 LLM；P0-Z2 或显式 Provider 增强路径生成带引用 RAG answer，Provider 缺失时返回 evidence-only answer。
+
+#### D-092 Evidence Pack 失败态
+
+P0-Z0a 不能在证据链失败时生成看似来自知识库的回答。Evidence Pack build 至少区分：
+
+| failure_type | 含义 | 行为 |
+|---|---|---|
+| `no_retrieval_result` | 检索没有返回可用候选 | 返回空结果解释，不写 answer |
+| `insufficient_evidence` | 候选存在但证据不足 | 返回证据不足提示，不写 answer |
+| `permission_blocked` | 命中内容受权限或 sensitive grant 限制 | 提示权限限制，不暴露内容 |
+| `citation_binding_failed` | 证据无法绑定 Source / Chunk / text span | 返回 citation 绑定失败，不写 answer |
+| `vector_degraded` | sqlite-vec 不可用，仅 fallback ranking | Query Explanation 标明降级；若仍有足够证据，可生成 evidence-only answer |
+
+这些失败态必须进入 Query Explanation、Citation Panel 和测试 fixture。
 
 ### 3.3 P1：质量增强与规模化
 
