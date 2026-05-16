@@ -1,0 +1,974 @@
+# 测试与评估策略
+
+版本：v0.17  
+日期：2026-05-17  
+状态：完整 P0 入库、P0-Z0a/Z0b 竖切、ProcessingJob、File Inspection、切片前准备层、结构化整理检查门、知识切片质量闭环、安全运维横切层、检查门映射单一来源、事件枚举单一来源、切片执行 profile fixture、AI 结构化整理 profile 与 D-079 存储映射 fixture、D-080 知识调用 / implicit_agent / D-081-D085 调用边界、profile schema、反馈策略与前端状态 fixture、向量检索与 RAG 验收策略 + provider fallback fixture + D-090 技术栈执行优化测试口径
+
+## 1. 文档目的
+
+本文档解决一个核心问题：
+
+> 各文档零散提到 contract test、smoke test、合同测试等，但缺少统一的测试策略。具体缺口：没有覆盖上传 / 完整性校验 / 解析 / OCR-ASR 降级 / RAG fallback 的 P0 fixture 数据集、性能基线、SQLite 并发测试、桌面 E2E 方案和 CI 集成预案。如果不统一定义，完整 P0 完成时无法系统验收。
+
+本文档定义：
+
+- 测试金字塔（单元 / Repository / Service 集成 / 合同 / 桌面 E2E）
+- P0 fixture 数据集（文本、PDF/Office/图片/音频占位、hash 错误、unsupported parser + 期望输出）
+- P0 知识调用 fixture（simple fact、concept explanation、timeline、file lookup、relationship analysis、summary synthesis、complex hybrid、citation/feedback/frontend state）
+- 性能基线（1K KU must、10K KU pressure、上传进度、解析状态、检索响应、RAG fallback 耗时）
+- SQLite WAL 模式并发测试
+- Electron + Playwright E2E 测试方案
+- CI 集成预案（GitHub Actions / GitLab CI）
+- P0 开源优先 AI 能力与 fallback 评估方案（mock / local provider baseline 对比）
+
+本文档不替代：
+
+- `docs/api-implementation-plan.md`（合同测试 10 条）
+- `docs/p0a-execution-plan.md`（每周交付物的验收）
+
+---
+
+## 2. 测试策略原则
+
+### 2.1 测试金字塔（成本与价值）
+
+```text
+        ┌─────────┐
+        │  E2E    │  少（5-10 个核心流程）
+        │ Playwright│
+        └─────────┘
+       ┌───────────┐
+       │  Contract │ 中（按 P0 关键 API）
+       │   Test    │
+       └───────────┘
+      ┌─────────────┐
+      │ Service IT  │ 中（业务流程）
+      └─────────────┘
+     ┌───────────────┐
+     │ Repository IT │ 中（SQL 查询）
+     └───────────────┘
+    ┌─────────────────┐
+    │   Unit Tests    │ 多（rules / mock / utils）
+    └─────────────────┘
+```
+
+### 2.2 P0 优先验证"链路完整"，语义质量先做可解释降级
+
+P0 阶段 AI 能力采用开源优先 ProviderRegistry，因此测试优先关心：
+
+- 数据流是否完整（Upload / text_import → File → Source → Parse → Chunk → KU → Review → Embedding → Retrieval → Evidence → Answer/Fallback）
+- 状态机是否正确（pending_review → confirmed → 检索可见）
+- 来源是否可追溯（KU 是否能 join 回 Source）
+- Provider 缺失时是否进入明确错误或 fallback，不丢文件、不丢状态
+- P0 默认工具缺失时是否记录 `provider_key`、`capability_status`、`fallback_reason`
+
+P0 不把以下指标作为阻塞项：
+
+- mock / fallback embedding 的语义召回质量
+- mock / local LLM 摘要的主观质量
+- OCR / ASR / 图片理解的生产级准确率
+
+P1 再引入大规模语义质量评估、citation accuracy 人工评分和 provider 成本评估。
+
+### 2.3 测试隔离原则
+
+- 单元测试：纯函数，无 DB / 网络
+- Repository 测试：使用临时 SQLite 文件，每个测试独立
+- Service 集成：使用临时 SQLite + mock provider
+- 合同测试：从 HTTP 层调用，验证 request/response schema
+- E2E 测试：完整 Electron 应用 + 临时数据目录
+
+### 2.4 不测试 Electron 系统行为
+
+不测试：
+
+- Electron 主进程窗口管理（信任 framework）
+- 系统托盘 / 全局快捷键（信任 framework）
+- 自动更新（P1 上线后单独验证）
+
+测试：
+
+- IPC 消息处理逻辑
+- Sidecar 启动 / 重启 / 崩溃恢复
+- 文件拖放 / 分片上传 → File → Source → Parse → Chunk → Evidence/RAG fallback 的端到端
+
+### 2.5 D-090 技术栈执行优化测试口径
+
+D-090 后新增以下测试约束：
+
+- 依赖分组测试：P0-Z0a CI 只安装 `core + dev` 依赖时，API health、SQLite migration、text_import、rule chunk、KU review、embedding fallback、retrieval/evidence-only smoke test 必须通过。
+- optional provider 缺失测试：PyMuPDF、PaddleOCR、Whisper、bge-m3、bge-reranker-v2、LLM provider 缺失时，系统必须返回 `disabled / unavailable / fallback` 状态和明确 `fallback_reason`，不得 import-time crash。
+- sqlite-vec probe 测试：模拟 `available / degraded / unavailable` 三态，验证 `embeddings` 表、VectorStoreService、Query Explanation 和 `/api/system/status` 表达一致。
+- File Inspection 分层测试：Z0a 只用扩展名 / MIME / 文件头摘要也能完成 text_import / Markdown 主链路；Z0b/Z1 再验证 libmagic、qpdf、oletools 和 preview。
+- 前端状态测试：Zustand store 能消费 SSE job events，React Context 不承载大块任务状态；断线后可通过 job snapshot 恢复。
+- Evidence-first RAG 测试：P0-Z0a 必须先持久化 retrieval log / evidence pack / evidence items，再生成 `ai_answers(output_type=evidence_only_answer)`；不得要求 LLM provider。
+
+---
+
+## 3. 测试层级详细约定
+
+### 3.1 单元测试（Unit Tests）
+
+**对象**：
+
+- `SourceDescriptionRules.buildDescriptionFromText`
+- `ChunkingRules.splitTextIntoChunks`
+- `EmbeddingService.embedOrFallback`
+- `MockEmbeddingFallback.createMockVector`
+- `MockKnowledgeUnitRules.suggestCandidateUnits`
+- `EvidenceGapRules.detectEvidenceGaps`
+- `TextToSqlTemplateService.planReadOnlyQuery`
+- 各种 utils（hash、validator、formatter）
+
+**覆盖率目标**：
+
+- 关键 rules / mock：100%
+- 一般 utils：≥ 80%
+- 总体：≥ 70%
+
+**工具**：
+
+- Python：`pytest` + `pytest-cov`
+- TypeScript：`vitest` 或 `jest`
+
+**示例**：
+
+```python
+def test_chunking_splits_by_heading():
+    text = "# 标题1\n\n段落1。\n\n# 标题2\n\n段落2。"
+    chunks = ChunkingRules.split_text_into_chunks(text)
+    assert len(chunks) == 2
+    assert chunks[0].section_title == "标题1"
+    assert chunks[1].section_title == "标题2"
+
+def test_mock_embedding_is_deterministic():
+    text = "相同的输入"
+    v1 = MockEmbeddingFallback.create_mock_vector(text)
+    v2 = MockEmbeddingFallback.create_mock_vector(text)
+    assert v1.vector == v2.vector
+    assert len(v1.vector) == 384
+    assert v1.profile == "mock_fixed_384"
+```
+
+### 3.2 Repository 测试（Integration with SQLite）
+
+**对象**：
+
+每个 Repository 类的 CRUD 和复杂查询。
+
+**约束**：
+
+- 使用临时 SQLite 文件（`tempfile.mkstemp()`）
+- 每个测试函数前自动迁移 + 测试后自动清理
+- 测试 SQLite 方言适配（JSON 数组、boolean、日期）
+
+**示例**：
+
+```python
+@pytest.fixture
+def repo(tmp_path):
+    db_path = tmp_path / "test.db"
+    engine = create_engine(f"sqlite:///{db_path}")
+    Base.metadata.create_all(engine)
+    return KnowledgeUnitRepository(engine)
+
+def test_create_and_query_ku(repo):
+    ku_id = repo.create({
+        "title": "test",
+        "content": "test content",
+        "knowledge_type": "claim",
+        "status": "pending_review",
+    })
+    ku = repo.get(ku_id)
+    assert ku["title"] == "test"
+    assert ku["status"] == "pending_review"
+
+def test_query_by_status_filter(repo):
+    repo.create({"title": "a", "status": "confirmed", ...})
+    repo.create({"title": "b", "status": "pending_review", ...})
+    confirmed = repo.list(status="confirmed")
+    assert len(confirmed) == 1
+```
+
+### 3.3 Service 集成测试
+
+**对象**：
+
+- `UploadService.createTask`
+- `UploadService.completeTask`
+- `FileIntegrityService.verify`
+- `ParserRouter.route`
+- `IngestionService.importTextSource`
+- `ParseTaskService.run`
+- `KnowledgeUnitService.createCandidate`
+- `ReviewService.applyAction`
+- `RetrievalPreviewService.preview`
+- `EvidencePackService.buildPack`
+- `RagAnswerService.answerOrFallback`
+
+**约束**：
+
+- 测试完整业务流程（多个 repository 协同）
+- 验证事务边界（部分失败应回滚）
+- 验证 audit log 写入
+
+**示例**：
+
+```python
+def test_text_import_creates_source_chunk_audit(tmp_db):
+    service = IngestionService(repos=tmp_db.repos, providers=mock_providers)
+    result = service.import_text_source(
+        project_id=test_project_id,
+        folder_id=test_folder_id,
+        title="test source",
+        source_origin="manual_note",
+        raw_text="A 段落。\n\nB 段落。",
+        permission="normal",
+    )
+
+    # 验证 Source 创建
+    source = tmp_db.repos.sources.get(result.source_id)
+    assert source["title"] == "test source"
+
+    # 验证 Source Description 自动生成
+    desc = tmp_db.repos.source_descriptions.get_by_source(result.source_id)
+    assert desc is not None
+
+    # 验证 Chunk 切分
+    chunks = tmp_db.repos.chunks.list_by_source(result.source_id)
+    assert len(chunks) >= 2
+
+    # 验证 embedding profile 与 dimension 契约
+    for chunk in chunks:
+        emb = tmp_db.repos.embeddings.get_by_owner("chunk", chunk["id"])
+        assert emb["profile"] in ["bge_m3_local", "mock_fixed_384"]
+        assert emb["dimension"] == embedding_profile_registry[emb["profile"]]["dimension"]
+
+    # 验证 audit log
+    logs = tmp_db.repos.audit_logs.list_by_target("source", result.source_id)
+    assert any(log["action"] == "create" for log in logs)
+```
+
+### 3.4 合同测试（Contract Test）
+
+**对象**：所有 P0 API endpoint。
+
+**约束**：
+
+- 从 HTTP 层调用（FastAPI TestClient）
+- 验证 request schema、response schema、错误码
+- 不测试业务逻辑细节（已在 Service 层覆盖）
+
+**P0 合同测试清单**（来自 `docs/api-implementation-plan.md` §10 和本次 P0 扩展，编号会随契约扩展递增）：
+
+1. 请求字段缺失返回 `validation_error`
+2. 不存在对象返回 `not_found`
+3. 权限或状态不允许返回 `permission_denied` 或 `agent_call_not_allowed`
+4. 不支持 `source_origin` 返回 `unsupported_source_origin`
+5. Review 之前不可进入 agent_default
+6. `GET /api/auth/status` 返回 local_user 和 auth disabled 状态
+7. Evidence Pack 创建后可通过 ID 读取
+8. Citation Preview 不依赖前端临时缓存
+9. Text-to-SQL 模板只执行 SELECT
+10. Feedback / Memory Draft 不绕过 Review
+11. `POST /api/uploads` 创建上传任务并返回 upload_task_id
+12. 分片缺失时 `:complete` 返回 `upload_part_missing`
+13. hash 不一致时返回 `upload_hash_mismatch` 或 `integrity_check_failed`
+14. unsupported parser 返回 `unsupported_parser`，文件仍保留在可恢复状态
+15. OCR / ASR Provider 缺失时返回 `ocr_unavailable` / `asr_unavailable`
+16. P0-Z0a `POST /api/rag/answers` 不调用 LLM，固定返回 `evidence_only_answer`
+17. `GET /api/ai-providers/capabilities` 返回 parser / OCR / ASR / token_counting / structure_recovery / document_layout / table_structure / html_xml_structure / academic_paper_structure / chunk_strategy / semantic_chunking / context_enrichment / chunk_quality_eval / content_understanding / schema_mapping / knowledge_card_generation / classification_tagging / relation_suggestion / embedding / rerank / LLM 的 `status`、`fallback_profile`、`fallback_reason`、`next_action`
+18. SSE 进度事件使用 `event_seq` 作为 `id`，客户端带 `Last-Event-ID` 后只补发缺失事件
+19. `local_sqlite_worker` 锁超时后任务可被重新领取，超过重试阈值进入 `failed_recoverable` 或 `failed_final`
+20. 通用 `GET /api/jobs/{job_id}` / `GET /api/jobs/{job_id}/events` 可覆盖 upload / inspect / parse / embed / rag answer；`uploads/{id}/events` 仅作为别名
+21. `permission_mode=user_preview` 只能展示 sensitive 摘要，不能生成 Evidence Pack；`explicit_sensitive_confirmed` 必须带未过期、未撤销、scope 匹配且未复用的 `sensitive_access_grant_id`
+22. `file_inspection_results.status=quarantined` 必须汇总到 `files.inspection_status=quarantined` 且默认阻断 parse
+23. 同一 `(target_type, target_id, job_type)` 只能有一个 active ProcessingJob；重复 inspect / preview / parse / embed 请求默认返回既有 job
+24. `sensitive_access_grant_id` 过期、撤销、scope 不匹配或二次复用时，Evidence Pack 创建必须失败
+25. P0-Z2 才验证 Provider 可用时 `rag_answer` 输出；Provider 缺失时继续 `evidence_only_answer`
+26. `POST /api/sources/{source_id}/chunks:build` 返回 ProcessingJob 和 `chunk_summary`
+27. chunk build 必须在 input/OCR/strategy/structure/source binding 检查前创建或复用 ProcessingJob；除 source 不存在、项目/权限不匹配外，早期失败也必须能通过 `GET /api/jobs/{job_id}` 和事件恢复。
+28. chunk build 必须写 `chunk_preparation_started`、`chunk_strategy_selected`，完成时写 `chunk_preparation_completed`；策略不匹配、结构恢复、上下文补充、来源绑定或质量失败时写 `chunk_preparation_warning`、`chunk_strategy_mismatch`、`chunk_structure_recovered`、`chunk_context_enriched`、`chunk_source_binding_failed`、`chunk_quality_warning` 或 `chunk_quality_failed`。
+29. `chunk_summary.check_summary` 必须使用 `docs/data-model.md` 的 check gate 映射：`check_gate` 采用 `_check` 名，`check_type` 采用 `chunk_quality_checks.check_type` 枚举，不允许新增未登记名称。
+30. P0-Z0a 每个 chunk 必须具备最小 `source_location` 和 `quality_status`；缺失时 Source Detail 返回质量 warning。
+31. P0-Z0b 每个 chunk 必须具备可追溯 `source_metadata`；缺失 source/file/page/section 等字段时 `chunk_quality_checks(check_type=source_traceability)` 返回 warning/failed，无法绑定 citation/evidence 对象时 `chunk_quality_checks(check_type=source_binding)` 返回 warning/failed。
+32. 切片前准备必须覆盖输入完整性、OCR/版面、策略匹配、结构完整性、metadata 完整性和来源绑定检查；失败或跳过必须记录 `fallback_reason`
+33. 长文本过长、主题混杂、语义断裂、重复 / 水印 / 乱码必须进入 `chunk_quality_checks`
+34. Embedding / LLM / Reranker 缺失时，chunk build 仍完成规则切片并记录 `fallback_reason`
+35. `chunk_summary.check_summary` 必须能按 `chunk_type` 区分 `text_semantic`、`structured_table`、`image_ocr`、`audio_transcript`、`video_scene`、`mixed` 路径，并返回对应 `chunk_execution_profile`
+36. `source_binding_status` 只验证 Citation / Evidence 可用性；embedding、FTS5、sqlite-vec 或 metadata filter 的索引状态必须由 embedding / index job fixture 验证
+37. `POST /api/knowledge-units:extract` 返回 ProcessingJob 与 `structuring_summary`，其中 `content_understanding / summary_generation / key_concept_extraction / schema_mapping / knowledge_card_generation / classification_tagging / relation_suggestion` 每步都有 `provider_key`、`capability_status`、`fallback_reason` 和 `status`
+38. 内容理解、摘要、关键概念、结构化字段、知识卡片、分类标签、关系建议任一 Provider 不可用时，结构化整理必须回退到规则或 pending review；关系建议不得绕过 Review 写 confirmed relation
+39. `GET /api/system/status?window=24h` 返回 logs / exception_monitoring / data_security / performance_cost / stability 模块状态、`status_reason` 和阈值说明
+40. 上传失败、解析失败、检索失败、RAG answer fallback、队列停滞和高资源任务必须能从 `processing_status_events` 或 `system_logs` 派生
+41. 权限变更、隐私设置、备份 / 恢复 / 删除必须写入可脱敏审计摘要
+42. Retrieval Preview / RAG Answer 响应必须包含 `query_understanding_profile`、`retrieval_strategy_profile`、`ranking_profile`、`citation_trace_profile`、`feedback_policy` 和可用 `feedback_actions`
+43. `simple_fact` 路由默认选择 FTS5 / BM25；`concept_explanation` 路由默认选择 sqlite-vec；`timeline` 路由默认选择 metadata filter；`file_lookup` 路由默认选择 source / file index；`complex_hybrid` 路由默认选择 hybrid search
+44. `relationship_analysis` 在 P0 只能读取 confirmed relation 或 relation_suggestion evidence；GraphRAG、外部图数据库和 Learning-to-Rank 缺失不得阻塞 P0
+45. LLM query rewrite、reranker、GraphRAG、WebSocket 不可用时必须回退规则路由、hybrid score、evidence-only answer 和 SSE 状态；简单事实查询应记录 `rewrite_status=not_needed`，不得误标为 LLM rewrite fallback
+46. Evidence / Citation 必须能追踪 chunk_id、source_id、file_id、page/section、paragraph/text span；预览、摘要、知识卡片不得替代 citation
+47. `feedback_signal` 可记录 click / favorite / useful / not_useful / bad_citation / missing_source / downrank_source，并必须带 `feedback_policy`；默认 local_only + current_project scope，且不得自动改写 confirmed Knowledge Unit、confirmed relation 或 source truth
+48. `implicit_agent` 只能包含对话上下文、意图理解、只读任务规划、内部检索、RAG 问答和草稿生成；外部 API 工具调用、自主执行和多 Agent 协作必须返回 disabled / unsupported 边界
+49. `FrontendStateContract` 必须覆盖上传进度、AI 思考、检索失败、无权限、网络异常、空结果、citation 展示和用户反馈按钮
+50. D-081 验收：P0-Z0a 不要求 `invocation_requests` / `retrieval_plans` / `memories` / `retrieval_feedback` 持久化；这些对象只在 P0-Z2 fixture 中作为必填持久化验收
+51. D-082 验收：`InvocationProfileSchema v1` 中 `source_reliability_score` 与 `source_reliability_label` 不得混用，`relation_evidence` 不得写成 P0 GraphRAG runtime
+52. D-085 验收：Z0a `evidence_packs` / `ai_answers` 必须能在 `request_id` / `retrieval_plan_id` 为空时通过 `retrieval_log_id` 和 `evidence_pack_id` 串起闭环；Z2 fixture 才要求 Invocation / Retrieval Plan 非空
+53. D-085 验收：Z0a RAG response 返回 `evidence_item_ids`、`citation_labels`、`citation_trace_summary`，不得要求持久化 citation 明细 ID；`answer_citations` 只在 Z0b+ fixture 中验收
+54. D-085 验收：Z0a feedback 只能是 response-only summary 或 append-only `feedback_events`；`retrieval_feedback` 只在 Z2 fixture 中验收，并必须携带 `feedback_policy`
+
+**示例**：
+
+```python
+def test_text_import_unsupported_origin_returns_error(client):
+    response = client.post("/api/sources/text-import", json={
+        "project_id": str(test_project_id),
+        "folder_id": str(test_folder_id),
+        "title": "test",
+        "source_origin": "unsupported_xxx",
+        "raw_text": "test",
+    })
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "unsupported_source_origin"
+```
+
+### 3.5 桌面 E2E 测试
+
+**对象**：完整 Electron 应用 + Renderer + Sidecar。
+
+**工具**：[Playwright for Electron](https://playwright.dev/docs/api/class-electron)。
+
+**P0 E2E 12 步流程**：
+
+```typescript
+import { _electron as electron, test, expect } from '@playwright/test';
+
+test('P0 smoke test：完整入库到 RAG fallback 流程', async () => {
+  const app = await electron.launch({
+    args: ['./dist/main.js'],
+    env: {
+      KNOWLEDGE_DATA_DIR: '/tmp/kb-e2e-' + Date.now(),
+    },
+  });
+  const window = await app.firstWindow();
+
+  // 1. 创建项目
+  await window.click('text=新建项目');
+  await window.fill('[name=project-name]', 'E2E 测试项目');
+  await window.click('text=创建');
+  await expect(window.locator('text=E2E 测试项目')).toBeVisible();
+
+  // 2. 创建文件夹
+  await window.click('text=新建文件夹');
+  await window.fill('[name=folder-name]', '产品定位');
+  await window.click('text=创建');
+
+  // 3. 导入材料，可以是上传文件或 text_import
+  await window.click('text=导入材料');
+  await window.fill('[name=source-text]', '本项目是 AI 个人知识库... (500字)');
+  await window.click('text=导入');
+  await expect(window.locator('text=Source 创建成功')).toBeVisible();
+
+  // 4. 验证解析和切片状态
+  await expect(window.locator('text=解析完成')).toBeVisible();
+  await expect(window.locator('text=Chunk')).toBeVisible();
+
+  // 5. 创建 Knowledge Unit
+  await window.click('text=新建知识单元');
+  await window.fill('[name=ku-title]', '产品核心定位');
+  await window.fill('[name=ku-content]', 'AI 个人知识资产系统');
+  await window.selectOption('[name=ku-type]', 'claim');
+  await window.click('text=创建并送审');
+
+  // 6. Review 确认
+  await window.click('text=Review 队列');
+  await window.click('text=产品核心定位');
+  await window.click('text=确认');
+  await expect(window.locator('text=已确认')).toBeVisible();
+
+  // 7. Embedding / 向量索引状态
+  await expect(window.locator('text=已索引')).toBeVisible();
+
+  // 8. Hybrid Retrieval
+  await window.click('text=检索');
+  await window.fill('[name=query]', '核心定位');
+  await window.click('text=搜索');
+  await expect(window.locator('text=产品核心定位')).toBeVisible();
+
+  // 9. Evidence Pack / RAG fallback
+  await window.click('text=生成回答');
+  await expect(window.locator('text=Evidence Pack')).toBeVisible();
+  await expect(window.locator('text=来源')).toBeVisible();
+  await expect(window.locator('text=检索策略')).toBeVisible();
+  await expect(window.locator('text=引用路径')).toBeVisible();
+
+  // 10. 保存为 Memory Draft
+  await window.click('text=保存为记忆');
+  await expect(window.locator('text=待确认')).toBeVisible();
+
+  // 11. 重启验证持久化
+  await app.close();
+  const app2 = await electron.launch({
+    args: ['./dist/main.js'],
+    env: {
+      KNOWLEDGE_DATA_DIR: process.env.KNOWLEDGE_DATA_DIR,
+    },
+  });
+  const window2 = await app2.firstWindow();
+  await expect(window2.locator('text=E2E 测试项目')).toBeVisible();
+  await window2.click('text=E2E 测试项目');
+  await expect(window2.locator('text=产品核心定位')).toBeVisible();
+  await expect(window2.locator('text=Evidence Pack')).toBeVisible();
+  await app2.close();
+});
+```
+
+**P0 必备 E2E 场景**：
+
+1. 完整入库到 RAG fallback 流程（上述 12 步）
+2. Uppy 文件拖放导入、tus-style 分片上传、SSE 上传进度、hash 校验
+3. Folder-Tag Mirroring 验证
+4. 未确认 KU 不出现在默认检索
+5. Sidecar 崩溃后自动重启
+6. 数据备份与还原
+7. 离线模式（断网）
+8. unsupported parser / OCR unavailable / RAG provider missing 可恢复状态
+9. `GET /api/ai-providers/capabilities` 与页面状态条显示一致
+10. 知识调用路由：simple fact、concept explanation、timeline、file lookup、relationship analysis、complex hybrid 均能展示 strategy route
+11. Citation Trace：chunk/source/file/text span 可追踪，错误引用反馈可记录
+12. 前端状态：上传进度、AI 思考、检索失败、无权限、网络异常、空结果、citation 和反馈按钮可见
+
+---
+
+## 4. P0 Fixture 数据集
+
+### 4.1 输入材料 Fixture
+
+P0 测试使用统一的输入材料数据集。位置：`tests/fixtures/sources/`。
+
+| Fixture 文件 | 描述 | 字数 | 期望切片数 | 期望 KU 数 |
+|---|---|---|---|---|
+| `product-idea-500.md` | 产品想法（短） | 500 | 2-3 | 2-3 |
+| `research-note-1000.md` | 研究笔记（中） | 1000 | 4-6 | 3-5 |
+| `meeting-minutes-800.md` | 会议纪要 | 800 | 3-5 | 2-4 |
+| `code-doc-1500.md` | 技术文档 | 1500 | 5-8 | 4-6 |
+| `design-inspiration-700.md` | 设计灵感（设计师场景） | 700 | 3-4 | 2-3 |
+| `mixed-content-2000.md` | 混合内容（最长） | 2000 | 7-10 | 5-8 |
+| `sample-research.pdf` | PDF 解析 fixture | 2 页 | 2-5 | 1-3 |
+| `sample-sheet.xlsx` | 表格解析 fixture | 1 sheet | 1-3 | 1-2 |
+| `sample-image.png` | OCR / 图片理解 fixture | 1 图 | 0-2 | 0-1 |
+| `sample-audio.wav` | ASR fixture | 30 秒 | 0-2 | 0-1 |
+| `spoofed-extension.pdf` | 扩展名伪装 fixture | - | 0 | 0 |
+| `garbled-text.txt` | 乱码 / 编码检测 fixture | 500 | 1-2 | 0-1 |
+| `office-macro.docm` | Office 宏风险 fixture | - | 0 | 0 |
+| `encrypted.pdf` | 加密 PDF 风险 fixture | 1 页 | 0 | 0 |
+| `exif-image.jpg` | EXIF 检查和图片预览 fixture | 1 图 | 0-1 | 0 |
+| `sample-video.mp4` | FFmpeg 封面 / media probe fixture | 10 秒 | 0-1 | 0 |
+| `unsupported.bin` | unsupported parser | - | 0 | 0 |
+
+### 4.1.1 Provider / fallback fixture 矩阵
+
+| 场景 | 默认能力 | 期望结果 |
+|---|---|---|
+| Uppy 小文件直传 | `upload_adapter=uppy`, `status_channel=sse` | upload_task completed，SSE 与轮询状态一致 |
+| tus-style 分片缺片 | `protocol=tus_style` | `upload_part_missing`，可重试 |
+| 扩展名伪装 | libmagic/python-magic | 以 `detected_mime_type` / `file_signature` 为准，扩展名只作弱信号 |
+| 文本乱码 | charset-normalizer | 写入 `detected_encoding`；无法修复时写 quality warning |
+| Office 宏 | oletools | `risk_flags=office_macro`，`risk_level=blocked` 或 warning policy |
+| 加密 PDF | qpdf | `risk_flags=encrypted_pdf`，默认不进入 parse |
+| EXIF 图片 | EXIF adapter | 写入 EXIF 摘要，不泄露敏感字段到 prompt |
+| 预览工具缺失 | Pillow/PyMuPDF/openpyxl/FFmpeg unavailable | `preview_unavailable`，文件保留，parse 不被阻塞 |
+| ClamAV disabled | ClamAV unavailable | `capability_status=unavailable`，静态检查继续 |
+| 隔离文件 | security_scan quarantined | `files.inspection_status=quarantined`，`storage_status=quarantined`，parse 返回 `file_blocked_by_risk_policy` |
+| PDF 文本 | PyMuPDF | parse_task parsed，记录 `provider_key=pymupdf` |
+| PDF 表格 | pdfplumber | 表格摘要或 parse warning，记录 `provider_key=pdfplumber` |
+| Excel 结构 | openpyxl | 生成前 N 行摘要或 structured table chunk，缺失时 `structure_recovery=fallback` |
+| Token 计数缺失 | tiktoken unavailable | 使用 rule_estimator，写入 `fallback_reason=token_counter_unavailable` |
+| 扫描 PDF OCR 未安装 | PaddleOCR unavailable | `ocr_unavailable`，文件保留，parse warning 可见 |
+| 音频 ASR 未安装 | Whisper unavailable | `asr_unavailable`，文件保留，parse warning 可见 |
+| Embedding provider 未安装 | bge-m3 unavailable | `mock_fixed_384`，`capability_status=fallback`，`fallback_reason=provider_capability_unavailable` |
+| Reranker 未安装 | bge-reranker-v2 unavailable | 使用 hybrid merge score |
+| LLM 未配置 | local_llm unavailable | `evidence_only_answer` + `rag_provider_missing` |
+| 结构化整理 LLM 未配置 | local_llm unavailable | `structured_organization.step_status.content_understanding.capability_status=fallback`，候选进入 pending review |
+| 概念抽取 provider 缺失 | KeyBERT / YAKE unavailable | `fallback_reason=concept_provider_missing`，不丢 Source / Chunk |
+| 结构化字段校验失败 | Pydantic / JSON Schema validation failed | Z0a/Z0b 写 `processing_status_events.event_type=structured_organization_failed` + `structured_organization.quality_scores.schema_mapping=failed`；Z1 后同步 `quality_events.event_type=schema_mapping_failed`，候选 KU 进入 Review |
+| 关系建议 provider 缺失 | graph / LLM unavailable | `relation_suggestion.status=skipped`，只写 `review_tasks.target_type=relation_suggestion` payload，不写 confirmed relation |
+
+### 4.2 Fixture 示例（`product-idea-500.md`）
+
+```markdown
+# 产品想法：AI 个人知识库
+
+## 核心判断
+
+未来每个人都会有自己的个人 Agent，而个人 Agent 的能力基础不是单次对话，而是个人数据库和个人知识库。
+
+## 目标用户
+
+专业内容生产者：技术开发者、设计师、影视/媒体从业者、自媒体内容创作者。
+
+## 解决的问题
+
+传统文件夹和笔记工具可以保存材料，但无法解决：
+- 理解材料的语义意义
+- 建立材料之间的关系
+- 支持有来源依据的 AI 生成
+
+## 核心机制
+
+资料收集 → 知识整理 → 关系建立 → 选题 / 想法生成 → 内容创作 → 作品复盘 → 资产沉淀
+```
+
+期望输出：
+
+- 1 个 Source（title="产品想法：AI 个人知识库"）
+- 1 个 Source Description（summary 包含 "AI 个人知识库" 和 "个人 Agent"）
+- 4 个 Chunk（按 H2 标题分割）
+- 候选 KU 至少 3 条：
+  - "未来每个人都会有自己的个人 Agent"（claim）
+  - "目标用户是专业内容生产者"（fact）
+  - "核心机制是从资料到资产的闭环"（method）
+
+### 4.3 用户操作 Fixture
+
+```yaml
+# tests/fixtures/user-actions/p0-smoke.yaml
+project:
+  name: "P0 Smoke Test"
+  kb_type: "project_kb"
+folders:
+  - name: "产品定位"
+sources:
+  - file: "product-idea-500.md"
+    folder: "产品定位"
+    source_origin: "markdown"
+uploads:
+  - file: "sample-research.pdf"
+    expected_inspection_status: "passed"
+    expected_status: "parsed"
+    expected_provider_key: "pymupdf"
+  - file: "office-macro.docm"
+    expected_status: "file_blocked_by_risk_policy"
+    expected_risk_flags: ["office_macro"]
+  - file: "sample-video.mp4"
+    expected_preview_status: "ready_or_preview_unavailable"
+  - file: "sample-image.png"
+    expected_status: "ocr_unavailable"
+    expected_fallback_reason: "ocr_unavailable"
+  - file: "sample-audio.wav"
+    expected_status: "asr_unavailable"
+    expected_fallback_reason: "asr_unavailable"
+  - file: "unsupported.bin"
+    expected_status: "unsupported_parser"
+expected:
+  source_count: 1
+  chunk_count_min: 2
+  chunk_count_max: 4
+  candidate_ku_count_min: 3
+  audit_log_actions: ["create_source", "create_chunks", "create_embedding"]
+  embedding_profile_when_provider_missing: "mock_fixed_384"
+  embedding_capability_status_when_provider_missing: "fallback"
+  rerank_strategy_when_provider_missing: "hybrid_merge_score"
+  rag_output_type_when_provider_missing: "evidence_only_answer"
+  required_query_understanding_profile: "p0_rule_query_understanding_v1"
+  required_retrieval_strategy_profiles:
+    - "p0_route_simple_fact_bm25_v1"
+    - "p0_route_concept_vector_v1"
+    - "p0_route_timeline_metadata_v1"
+    - "p0_route_file_lookup_v1"
+    - "p0_route_relationship_evidence_v1"
+    - "p0_route_complex_hybrid_v1"
+  required_ranking_profile: "p0_hybrid_score_v1"
+  required_citation_trace_profile: "p0_chunk_source_trace_v1"
+  required_feedback_signals:
+    - "click"
+    - "favorite"
+    - "useful"
+    - "not_useful"
+    - "bad_citation"
+    - "missing_source"
+    - "downrank_source"
+  implicit_agent_allowed_actions:
+    - "query_understanding"
+    - "read_only_planning"
+    - "internal_retrieval"
+    - "rag_answer"
+    - "draft_generation"
+  implicit_agent_blocked_actions:
+    - "autonomous_execution"
+    - "external_api_tool_call"
+    - "multi_agent_delegation"
+  structuring_profile: "p0_rule_structuring_v1"
+  required_structuring_steps:
+    - "content_understanding"
+    - "summary_generation"
+    - "key_concept_extraction"
+    - "schema_mapping"
+    - "knowledge_card_generation"
+    - "classification_tagging"
+    - "relation_suggestion"
+  required_structuring_quality:
+    - "topic_understanding"
+    - "summary_quality"
+    - "concept_extraction"
+    - "schema_mapping"
+    - "card_normalization"
+    - "tag_consistency"
+    - "relation_suggestion"
+  relation_suggestions_require_review: true
+  job_events_api: "GET /api/jobs/{job_id}/events"
+  sensitive_preview_requires_grant_for_evidence: true
+  chunk_z0a_required_metadata: ["source_location", "quality_status"]
+  chunk_z0b_required_metadata: ["preparation_profile", "content_kind", "chunk_strategy_profile", "context_summary", "source_metadata"]
+  z0b_required_chunk_quality_checks:
+    - "input_integrity"
+    - "ocr_layout_quality"
+    - "strategy_match"
+    - "structure_integrity"
+    - "length_bounds"
+    - "semantic_integrity"
+    - "topic_mix"
+    - "context_sufficient"
+    - "source_traceability"
+    - "structured_binding"
+    - "multimodal_completeness"
+    - "metadata_completeness"
+    - "source_binding"
+    - "noise_duplicate"
+    - "readability"
+    - "searchability"
+  required_system_status_modules:
+    - "logs"
+    - "exception_monitoring"
+    - "data_security"
+    - "performance_cost"
+    - "stability"
+  system_status_required_fields: ["window", "status", "status_reason", "threshold"]
+```
+
+E2E 测试和合同测试可消费同一份 fixture。
+
+---
+
+### 4.4 知识切片质量 fixture
+
+新增 `tests/fixtures/chunk-quality/`：
+
+| fixture | 目标 | 期望 |
+|---|---|---|
+| `long-text-mixed-topics.md` | 长文本过长、主题混杂 | 生成多个 chunk；`topic_mix` 或 `semantic_integrity` 至少 warning |
+| `detached-context.md` | chunk 离开原文不可读 | 写入 `context_summary`；缺失则 `context_sufficient=failed` |
+| `missing-page-source.pdf` | 页码 / source metadata 缺失 | `source_traceability=warning/failed` |
+| `low-confidence-ocr-layout.pdf` | OCR 低置信、版面错位 | `ocr_layout_quality=warning`，记录 `fallback_reason` |
+| `broken-heading-hierarchy.pdf` | 标题层级混乱、目录映射错误 | `structure_integrity=warning/failed`，不得静默按扩展名策略切分 |
+| `mixed-content-source.md` | 正文、表格、图片、代码、对话混合 | `strategy_match` 检查通过；不同内容进入不同 chunk strategy 或写 warning |
+| `image-ocr-caption.png` | OCR 图片切片 | `chunk_type=image_ocr`；PaddleOCR 缺失时 `fallback_reason=ocr_unavailable` |
+| `code-block-mixed.md` | 代码块与正文混排 | `chunk_type=text_semantic` 或 `mixed`；代码边界不可被段落规则破坏 |
+| `conversation-transcript.md` | 对话 transcript 切片 | 带 transcript metadata 时 `chunk_type=audio_transcript`；缺失时进入 `mixed` 或 pending review |
+| `video-scene-metadata.mp4` | 视频场景弱结构 | `chunk_type=video_scene`；FFmpeg 缺失时保留 Source 并写 recoverable warning |
+| `unbound-table-figure.pdf` | 表格 / 图片未绑定正文位置 | `structured_binding` 或 `source_binding=warning/failed` |
+| `duplicated-watermark.pdf` | 重复、水印、乱码 | `noise_duplicate=warning` |
+| `table-structure.xlsx` | 结构化内容切片 | `chunk_type=structured_table`，保留 sheet / row range |
+| `audio-transcript-missing.wav` | 多模态 transcript 缺失 | 文件保留；`multimodal_transcript_available=skipped` + `asr_unavailable` |
+| `uncitable-chunk.md` | 无法 citation 绑定的 chunk | `source_binding=warning/failed`，`source_binding_status` 不混入索引状态 |
+
+这些 fixture 只验证 P0 可解释质量信号，不验证 LLM 主观语义质量。
+
+### 4.5 AI 结构化整理 fixture
+
+新增 `tests/fixtures/structured-organization/`：
+
+| fixture | 目标 | 期望 |
+|---|---|---|
+| `topic-drift-source.md` | 内容理解偏离主题 | `topic_understanding=warning/failed`，必要时要求补上下文 |
+| `overlong-summary.md` | 摘要过长、遗漏核心信息或幻觉 | `summary_quality=warning/failed`，不得覆盖 Source 原文 |
+| `concept-duplicates.md` | 关键概念重复、粒度不统一 | `concept_extraction=warning`，候选概念进入 Review |
+| `schema-missing-source.yaml` | 结构化字段缺 source / chunk 指针 | `schema_mapping_failed`，候选 KU 不可 confirmed |
+| `card-without-citation.md` | 知识卡片缺标题、摘要、标签或来源 | `card_normalization=failed`，卡片进入 pending review |
+| `tag-conflict.md` | 分类错误、标签重复或层级不一致 | `tag_consistency=warning/failed`，触发合并或重命名建议 |
+| `invalid-relation.md` | 关系方向错误、无依据或循环依赖 | `relation_suggestion=warning/failed`，不写 confirmed relation |
+| `llm-unavailable-structuring.md` | LLM / LangChain / LlamaIndex 不可用 | 回退 `p0_rule_structuring_v1`，每步写 `fallback_reason` |
+| `summary-type-routing.md` | QA / 段落 / 文件 / 项目 / 长文压缩摘要混用 | `summary_generation.result.summary_types` 正确区分，且 `replaces_source_text=false` |
+| `tag-hierarchy-merge.md` | 标签层级混乱、同义标签重复 | `classification_tagging.tag_operations` 生成层级、合并和去重候选，进入 Review |
+| `classification-routing.md` | 资料类型、项目归属和知识库归属不确定 | `classification_tagging.classification_routing` 写候选和置信度，不自动归档 |
+| `metadata-field-extraction.md` | 标题、作者/来源、时间、关键词字段缺失或冲突 | `schema_mapping.field_mapping` 标出缺失字段，候选 KU 不可 confirmed |
+| `card-type-generation.md` | 概念 / 人物 / 项目 / 文件 / 灵感 / 问答卡片类型混用 | `knowledge_card_generation.result.card_type` 正确，卡片必须绑定 Source / Chunk |
+| `entity-relation-triples.md` | 实体、三元组和 KU 关系候选无证据 | `relation_suggestion.result.entity_candidates / triple_candidates / relation_candidates` 带 evidence chunk，关系不写 confirmed |
+| `storage-write-mapping.md` | 原文件、文本、元数据、向量、关系、反馈和任务状态写入边界混乱 | 验证 files / sources / chunks / metadata_json / embeddings / review_tasks / Z0a feedback_events-or-response-summary / Z2 retrieval_feedback / processing_jobs 映射，不引入独立数据库依赖 |
+| `z0a-rag-anchor-without-invocation.md` | Z0a Evidence / Answer 错误依赖 `invocation_requests` 或 `retrieval_plans` | `request_id` / `retrieval_plan_id` 为空时仍可通过 `retrieval_log_id`、`evidence_pack_id`、`evidence_item_ids` 完成 evidence-only answer |
+| `z0a-citation-trace-no-citation-id.md` | Z0a 响应错误返回持久化 `citation_id` | 返回 citation label + trace summary；Z0b 才创建 `answer_citations` |
+
+这些 fixture 验证的是 AI 结构化整理 profile、质量门和 Review 边界，不验证商业 LLM 的生成质量。
+
+### 4.6 安全运维 fixture
+
+新增 `tests/fixtures/ops-security/`：
+
+| 场景 | 期望 |
+|---|---|
+| 上传失败 | `processing_status_events.event_type=upload_failed`，可恢复状态可读 |
+| 解析失败 | `parse_warnings` + `processing_status_events.event_type=parse_failed` |
+| 检索失败 | `system_logs(log_type=error)` 或 retrieval error event 可被 `/api/system/status` 汇总 |
+| RAG provider missing | `rag_answer_fallback` 计数 + `fallback_reason=rag_provider_missing` |
+| 权限变更 | `audit_logs.action=permission_change`，内容脱敏 |
+| 备份 / 恢复 / 删除 / 隐私设置 | 写入审计摘要，破坏性操作要求 confirmation token |
+| 高资源任务 | `system_logs(log_type=performance)`，`high_resource_task` 计数可读 |
+
+---
+
+### 4.7 知识调用 / Agent / 前端状态 fixture
+
+新增 `tests/fixtures/invocation-routing/`：
+
+| fixture | 目标 | 期望 |
+|---|---|---|
+| `simple-fact-bm25.md` | 简单事实问答 | `retrieval_strategy_profile=p0_route_simple_fact_bm25_v1`，走 FTS5/BM25 |
+| `concept-vector-search.md` | 概念解释和近义召回 | `retrieval_strategy_profile=p0_route_concept_vector_v1`，走 sqlite-vec，缺失时 fallback |
+| `timeline-metadata-filter.md` | 时间线 / 版本 / 更新时间问题 | `retrieval_strategy_profile=p0_route_timeline_metadata_v1`，走 metadata filter |
+| `file-lookup-source-index.md` | 文件定位、页码、路径问题 | `retrieval_strategy_profile=p0_route_file_lookup_v1`，返回 source/file index 和 citation trace |
+| `relationship-confirmed-relation.md` | 关系分析 | 只读 confirmed relation 或 relation_suggestion evidence；GraphRAG unavailable 不阻塞 |
+| `summary-synthesis-hybrid.md` | 总结归纳问题 | hybrid search + Evidence Pack，未配置 LLM 时 evidence-only answer |
+| `complex-hybrid-search.md` | 复杂综合问题 | keyword + vector + metadata + relation evidence 合并；reranker 缺失回退 hybrid score |
+| `bad-citation-feedback.md` | 错误引用反馈 | 写 `feedback_signal.signal_type=bad_citation`，不改写 confirmed knowledge |
+| `missing-source-feedback.md` | 缺失来源反馈 | 写 `feedback_signal.signal_type=missing_source`，用于后续排序/诊断 |
+| `feedback-policy-scope.md` | 反馈策略作用域 | 写 `feedback_policy.storage_scope=local_only` 与 `effect_scope=current_project`，不影响全局知识真值 |
+| `implicit-agent-boundary.md` | P0 隐式 Agent 边界 | 允许只读规划和内部检索；外部 API 工具调用 / 自主执行 / 多 Agent 返回 unsupported |
+| `frontend-state-contract.md` | 前端状态契约 | `FrontendStateContract` 覆盖 loading / empty / fallback / blocked / recoverable_error / done |
+| `z0a-no-invocation-plan-persistence.md` | D-081 / D-085 边界 | Z0a 只验证 retrieval log + Evidence Pack + evidence-only answer，不要求 Invocation / Retrieval Plan 持久化 |
+| `invocation-profile-schema-v1.md` | D-082 schema | 验证 `profile_envelope`、`rewrite_status`、`source_reliability_score` / `source_reliability_label` 命名一致 |
+
+这些 fixture 验证 D-080/D-081/D-082/D-083 的调用路由、排序、溯源、反馈、持久化边界和 UI 状态契约，不验证商业 LLM 主观回答质量。
+
+---
+
+## 5. 性能基线
+
+### 5.1 P0 性能目标
+
+| 指标 | 目标 | 测试方法 |
+|---|---|---|
+| 应用冷启动 | < 5 秒 | E2E：从 launch 到首屏可交互 |
+| 应用热启动（已索引） | < 2 秒 | E2E：第二次启动 |
+| text_import 导入（500 字） | < 1 秒 | Service IT：同一入库管线 |
+| 小文件上传（2MB） | < 3 秒 | Service IT：含 upload_task / file / source |
+| 大文件上传进度 | 必须可见 | E2E：进度条和状态事件 |
+| Source 导入（2000 字） | < 3 秒 | Service IT |
+| Chunk 切分（10K 字） | < 2 秒 | 单元测试 |
+| Mock Embedding 生成（100 chunks） | < 500ms | 单元测试 |
+| KU 创建 | < 200ms | Repository IT |
+| Review 操作 | < 200ms | Service IT |
+| 检索响应（10 KU 库） | < 100ms | Service IT |
+| 检索响应（1K KU 库） | < 500ms | Service IT |
+| 检索响应（10K KU 库，pressure） | < 1 秒 | Service IT（用大 fixture），不阻塞 P0-Core |
+| RAG evidence-only fallback | < 1 秒 | Service IT：1K KU 检索后组装 |
+| System status 汇总 | < 200ms | Service IT：读取本地日志、任务、provider capability 摘要 |
+| 数据库迁移（空库 → P0-Z0a 表） | < 5 秒 | Repository IT；Z0b/Z1/Z2 迁移单独计时 |
+| 数据库备份（10K KU 库） | < 5 秒 | Service IT |
+
+### 5.2 大数据集 fixture
+
+`tests/fixtures/large-dataset/` 提供大规模数据：
+
+- `1k-knowledge-units.sql`（生成脚本）
+- `10k-knowledge-units.sql`（生成脚本）
+- `100k-chunks.sql`（生成脚本）
+
+通过脚本生成，不入 git（生成命令保留在 `scripts/test/generate-large-dataset.py`）。
+
+### 5.3 性能回归监控
+
+每个 commit / PR 跑性能回归：
+
+- 检索响应（1K KU）变慢 > 20% → CI 失败
+- Source 导入变慢 > 30% → CI 失败
+- 应用冷启动变慢 > 1 秒 → CI 警告
+
+---
+
+## 6. SQLite WAL 模式并发测试
+
+### 6.1 桌面单用户场景的并发性
+
+虽然桌面是单用户，但仍存在并发：
+
+- Sidecar 内部多个异步 task（FastAPI async endpoint）
+- 后台任务（embedding 生成、批量导入）与前台请求并行
+- 多窗口（P1）
+
+### 6.2 关键测试场景
+
+| 场景 | 测试方式 | 期望 |
+|---|---|---|
+| 多个 source 并行导入 | 异步并发 5 个 text_import / upload | 全部成功，无锁冲突 |
+| 导入中查询 KU | 一边导入一边查询 | 查询不阻塞 |
+| 同一 KU 并发 Review | 两个并发 confirm | 一个成功一个返回冲突 |
+| 应用突然关闭（kill -9） | 强制终止后重启 | 数据完整，最多丢失最后一次写 |
+| 数据库备份中查询 | 备份时并发查询 | 查询正常 |
+
+### 6.3 测试工具
+
+- Python：`pytest-asyncio` + 并发任务
+- 模拟应用崩溃：subprocess + `os.kill(pid, signal.SIGKILL)`
+- WAL checkpoint 验证：`PRAGMA wal_checkpoint`
+
+---
+
+## 7. CI 集成预案
+
+### 7.1 推荐工具
+
+- **GitHub Actions**：开源场景默认
+- **GitLab CI**：自建场景
+- **本地预提交钩子**：`pre-commit` + `husky`
+
+### 7.2 CI 矩阵
+
+| 阶段 | 触发 | 任务 | 时长目标 |
+|---|---|---|---|
+| Pre-commit | 本地 commit | lint / format | < 10 秒 |
+| Pre-push | 本地 push | unit + repository test | < 1 分钟 |
+| PR Check | PR 创建 / 更新 | full test suite | < 10 分钟 |
+| Main Branch | merge 到 main | full test + 性能回归 + 打包 | < 30 分钟 |
+| Release | git tag | full test + 多平台打包 + 签名 | < 60 分钟 |
+
+### 7.3 CI 矩阵平台
+
+```yaml
+# .github/workflows/test.yml（示例）
+on: [pull_request, push]
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [macos-14, windows-latest, ubuntu-latest]
+        node: ['20']
+        python: ['3.11']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: ${{ matrix.node }} }
+      - uses: actions/setup-python@v5
+        with: { python-version: ${{ matrix.python }} }
+      - run: npm ci
+      - run: cd apps/api && pip install -r requirements.txt
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: cd apps/api && pytest --cov=app
+      - run: npm run test:e2e  # Playwright E2E
+```
+
+### 7.4 测试报告
+
+- 覆盖率：上传到 Codecov / Coveralls
+- E2E 截图 / 视频：上传到 GitHub Artifacts
+- 性能基线：每次记录到 `tests/baseline/{date}.json`
+
+---
+
+## 8. P1 AI 能力评估方案
+
+P1 引入真实 AI 时，每个能力上线前必须经过 mock baseline 对比测试。详见 `docs/ai-provider-architecture.md` §10。
+
+### 8.1 评估数据集
+
+`tests/ai-eval/` 维护：
+
+- `embedding/`：50 对相似 / 不相似文本对，期望相似度排序
+- `summarization/`：50 段输入 + 期望摘要（人工标注）
+- `tag-suggestion/`：50 段 KU + 期望标签（人工标注）
+- `text-to-sql/`：30 个自然语言问题 + 期望 SQL（人工标注）
+- `rag-answer/`：30 个问题 + 期望引用 + 期望回答要点
+
+### 8.2 评估指标
+
+| 能力 | 指标 |
+|---|---|
+| Embedding | 相似度排序的 Spearman 相关系数（与 ground truth 比较） |
+| Summarization | ROUGE-L F1 / 人工评分（1-5） |
+| Tag Suggestion | Precision @ 5 / Recall @ 10 |
+| Text-to-SQL | Exact match / Execution accuracy |
+| RAG Answer | Citation accuracy / 人工评分（事实性 + 完整性） |
+
+### 8.3 评估流程
+
+```text
+1. 准备评估数据集（人工标注）
+2. 跑 MockProvider baseline，记录指标
+3. 跑真实 Provider，记录指标
+4. 对比：真实 Provider 必须在所有关键指标上优于 mock
+5. 成本评估：每千次调用预计成本 vs 收益
+6. 用户体验评估：5-10 名内测用户主观评分
+7. 通过 → P1 该能力上线；不通过 → 调整 prompt / 换 provider / 推迟
+```
+
+---
+
+## 9. 测试反模式（避免）
+
+不要做：
+
+- 测试 mock 数据本身（mock 是测试工具，不是测试对象）
+- 用真实 AI Provider 跑 CI（成本不可控、不稳定）
+- 在测试中依赖外部网络（除非显式标记 `@pytest.mark.integration_external`）
+- 单元测试涉及 SQLite 文件（应使用 in-memory `:memory:` 或 mock）
+- E2E 测试一次跑遍所有 API（拆分为多个独立场景）
+- 没有 cleanup 的测试（用 fixture / tearDown 强制清理）
+
+---
+
+## 10. 与其他文档的关系
+
+```text
+docs/testing-strategy.md（本文档）
+└── 测试金字塔、fixture、性能基线、E2E、CI、AI 评估
+
+docs/api-implementation-plan.md
+└── §10 合同测试 10 条（被本文档 §3.4 引用）
+
+docs/p0a-execution-plan.md
+└── 每周交付物的验收（被本文档支持）
+
+docs/ai-provider-architecture.md
+└── §10 AI 能力评估（被本文档 §8 详细化）
+
+docs/desktop-architecture.md
+└── §12 Schema 迁移（迁移测试在本文档 §6.2）+ §15 Onboarding（E2E 验证）
+
+docs/data-model.md
+└── §3 对象分层与 P0-Core / P0-File / P0-AI / P0-RAG 必建表（fixture 生成依赖 schema）
+```
+
+---
+
+## 11. 当前结论
+
+```text
+P0 测试目标：链路完整 + 状态正确 + 来源可追溯 + 失败可恢复
+P0 不测试：mock / fallback 输出的主观语义质量
+P0 必备测试套件：
+- Unit Tests（rules / mock / utils）
+- Repository IT（CRUD + SQL 方言）
+- Service IT（业务流程 + 事务）
+- Contract Test（覆盖上传、解析、Provider 和 RAG fallback 错误码）
+- E2E（完整入库到 answer/fallback smoke 流程）
+- Provider capability fixture（覆盖 PyMuPDF/pdfplumber/PaddleOCR/Whisper/bge-m3/bge-reranker-v2/local LLM 缺失与 fallback reason）
+
+性能基线：
+- 检索响应 < 1 秒（1K KU，must）
+- 检索响应 < 1 秒（10K KU，pressure target）
+- text_import 导入 < 3 秒（2000 字）
+- 小文件上传 < 3 秒（2MB）
+- 应用冷启动 < 5 秒
+
+CI：
+- macOS / Windows / Ubuntu 三平台
+- PR Check < 10 分钟
+- Release 跑多平台打包
+
+AI 评估：
+- mock / open-source baseline 对比强制
+- 评估数据集 + 关键指标
+- 商业 Provider 通过后才作为可选增强上线
+```
+
+测试不是 P0 完成后才补，而是 W1 起跟着代码一起写。
