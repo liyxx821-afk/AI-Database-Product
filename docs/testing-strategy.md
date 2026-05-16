@@ -1,8 +1,8 @@
 # 测试与评估策略
 
-版本：v0.17  
+版本：v0.18
 日期：2026-05-17  
-状态：完整 P0 入库、P0-Z0a/Z0b 竖切、ProcessingJob、File Inspection、切片前准备层、结构化整理检查门、知识切片质量闭环、安全运维横切层、检查门映射单一来源、事件枚举单一来源、切片执行 profile fixture、AI 结构化整理 profile 与 D-079 存储映射 fixture、D-080 知识调用 / implicit_agent / D-081-D085 调用边界、profile schema、反馈策略与前端状态 fixture、向量检索与 RAG 验收策略 + provider fallback fixture + D-090 技术栈执行优化测试口径
+状态：完整 P0 入库、P0-Z0a/Z0b 竖切、ProcessingJob、File Inspection、切片前准备层、结构化整理检查门、知识切片质量闭环、安全运维横切层、检查门映射单一来源、事件枚举单一来源、切片执行 profile fixture、AI 结构化整理 profile 与 D-079 存储映射 fixture、D-080 知识调用 / implicit_agent / D-081-D085 调用边界、profile schema、反馈策略与前端状态 fixture、向量检索与 RAG 验收策略 + provider fallback fixture + D-090 技术栈执行优化测试口径 + D-091 工程化验收门槛
 
 ## 1. 文档目的
 
@@ -102,6 +102,17 @@ D-090 后新增以下测试约束：
 - File Inspection 分层测试：Z0a 只用扩展名 / MIME / 文件头摘要也能完成 text_import / Markdown 主链路；Z0b/Z1 再验证 libmagic、qpdf、oletools 和 preview。
 - 前端状态测试：Zustand store 能消费 SSE job events，React Context 不承载大块任务状态；断线后可通过 job snapshot 恢复。
 - Evidence-first RAG 测试：P0-Z0a 必须先持久化 retrieval log / evidence pack / evidence items，再生成 `ai_answers(output_type=evidence_only_answer)`；不得要求 LLM provider。
+
+### 2.6 D-091 工程化验收门槛测试口径
+
+D-091 后，以下测试必须进入首批工程回归基线：
+
+- 最小依赖 gate：在只安装 Python `core + dev` extras 的环境中，`pnpm smoke:p0-z0a` 或等价脚本必须通过；测试链为 health → migration → text_import / Markdown → rule chunk → KU review → mock embedding → retrieval log → evidence pack → evidence-only answer。
+- Provider lazy-load 测试：模拟 PyMuPDF、PaddleOCR、Whisper、bge-m3、reranker 和 LLM SDK 均不存在，应用 import、FastAPI startup、migration 和 health 不得失败；ProviderRegistry 必须输出 `capability_status`、`fallback_reason`、`load_error_class`。
+- sidecar 生命周期测试：覆盖正常启动、端口占用、启动失败、运行中崩溃、手动重启和应用退出清理；Renderer 不允许出现无法解释的空白页。
+- typed fetch 测试：页面级 API 调用不得绕过 wrapper；wrapper 必须解析 error envelope，并把 `recoverable`、`fallback_reason`、`capability_status` 传给 Toast / Banner / Error Boundary。
+- sqlite-vec 一致性测试：三态 probe 在 `/api/system/status`、Provider summary、VectorStoreService、Query Explanation 中完全一致；`degraded / unavailable` 时不得声称使用真实 vector search。
+- Evidence-first 不变量测试：强制 evidence pack 或 evidence items 写入失败时，系统应返回 evidence error，不得写入 `ai_answer`。
 
 ---
 

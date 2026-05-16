@@ -1,8 +1,8 @@
 # 项目背景说明书
 
-版本：v0.2
+版本：v0.3
 日期：2026-05-17  
-状态：供后续 Agent 快速接手使用的项目背景入口；已同步 D-090 技术栈执行优化口径；不替代 `README.md`、`docs/product-architecture.md`、`docs/data-model.md` 或 `docs/p0a-execution-plan.md`
+状态：供后续 Agent 快速接手使用的项目背景入口；已同步 D-090 技术栈执行优化口径与 D-091 工程化验收门槛；不替代 `README.md`、`docs/product-architecture.md`、`docs/data-model.md` 或 `docs/p0a-execution-plan.md`
 
 ## 1. 本说明书的用途
 
@@ -562,6 +562,7 @@ P0-Z0a 必须在 LLM 缺失时仍能完成：
 - `docs/data-model.md` v0.19-draft 的 P0-Z0a migration 对象已冻结；
 - `docs/api-design.md` v0.18-draft 的 Z0a / Z2 endpoint 边界没有扩大；
 - `docs/api-implementation-plan.md` v0.17-draft 的 service / repository / transaction 边界清楚；
-- `docs/testing-strategy.md` v0.17 的 Z0a fixture 与 D-090 技术栈执行优化测试口径已能转成合同测试；
-- `docs/p0a-execution-plan.md` v0.17 的 W1 / W2 任务、依赖分组、Zustand 状态、sqlite-vec capability probe 和 File Inspection 分层可被拆成实际工程任务；
+- `docs/technical-stack-and-prototype-plan.md` v0.20 的 D-091 工程化验收门槛已进入开工约束；
+- `docs/testing-strategy.md` v0.18 的 Z0a fixture、D-090 技术栈执行优化测试口径和 D-091 工程化 gate 已能转成合同测试；
+- `docs/p0a-execution-plan.md` v0.18 的 W1 / W2 任务、依赖分组、Zustand 状态、typed fetch、sidecar lifecycle、sqlite-vec capability probe、Provider lazy-load 和 File Inspection 分层可被拆成实际工程任务；
 - README、开发计划和进度记录与真实实现保持一致。

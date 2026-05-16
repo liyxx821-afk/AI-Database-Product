@@ -1,8 +1,8 @@
 # P0 执行计划
 
-版本：v0.17  
+版本：v0.18
 日期：2026-05-17  
-状态：已升级为 P0-Core / P0-File / P0-AI / P0-RAG 完整执行计划 + P0-Z0a/Z0b 竖切 / ProcessingJob / File Inspection / 切片前准备层 / 结构化整理检查门 / 知识切片质量闭环 / 安全运维横切层 / 检查门映射契约细化 / 切片执行 profile 收敛 / AI 结构化整理 profile 与 D-079 存储映射收敛 / D-080 知识调用 profile 与前端状态契约收敛 / D-081-D085 实现前边界修正 / D-090 技术栈执行优化
+状态：已升级为 P0-Core / P0-File / P0-AI / P0-RAG 完整执行计划 + P0-Z0a/Z0b 竖切 / ProcessingJob / File Inspection / 切片前准备层 / 结构化整理检查门 / 知识切片质量闭环 / 安全运维横切层 / 检查门映射契约细化 / 切片执行 profile 收敛 / AI 结构化整理 profile 与 D-079 存储映射收敛 / D-080 知识调用 profile 与前端状态契约收敛 / D-081-D085 实现前边界修正 / D-090 技术栈执行优化 / D-091 技术栈工程化验收门槛
 
 ## 1. 文档目的
 
@@ -26,7 +26,7 @@ P0 当前不是轻量建库闭环，而是完整入库与知识处理平台：
 
 ### 2.1 文档冻结确认
 
-- [ ] `docs/mvp-scope.md` v0.12 已确认 P0 四切片与 P0-Z0a / Z0b / Z1 / Z2 波次、D-080 调用/Agent/前端边界。
+- [ ] `docs/mvp-scope.md` v0.13 已确认 P0 四切片与 P0-Z0a / Z0b / Z1 / Z2 波次、D-080 调用/Agent/前端边界。
 - [ ] `docs/data-model.md` v0.19-draft 已确认 P0-Z0a blocking 对象、Z0b 补齐对象、检查门映射、事件枚举单一来源、切片前准备、chunk quality/source metadata、`chunk_execution_profile`、`structured_organization`、D-079 存储映射、D-080 profile、D-081/D-082/D-083/D-085 调用边界与 Provider capability/fallback 元数据。
 - [ ] `docs/api-design.md` v0.18-draft 已确认 Upload / File / Job Events / Parse / Chunk Build / KU Extract / Retrieval / RAG / System Status API、ProcessingJob、sensitive grant、provider capability status、chunk summary 执行 profile、D-079 structuring summary 与 D-080-D085 query/ranking/citation/feedback 响应。
 - [ ] `docs/api-implementation-plan.md` v0.17-draft 已确认 route-service-repository 映射、`ChunkBuildService` 执行 profile、`KnowledgeExtractionService` 结构化整理 profile、D-079 review payload 边界与 D-080-D085 RetrievalPreview / Evidence / RAG 实施边界。
@@ -50,6 +50,7 @@ P0 当前不是轻量建库闭环，而是完整入库与知识处理平台：
 - [ ] Embedding / Rerank：Z0a 必须有 `embeddings` 表和 `mock_fixed_384` fallback；bge-m3 / bge-reranker-v2 为 optional provider，按 capability probe 启用。
 - [ ] 知识调用：规则 `query_understanding_profile`、`retrieval_strategy_profile`、`ranking_profile`、`citation_trace_profile`；LLM rewrite / reranker / GraphRAG 缺失时 graceful fallback。
 - [ ] 前端：Electron + React + Vite + TypeScript + Zustand；状态默认 SSE、Toast、Error Boundary、Loading Skeleton、Auth Guard。
+- [ ] 工程化门槛：W1 必须具备最小依赖 CI gate、optional provider 延迟加载、typed fetch wrapper、sidecar 生命周期验证、sqlite-vec 三态一致性和 evidence-first smoke。
 
 ### 2.3 产品命名与本地数据目录
 
@@ -106,6 +107,21 @@ FastAPI sidecar
 
 如果某个 optional provider 在开发机可用，可以接入 capability probe，但不得把它写成 W1/W2 验收前置条件。
 
+### 3.0.2 D-091 工程化验收门槛
+
+W1-W2 的验收不只看功能能否跑通，还要看技术栈边界是否被实际守住。D-091 增加以下 blocking gate：
+
+| Gate | 必须证明 | 不允许 |
+|---|---|---|
+| 最小依赖 CI | `core + dev` + Node 基础依赖即可完成 P0-Z0a smoke | OCR / ASR / reranker / LLM / GraphRAG 进入首批必装 |
+| Provider 延迟加载 | optional provider 缺失不影响启动、migration、health、text_import | 在模块 import 阶段直接导入重依赖并导致 crash |
+| Sidecar 生命周期 | 启动、端口冲突、崩溃、重启、退出清理有明确状态和日志 | Renderer 假设 FastAPI 永远可用 |
+| typed fetch | 页面只通过 typed fetch wrapper 访问 API，统一 request_id 和 error envelope | 页面组件散写裸 `fetch` |
+| sqlite-vec 三态 | `/api/system/status`、Provider summary、VectorStoreService、Query Explanation 表达一致 | sqlite-vec 不可用时删除向量层或伪装成真实向量召回 |
+| Evidence-first | retrieval log / evidence pack / evidence items 先于 answer 写入 | evidence 失败仍生成无来源 answer |
+
+这些 gate 应进入 `pnpm smoke:p0-z0a` 或等价脚本，作为后续接入增强 Provider 前的回归基线。
+
 ### 3.1 P0 默认工具落地
 
 | 能力 | P0 默认 | 缺失时行为 |
@@ -159,6 +175,7 @@ P0-Z0a 技术栈执行口径：
 - 创建 Electron + React + FastAPI + SQLite monorepo。
 - 创建 `pyproject.toml` optional dependency groups：`core / file / ai / ocr / asr / dev`。
 - 创建 `pnpm-workspace.yaml`，固定 `apps/web`、Electron 主进程和共享脚本的 Node 工作区。
+- 创建最小依赖 smoke gate：只安装 `core + dev` 时可运行 health、migration、text_import、rule chunk、KU review、embedding fallback、retrieval/evidence-only。
 - 创建 Alembic 迁移工具链。
 - 创建 users / user_profiles / auth_identities / roles / access_policies。
 - 实现 `GET /api/auth/status`。
@@ -167,6 +184,9 @@ P0-Z0a 技术栈执行口径：
 - 建立统一 error envelope、request_id、核心错误码。
 - 建立基础 audit_logs / system_logs。
 - 前端建立 Zustand store：workspace、job events、review queue、retrieval session、citation panel；React Context 只放 API base、auth status 和 theme。
+- 前端建立 typed fetch wrapper：统一 request_id、error envelope、recoverable、fallback_reason、capability_status 和写接口 retry 禁止规则。
+- Electron Main 建立 sidecar lifecycle manager：启动、端口选择、health check、崩溃退出码记录、重启入口和应用退出清理。
+- ProviderRegistry 建立 optional provider lazy loader：缺失 PyMuPDF、PaddleOCR、Whisper、bge-m3、reranker 或 LLM SDK 时只返回 capability status，不影响启动。
 - 实现 sqlite-vec capability probe：`available / degraded / unavailable` 三态，写入 system status；不可用时不阻塞启动。
 
 验收：
@@ -176,6 +196,9 @@ P0-Z0a 技术栈执行口径：
 - 创建 Project / Folder 后可重启复盘。
 - `uv run ruff check .`、`uv run pytest`、`pnpm typecheck` 命令存在并可运行基础用例。
 - sqlite-vec 不可用时系统进入 degraded vector mode，`embeddings` 表和 VectorStoreService 仍存在。
+- `pnpm smoke:p0-z0a` 或等价脚本存在，并证明最小依赖路径不需要 OCR / ASR / reranker / LLM。
+- sidecar 端口冲突和启动失败能返回明确错误状态，不导致 Renderer 空白页。
+- 页面 API 调用统一走 typed fetch wrapper，error envelope 能映射到 Toast / Error Boundary。
 
 ### W2：P0-File 上传、接收、完整性校验
 

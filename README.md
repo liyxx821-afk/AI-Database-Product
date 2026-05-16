@@ -66,7 +66,7 @@ docs/
 文档说明：
 
 - [AGENTS.md](./AGENTS.md)：项目长期开发准则、产品定位、技术原则和 Codex 工作规则。
-- [docs/project-background-brief.md](./docs/project-background-brief.md)：项目背景说明书 v0.2，面向后续 Agent 的快速接手入口，概括项目为什么存在、目标用户、当前架构、冻结技术选择、P0-Z0a/Z0b/Z1/Z2 边界、常见误区、推荐阅读顺序和 D-090 技术栈执行优化后的实现前检查点。
+- [docs/project-background-brief.md](./docs/project-background-brief.md)：项目背景说明书 v0.3，面向后续 Agent 的快速接手入口，概括项目为什么存在、目标用户、当前架构、冻结技术选择、P0-Z0a/Z0b/Z1/Z2 边界、常见误区、推荐阅读顺序、D-090 技术栈执行优化和 D-091 工程化验收门槛后的实现前检查点。
 - [docs/architecture-design-plan.md](./docs/architecture-design-plan.md)：知识库构建系统架构设计计划 v1.3，只覆盖材料入库、知识单元生成、确认、索引和可追溯，不代表完整产品总架构；已补齐知识切片质量闭环与 AI 结构化整理 profile。
 - [docs/product-architecture.md](./docs/product-architecture.md)：产品总架构 v0.14，说明完整 P0 如何由 P0-Core / P0-File / P0-AI / P0-RAG 四切片落地，并纳入 File Inspection、知识切片质量闭环、AI 结构化整理 profile、知识调用 profile、D-081-D085 调用边界、隐式单 Agent、前端交互契约、安全运维横切层与 P0-Z0a/Z0b 竖切。
 - [docs/data-model.md](./docs/data-model.md)：数据模型 v0.19-draft，定义账号预埋、上传、文件、File Inspection、解析、切片前准备层、检查门映射、知识切片质量、切片执行 profile、AI 结构化整理 profile、D-079 结构化整理子字段与存储映射、D-080 调用 profile 元数据、D-081/D-082/D-083/D-085 调用边界与 profile schema、安全运维事件、事件枚举单一来源、知识单元、向量、RAG answer、用户记录对象、Provider capability/fallback 元数据和 P0-Z0a/Z0b/Z1/Z2 迁移波次。
@@ -76,11 +76,11 @@ docs/
 - [docs/api-implementation-plan.md](./docs/api-implementation-plan.md)：API route-level 实施计划 v0.17，定义 P0-Core / P0-File / P0-AI / P0-RAG 的 route、DTO、service、repository、事务边界、job-first chunk build、切片前准备、切片执行 profile、AI 结构化整理 profile、知识调用 profile、隐式单 Agent 边界、D-081-D085 调用边界、知识切片质量闭环、安全运维状态、P0-Z0a/Z0b 竖切和 Repository 抽象层接口契约。
 - [docs/desktop-architecture.md](./docs/desktop-architecture.md)：桌面应用架构 v0.2，定义 Electron 选型、FastAPI sidecar 部署、SQLite 本地数据库、IPC 通信、打包分发、文件系统集成、离线边界、桌面 UX 约束、数据可移植性、Schema 演进与数据迁移工具链、Electron 安全实践、产品包装规范和首次体验流程。
 - [docs/ai-provider-architecture.md](./docs/ai-provider-architecture.md)：AI Provider 抽象架构 v0.12，定义 file detection / security scan / preview generation / parser / OCR / ASR / vision / cleaning / PII / token counting / structure recovery / chunking / AI structuring / LLM / Embedding / Reranker 能力注册、切片执行和 AI 结构化整理 profile adapter 边界、D-082 调用 profile 与 Provider capability 分工、Provider 类型边界、API Key 安全存储、降级策略和多 Provider 路由。
-- [docs/p0a-execution-plan.md](./docs/p0a-execution-plan.md)：P0 6 周执行计划 v0.17，定义 P0-Core / P0-File / P0-AI / P0-RAG 的周计划、P0-Z0a/Z0b 竖切、D-090 首批依赖约束、File Inspection 分层、切片前准备、AI 结构化整理 profile、知识调用 profile、D-081-D085 实现前边界、默认工具栈、降级策略和量化验收指标。
-- [docs/testing-strategy.md](./docs/testing-strategy.md)：测试与评估策略 v0.17，定义测试金字塔、P0-Z0a fixture、ProcessingJob fixture、File Inspection fixture、切片前准备 fixture、检查门映射 fixture、Chunk Quality fixture、AI 结构化整理 fixture、知识调用路由 fixture、D-081-D085 持久化边界/profile/前端状态 fixture、安全运维 fixture、D-090 技术栈执行优化 fixture、SQLite 并发测试、Electron + Playwright E2E 方案、CI 集成预案和 P1 AI 能力评估方案。
+- [docs/p0a-execution-plan.md](./docs/p0a-execution-plan.md)：P0 6 周执行计划 v0.18，定义 P0-Core / P0-File / P0-AI / P0-RAG 的周计划、P0-Z0a/Z0b 竖切、D-090 首批依赖约束、D-091 工程化验收门槛、File Inspection 分层、切片前准备、AI 结构化整理 profile、知识调用 profile、D-081-D085 实现前边界、默认工具栈、降级策略和量化验收指标。
+- [docs/testing-strategy.md](./docs/testing-strategy.md)：测试与评估策略 v0.18，定义测试金字塔、P0-Z0a fixture、ProcessingJob fixture、File Inspection fixture、切片前准备 fixture、检查门映射 fixture、Chunk Quality fixture、AI 结构化整理 fixture、知识调用路由 fixture、D-081-D085 持久化边界/profile/前端状态 fixture、安全运维 fixture、D-090 技术栈执行优化 fixture、D-091 工程化验收门槛、SQLite 并发测试、Electron + Playwright E2E 方案、CI 集成预案和 P1 AI 能力评估方案。
 - [docs/error-handling-and-observability.md](./docs/error-handling-and-observability.md)：错误处理与可观测性 v0.6，定义错误响应 envelope、错误码白名单（含 File Inspection、provider capability、parser、OCR/ASR、upload、RAG fallback 和 feedback 记录失败）、UI 错误消息映射、诊断报告契约、日志分层与脱敏、D-083 前端状态契约、安全运维横切层、事件枚举单一来源和 P1 可观测性指标，并作为 API error envelope 单一来源。
 - [docs/git-management.md](./docs/git-management.md)：Git 管理说明 v0.2，记录本地仓库初始化状态、GitHub private remote、忽略规则、行尾与二进制策略、提交类型、分支建议、首次提交建议和禁止事项。
-- [docs/technical-stack-and-prototype-plan.md](./docs/technical-stack-and-prototype-plan.md)：技术栈与 P0 原型实施计划 v0.19，推荐 Electron + React + Vite + TypeScript、FastAPI sidecar、SQLite + sqlite-vec，并根据 README 入口口径把技术栈优化为 P0-Z0a 最小可执行栈、完整 P0 扩展栈和 P1/P2 后置栈，同时落地 D-090 依赖分组、Zustand 状态、sqlite-vec capability probe、File Inspection 分层和 evidence-first RAG 执行口径。
+- [docs/technical-stack-and-prototype-plan.md](./docs/technical-stack-and-prototype-plan.md)：技术栈与 P0 原型实施计划 v0.20，推荐 Electron + React + Vite + TypeScript、FastAPI sidecar、SQLite + sqlite-vec，并根据 README 入口口径把技术栈优化为 P0-Z0a 最小可执行栈、完整 P0 扩展栈和 P1/P2 后置栈，同时落地 D-090 依赖分组、Zustand 状态、sqlite-vec capability probe、File Inspection 分层、evidence-first RAG 执行口径和 D-091 工程化验收门槛。
 - [docs/development-plan.md](./docs/development-plan.md)：持续迭代开发计划、决策记录、架构验收清单和文档拆分路线。
 - [docs/knowledge-invocation-system-design-plan.md](./docs/knowledge-invocation-system-design-plan.md)：知识调用系统架构设计计划 v0.9，定义 Agent 如何通过 query understanding、retrieval strategy、ranking、citation trace、Text-to-SQL、RAG、证据包和引用解释调用个人知识资产，并收紧 `implicit_agent`、feedback signal、sensitive grant 与 P0-Z0a evidence-only 边界。
 - [docs/open-source-rag-research.md](./docs/open-source-rag-research.md)：LightRAG / GraphRAG 开源调研、可借鉴机制和分期边界。
@@ -233,6 +233,12 @@ P0 技术栈：
 
 ## Done
 
+- 已完成技术栈工程化验收门槛优化：
+  - `docs/technical-stack-and-prototype-plan.md` 升级为 v0.20，新增 D-091 工程化验收门槛。
+  - `docs/p0a-execution-plan.md` 升级为 v0.18，将最小依赖 CI gate、Provider lazy-load、sidecar lifecycle、typed fetch、sqlite-vec 三态一致性和 evidence-first 不变量写入 W1/W2 gate。
+  - `docs/testing-strategy.md` 升级为 v0.18，补充 D-091 对最小依赖、Provider 缺失、sidecar 生命周期、typed fetch、sqlite-vec 一致性和 evidence failure 的测试口径。
+  - `docs/project-background-brief.md` 升级为 v0.3，同步后续 Agent 实现前检查点。
+  - 本轮仍为文档-only 优化，未新增运行时代码、migration、OpenAPI 文件、endpoint 或依赖。
 - 已完成技术栈执行优化：
   - `docs/technical-stack-and-prototype-plan.md` 升级为 v0.19，新增 D-090 执行优化口径。
   - `docs/p0a-execution-plan.md` 升级为 v0.17，将依赖分组、Zustand、sqlite-vec capability probe、File Inspection Z0a/Z0b 分层、optional Provider 后置写入开工 Checklist 与 W1-W3 任务。

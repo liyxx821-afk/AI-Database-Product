@@ -1,5 +1,22 @@
 # 进度记录
 
+## 2026-05-17（D-091 技术栈工程化验收门槛）
+
+### 已完成
+
+- `docs/technical-stack-and-prototype-plan.md` 升级为 v0.20，新增 D-091 技术栈工程化验收门槛。
+- `docs/p0a-execution-plan.md` 升级为 v0.18，将最小依赖 CI gate、Provider lazy-load、Electron sidecar 生命周期、typed fetch/error envelope、sqlite-vec 三态一致性和 evidence-first 不变量写入开工 Checklist、D-091 gate、W1 任务与验收。
+- `docs/testing-strategy.md` 升级为 v0.18，补充 D-091 对最小依赖、Provider 缺失、sidecar 生命周期、typed fetch、sqlite-vec 一致性和 evidence failure 的测试口径。
+- `docs/project-background-brief.md` 升级为 v0.3，同步后续 Agent 实现前检查点。
+- README 已同步 D-091 Done 记录与相关文档版本。
+- `docs/development-plan.md` 升级为 v0.45，新增 D-091 决策记录。
+
+### 验收
+
+- 本轮仍为文档-only：未新增运行时代码、migration、OpenAPI 文件、endpoint 或依赖。
+- D-091 不改变当前技术栈选择：仍为 Electron + React + Vite + TypeScript、FastAPI sidecar、SQLite + sqlite-vec、local filesystem、local_sqlite_worker、SSE、ProviderRegistry 和 evidence-only fallback。
+- 新增门槛用于后续真正开工时防止 optional provider、sidecar 崩溃、裸 fetch、sqlite-vec 降级和无来源回答成为隐性缺陷。
+
 ## 2026-05-17（D-090 技术栈执行优化）
 
 ### 已完成
