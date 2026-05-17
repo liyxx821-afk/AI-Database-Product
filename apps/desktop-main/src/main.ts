@@ -1,8 +1,8 @@
 import path from "node:path";
-import { mkdirSync, writeFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { app, BrowserWindow, dialog, ipcMain } from "electron";
-import { appIdentity } from "@knowledgebase-dev/shared-config";
+import { appIdentity, defaultRendererRoute } from "@knowledgebase-dev/shared-config";
 import { SidecarManager, type SidecarRuntime } from "./sidecar.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -11,17 +11,66 @@ const repoRoot = path.resolve(__dirname, "..", "..", "..");
 const sidecar = new SidecarManager();
 let mainWindow: BrowserWindow | null = null;
 const isDesktopSmoke = process.env.KB_DESKTOP_SMOKE === "1";
+type DesktopSmokeMode = "desktop-runtime-smoke" | "packaged-runtime-smoke";
+const smokeMode: DesktopSmokeMode =
+  process.env.KB_DESKTOP_SMOKE_MODE === "packaged-runtime-smoke"
+    ? "packaged-runtime-smoke"
+    : "desktop-runtime-smoke";
 
 if (process.env.KB_DESKTOP_USER_DATA_DIR) {
   app.setPath("userData", process.env.KB_DESKTOP_USER_DATA_DIR);
 }
 
+function resourcePath(...parts: string[]): string {
+  return path.join(process.resourcesPath, ...parts);
+}
+
+function firstExistingPath(paths: string[]): string | null {
+  return paths.find((candidate) => existsSync(candidate)) ?? null;
+}
+
 function preloadPath(): string {
+  if (process.env.KB_PRELOAD_PATH) return process.env.KB_PRELOAD_PATH;
+  const packagedPreload = firstExistingPath([
+    resourcePath("desktop-preload", "preload.js"),
+    resourcePath("desktop-preload", "dist", "preload.js")
+  ]);
+  if (app.isPackaged && packagedPreload) return packagedPreload;
   return path.join(repoRoot, "apps", "desktop-preload", "dist", "preload.js");
 }
 
+type RendererEntry = {
+  url: string;
+  mode: "remote" | "static";
+};
+
+function rendererEntry(): RendererEntry {
+  if (process.env.KB_RENDERER_URL) {
+    return { url: process.env.KB_RENDERER_URL, mode: "remote" };
+  }
+
+  const rendererDistDir =
+    process.env.KB_RENDERER_DIST_DIR ??
+    (app.isPackaged ? firstExistingPath([resourcePath("renderer"), resourcePath("renderer", "dist")]) : null);
+  if (rendererDistDir) {
+    const indexPath = path.join(rendererDistDir, "index.html");
+    if (!existsSync(indexPath)) {
+      throw new Error(`Renderer static entry is missing: ${indexPath}`);
+    }
+    return {
+      url: `${pathToFileURL(indexPath).toString()}#${defaultRendererRoute}`,
+      mode: "static"
+    };
+  }
+
+  return { url: "http://127.0.0.1:5173/dashboard", mode: "remote" };
+}
+
 async function createWindow(): Promise<void> {
-  const runtime = await sidecar.start(app.getPath("userData"));
+  const entry = rendererEntry();
+  const runtime = await sidecar.start(app.getPath("userData"), {
+    allowFileRendererOrigin: entry.mode === "static"
+  });
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 820,
@@ -35,14 +84,13 @@ async function createWindow(): Promise<void> {
     }
   });
 
-  const rendererUrl = process.env.KB_RENDERER_URL ?? "http://127.0.0.1:5173/dashboard";
   const loaded = new Promise<void>((resolve, reject) => {
     mainWindow?.webContents.once("did-finish-load", () => resolve());
     mainWindow?.webContents.once("did-fail-load", (_event, errorCode, errorDescription) => {
       reject(new Error(`Renderer failed to load: ${errorCode} ${errorDescription}`));
     });
   });
-  await mainWindow.loadURL(rendererUrl);
+  await mainWindow.loadURL(entry.url);
   await loaded;
   mainWindow.webContents.send("runtime-status", {
     runtime_state: runtime.status,
@@ -50,19 +98,23 @@ async function createWindow(): Promise<void> {
   });
 
   if (isDesktopSmoke) {
-    await runDesktopSmoke(runtime, rendererUrl);
+    await runDesktopSmoke(runtime, entry);
   }
 }
 
 type DesktopSmokeResult = {
   ok: boolean;
-  mode: "desktop-runtime-smoke";
+  mode: DesktopSmokeMode;
   rendererUrl: string;
+  rendererMode: RendererEntry["mode"];
+  preloadPath: string;
   sidecar: {
     pid: number | null;
     apiBaseUrl: string | null;
     status: string;
     health: "available" | "degraded";
+    appDir: string | null;
+    logPath: string | null;
   };
   rendererProbe?: unknown;
   shutdown?: Awaited<ReturnType<SidecarManager["stop"]>>;
@@ -86,15 +138,19 @@ function exitDesktopSmoke(code: number): void {
   setTimeout(() => process.exit(code), 250);
 }
 
-async function runDesktopSmoke(runtime: SidecarRuntime, rendererUrl: string): Promise<void> {
+async function runDesktopSmoke(runtime: SidecarRuntime, entry: RendererEntry): Promise<void> {
   const baseResult = {
-    mode: "desktop-runtime-smoke" as const,
-    rendererUrl,
+    mode: smokeMode,
+    rendererUrl: entry.url,
+    rendererMode: entry.mode,
+    preloadPath: preloadPath(),
     sidecar: {
       pid: runtime.pid,
       apiBaseUrl: runtime.apiBaseUrl,
       status: runtime.status,
-      health: runtime.status === "ready" ? ("available" as const) : ("degraded" as const)
+      health: runtime.status === "ready" ? ("available" as const) : ("degraded" as const),
+      appDir: runtime.appDir,
+      logPath: runtime.logPath
     }
   };
 
@@ -197,13 +253,17 @@ app.whenReady().then(createWindow).catch(async (error) => {
   if (isDesktopSmoke) {
     writeDesktopSmokeResult({
       ok: false,
-      mode: "desktop-runtime-smoke",
+      mode: smokeMode,
       rendererUrl: process.env.KB_RENDERER_URL ?? "http://127.0.0.1:5173/dashboard",
+      rendererMode: "remote",
+      preloadPath: preloadPath(),
       sidecar: {
         pid: sidecar.getRuntime()?.pid ?? null,
         apiBaseUrl: sidecar.getRuntime()?.apiBaseUrl ?? null,
         status: sidecar.getRuntime()?.status ?? "degraded",
-        health: "degraded"
+        health: "degraded",
+        appDir: sidecar.getRuntime()?.appDir ?? null,
+        logPath: sidecar.getRuntime()?.logPath ?? null
       },
       shutdown,
       error: error instanceof Error ? error.message : "desktop_boot_failed"

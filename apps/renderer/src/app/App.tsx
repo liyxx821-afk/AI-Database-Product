@@ -122,6 +122,10 @@ const routes: RouteConfig[] = [
 ];
 
 function currentPath(): RouteKey {
+  const hashRoute = window.location.hash.startsWith("#/")
+    ? (window.location.hash.slice(1) as RouteKey)
+    : null;
+  if (hashRoute && routes.some((route) => route.path === hashRoute)) return hashRoute;
   const path = window.location.pathname as RouteKey;
   return routes.some((route) => route.path === path) ? path : defaultRendererRoute;
 }
@@ -143,6 +147,16 @@ export function App() {
     refreshMemories();
   }, []);
 
+  useEffect(() => {
+    const syncRoute = () => setActivePath(currentPath());
+    window.addEventListener("popstate", syncRoute);
+    window.addEventListener("hashchange", syncRoute);
+    return () => {
+      window.removeEventListener("popstate", syncRoute);
+      window.removeEventListener("hashchange", syncRoute);
+    };
+  }, []);
+
   const activeRoute = useMemo(
     () => routes.find((route) => route.path === activePath) ?? routes[0],
     [activePath]
@@ -150,6 +164,10 @@ export function App() {
 
   function navigate(path: RouteKey) {
     setActivePath(path);
+    if (window.location.protocol === "file:") {
+      window.location.hash = path;
+      return;
+    }
     window.history.pushState(null, "", path);
   }
 

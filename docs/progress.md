@@ -1,5 +1,39 @@
 # 进度记录
 
+## 2026-05-17（D-117 Packaged Runtime Static Renderer / Sidecar Artifact Spike Z0b-lite）
+
+### 已完成
+
+- Electron Main 增加 renderer / preload / sidecar runtime path 解析：开发态继续支持 `KB_RENDERER_URL`，packaged smoke 可通过 `KB_RENDERER_DIST_DIR` 加载 build 后的静态 `renderer/dist/index.html#/dashboard`。
+- Preload 支持 `KB_PRELOAD_PATH` artifact override；SidecarManager 支持 `KB_SIDECAR_APP_DIR`、`KB_SIDECAR_LOG_DIR` 和 `KB_PYTHON_EXECUTABLE` override，为未来 `process.resourcesPath` / 安装器资源路径预留。
+- Renderer 增加 file/hash route 兼容；静态 Electron 模式首屏保持 `/dashboard`，普通浏览器 / Vite dev 继续使用 pathname route。
+- Sidecar stdout/stderr 写入 app data logs，日志和 smoke result 不写 local token 明文；静态 file renderer 仅在 packaged smoke env 下允许 CORS `null` origin，受保护 API 仍必须带 local token。
+- 新增 `scripts/smoke-p0-packaged-runtime.mjs` 与 `pnpm smoke:p0-packaged-runtime`：脚本构建 shared/preload/main/renderer，复制 renderer dist、preload dist 和 API sidecar source 到临时 runtime artifact，启动 Electron smoke mode 并验证静态 Renderer、bridge、auth、sidecar、日志路径、clean shutdown 和 artifact immutability。
+- 完整 smoke 顺序更新为 `smoke:p0-core` → `smoke:p0-desktop-runtime` → `smoke:p0-packaged-runtime` → `smoke:p0-i18n-settings` → `smoke:p0-file` → `smoke:p0-parse` → `smoke:p0-ku` → `smoke:p0-space-tag-metadata` → `smoke:p0-knowledge-export` → `smoke:p0-knowledge-export-history` → `smoke:p0-search-ask` → `smoke:p0-citation-detail` → `smoke:p0-citation-focus` → `smoke:p0-citation-annotate-compare` → `smoke:p0-feedback-memory` → `smoke:p0-feedback-diagnostics` → `smoke:p0-feedback-export` → `smoke:p0-feedback-filters-history` → `smoke:p0-z0a`。
+- 已同步 README、`docs/development-plan.md`、`docs/desktop-architecture.md`、`docs/testing-strategy.md`、`docs/technical-stack-and-prototype-plan.md`。
+
+### 验收
+
+- `pnpm typecheck` 通过。
+- `pnpm api:ruff` 通过。
+- `pnpm api:test` 通过，12 个 API 测试通过。
+- `pnpm smoke:p0-core` 通过，输出 `SMOKE_P0_CORE_OK`。
+- `pnpm smoke:p0-desktop-runtime` 通过，输出 `SMOKE_P0_DESKTOP_RUNTIME_OK`。
+- `pnpm smoke:p0-packaged-runtime` 通过，输出 `SMOKE_P0_PACKAGED_RUNTIME_OK`。
+- 完整 smoke 顺序通过：
+  `pnpm smoke:p0-core`、`pnpm smoke:p0-desktop-runtime`、`pnpm smoke:p0-packaged-runtime`、`pnpm smoke:p0-i18n-settings`、`pnpm smoke:p0-file`、`pnpm smoke:p0-parse`、`pnpm smoke:p0-ku`、`pnpm smoke:p0-space-tag-metadata`、`pnpm smoke:p0-knowledge-export`、`pnpm smoke:p0-knowledge-export-history`、`pnpm smoke:p0-search-ask`、`pnpm smoke:p0-citation-detail`、`pnpm smoke:p0-citation-focus`、`pnpm smoke:p0-citation-annotate-compare`、`pnpm smoke:p0-feedback-memory`、`pnpm smoke:p0-feedback-diagnostics`、`pnpm smoke:p0-feedback-export`、`pnpm smoke:p0-feedback-filters-history`、`pnpm smoke:p0-z0a`。
+- `pnpm --filter @knowledgebase-dev/renderer build` 通过。
+- `pnpm --filter @knowledgebase-dev/desktop-preload build` 通过。
+- `pnpm --filter @knowledgebase-dev/desktop-main build` 通过。
+- `git diff --check` 通过。
+- in-app browser 检查通过：`http://127.0.0.1:5173/ask` 可加载，默认中文 `/ask` 页面、问答内容、bridge degraded / runtime degraded 状态和 pathname route 保持可见。
+
+### 备注
+
+- D-117 不修改 OpenAPI schema，因此未运行 `pnpm generate:api-types`。
+- D-117 仍使用本机 Python / `.venv` 启动 sidecar，不产出正式 PyInstaller binary。
+- D-117 不新增业务功能、主路由、数据库表、正式签名、自动更新、真实安装器、正式品牌资源、真实 LLM、OCR/ASR 或 GraphRAG。
+
 ## 2026-05-17（D-116 Knowledge Export History / Replay Z0b-lite）
 
 ### 已完成

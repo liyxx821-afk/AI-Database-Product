@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -37,10 +38,12 @@ async def lifespan(_app: FastAPI):
 
 def create_app() -> FastAPI:
     app = FastAPI(title="KnowledgeBaseDev API", version="0.1.0-alpha", lifespan=lifespan)
+    static_file_origins = ["null"] if os.environ.get("KB_ALLOW_FILE_RENDERER_ORIGIN") == "1" else []
     app.add_middleware(RequestContextMiddleware)
     app.add_middleware(LocalTokenMiddleware)
     app.add_middleware(
         CORSMiddleware,
+        allow_origins=static_file_origins,
         allow_origin_regex=r"^http://127\.0\.0\.1:\d+$",
         allow_methods=["*"],
         allow_headers=["content-type", "x-kb-local-token"],

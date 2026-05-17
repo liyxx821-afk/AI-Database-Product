@@ -1,8 +1,8 @@
 # 桌面应用架构
 
-版本：v0.11
+版本：v0.12
 日期：2026-05-17
-状态：已同步完整 P0 入库、文件处理、开源优先 AI、P0-RAG 桌面边界、D-092 sidecar 打包验证 spike、D-093 桌面运行时硬化、D-094 P0-Core 工程骨架开工契约、D-098 Knowledge Workspace 页面 IA / 桌面 shell 导航契约、D-109 pseudo-packaged desktop runtime smoke、D-111 feedback export history metadata config 与 D-116 knowledge export history metadata config
+状态：已同步完整 P0 入库、文件处理、开源优先 AI、P0-RAG 桌面边界、D-092 sidecar 打包验证 spike、D-093 桌面运行时硬化、D-094 P0-Core 工程骨架开工契约、D-098 Knowledge Workspace 页面 IA / 桌面 shell 导航契约、D-109 pseudo-packaged desktop runtime smoke、D-111 feedback export history metadata config、D-116 knowledge export history metadata config 与 D-117 packaged runtime static renderer / sidecar artifact smoke
 
 ## 1. 文档目的
 
@@ -190,7 +190,35 @@ pnpm build shared packages / desktop preload / desktop main / renderer
 - sidecar 只允许 `127.0.0.1` 绑定；FastAPI CORS 只允许本地 `127.0.0.1:<port>` renderer 来源；
 - Electron 退出前必须等待 sidecar 退出，必要时强制终止并记录 forced 状态。
 
-### 3.7 D-093 Sidecar 本地安全通信
+### 3.7 D-117 Packaged Runtime Static Renderer / Sidecar Artifact Smoke
+
+D-117 将 D-109 的 smoke 从 Vite preview 推进到安装器前 artifact 形态，但仍不等同于正式安装器、签名、自动更新或 PyInstaller 完整发布包。
+
+当前新增 smoke 边界：
+
+```text
+pnpm build shared packages / desktop preload / desktop main / renderer
+→ copy renderer dist / preload dist / api sidecar source into temporary runtime artifact
+→ Electron launches apps/desktop-main/dist/main.js
+→ Main loads artifact preload through KB_PRELOAD_PATH
+→ Main loads static renderer dist through file:// index.html#/dashboard
+→ Main starts artifact FastAPI sidecar through KB_SIDECAR_APP_DIR
+→ Sidecar writes stdout/stderr to app data logs through KB_SIDECAR_LOG_DIR
+→ Renderer uses preload bridge to fetch protected sidecar API
+→ Main writes redacted result and stops sidecar
+→ script verifies sidecar pid is gone and artifact is not mutated
+```
+
+验收：
+
+- `smoke:p0-packaged-runtime` 不启动 Vite preview，Renderer 必须从静态 `renderer/dist` 加载；
+- 静态 Renderer 使用 hash route 保持首屏 `/dashboard`，普通 dev / browser preview 继续支持 pathname route；
+- Preload、Renderer dist、sidecar app dir、sidecar log dir 均可通过 env override 指向 artifact，为未来 `process.resourcesPath` 打包路径预留；
+- Sidecar 仍只绑定 `127.0.0.1`，静态 file renderer 仅在 `KB_ALLOW_FILE_RENDERER_ORIGIN=1` 时允许 CORS `null` origin，且受保护 API 仍必须带 local token；
+- sidecar 日志写入 app data logs，不写入源码目录或 runtime artifact，不输出 local token 明文；
+- 本 smoke 不引入正式签名、自动更新、真实安装器、正式品牌资源或 PyInstaller 完整产物。
+
+### 3.8 D-093 Sidecar 本地安全通信
 
 P0 虽然只在本机运行，但 `localhost` 端口仍可能被其他本机进程访问。D-093 要求 sidecar 通信增加本地会话保护：
 
