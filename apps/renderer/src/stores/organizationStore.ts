@@ -21,6 +21,7 @@ import {
   updateSourcesOrganizationBatch,
   updateSourceOrganization
 } from "../services/organizationApi";
+import { storeErrorCode } from "./errors";
 
 type ViewState = "loading" | "empty" | "degraded" | "recoverable_error" | "done";
 
@@ -68,10 +69,6 @@ const defaultProject: ProjectRecord = {
   updated_at: ""
 };
 
-function organizationErrorCode(error: unknown, fallback: string): string {
-  return error instanceof Error ? error.message : fallback;
-}
-
 export const useOrganizationStore = create<OrganizationStore>((set, get) => ({
   projects: [defaultProject],
   folders: [],
@@ -108,7 +105,7 @@ export const useOrganizationStore = create<OrganizationStore>((set, get) => ({
     } catch (error) {
       set({
         state: "recoverable_error",
-        errorCode: error instanceof Error ? error.message : "organization_refresh_failed"
+        errorCode: storeErrorCode(error, "organization_refresh_failed")
       });
     }
   },
@@ -132,7 +129,7 @@ export const useOrganizationStore = create<OrganizationStore>((set, get) => ({
     } catch (error) {
       set({
         state: "recoverable_error",
-        errorCode: organizationErrorCode(error, "project_create_failed")
+        errorCode: storeErrorCode(error, "project_create_failed")
       });
     }
   },
@@ -148,7 +145,7 @@ export const useOrganizationStore = create<OrganizationStore>((set, get) => ({
     } catch (error) {
       set({
         state: "recoverable_error",
-        errorCode: organizationErrorCode(error, "folder_create_failed")
+        errorCode: storeErrorCode(error, "folder_create_failed")
       });
     }
   },
@@ -170,7 +167,7 @@ export const useOrganizationStore = create<OrganizationStore>((set, get) => ({
     } catch (error) {
       set({
         state: "recoverable_error",
-        errorCode: organizationErrorCode(error, "tag_create_failed")
+        errorCode: storeErrorCode(error, "tag_create_failed")
       });
     }
   },
@@ -186,7 +183,7 @@ export const useOrganizationStore = create<OrganizationStore>((set, get) => ({
     } catch (error) {
       set({
         state: "recoverable_error",
-        errorCode: organizationErrorCode(error, "source_organization_failed")
+        errorCode: storeErrorCode(error, "source_organization_failed")
       });
     }
   },
@@ -202,7 +199,7 @@ export const useOrganizationStore = create<OrganizationStore>((set, get) => ({
     } catch (error) {
       set({
         state: "recoverable_error",
-        errorCode: organizationErrorCode(error, "source_batch_organization_failed")
+        errorCode: storeErrorCode(error, "source_batch_organization_failed")
       });
     }
   },
@@ -221,7 +218,7 @@ export const useOrganizationStore = create<OrganizationStore>((set, get) => ({
     } catch (error) {
       set({
         state: "recoverable_error",
-        errorCode: organizationErrorCode(error, "knowledge_unit_organization_failed")
+        errorCode: storeErrorCode(error, "knowledge_unit_organization_failed")
       });
     }
   },
@@ -239,7 +236,7 @@ export const useOrganizationStore = create<OrganizationStore>((set, get) => ({
     } catch (error) {
       set({
         state: "recoverable_error",
-        errorCode: organizationErrorCode(error, "knowledge_unit_batch_organization_failed")
+        errorCode: storeErrorCode(error, "knowledge_unit_batch_organization_failed")
       });
     }
   }

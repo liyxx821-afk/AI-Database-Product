@@ -1,5 +1,29 @@
 # 进度记录
 
+## 2026-05-18（Renderer Store 错误处理去重优化）
+
+### 审查结论
+
+- 多个 renderer store 重复手写 `error instanceof Error ? error.message : fallback`，上一轮 Organization Store 已局部补了 helper，但没有形成共享约定。
+- 重复错误提取逻辑会让后续 store 扩展时继续产生轻微分叉，尤其是 `/outputs` export 与 `/library` organization 这类高频状态面板。
+
+### 已优化
+
+- 新增 `apps/renderer/src/stores/errors.ts`，提供 `storeErrorCode(error, fallback)`。
+- `organizationStore` 移除局部 `organizationErrorCode`，统一改用共享 helper。
+- `exportsStore` 的 knowledge export、project export、history refresh/delete 错误处理改用同一 helper。
+
+### 验收
+
+- `pnpm typecheck` 通过。
+- `pnpm --filter @knowledgebase-dev/renderer build` 通过。
+- `git diff --check` 通过。
+- in-app browser 检查 `/library` 与 `/outputs` 可达，Organization / Knowledge Export 面板仍显示预期 degraded 状态。
+
+### 备注
+
+- 本轮只做前端 store 层维护性优化，不改 API schema、业务语义、主路由、数据库或 smoke 命令。
+
 ## 2026-05-18（Organization Store 写操作错误状态优化）
 
 ### 审查结论
