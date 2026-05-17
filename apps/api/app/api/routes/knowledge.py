@@ -15,6 +15,7 @@ from app.services.knowledge.extraction import (
     get_knowledge_unit,
     list_knowledge_units,
 )
+from app.services.organization import parse_tag_ids
 
 router = APIRouter()
 
@@ -28,8 +29,10 @@ def extract_knowledge_units(payload: KnowledgeExtractRequest) -> dict:
 def get_knowledge_units(
     project_id: str = "default-space",
     status: Optional[str] = None,
+    folder_id: Optional[str] = None,
+    tag_ids: Optional[str] = None,
 ) -> list[dict]:
-    return list_knowledge_units(project_id, status)
+    return list_knowledge_units(project_id, status, folder_id, parse_tag_ids(tag_ids))
 
 
 @router.get("/knowledge-units/{knowledge_unit_id}", response_model=KnowledgeUnitDetail)

@@ -45,6 +45,7 @@ def initialize_database() -> None:
     ensure_data_dirs()
     with db() as conn:
         conn.executescript(SCHEMA_SQL)
+        ensure_compatible_schema(conn)
         conn.execute(
             """
             INSERT OR IGNORE INTO local_users (id, display_name, created_at)
@@ -63,6 +64,70 @@ def initialize_database() -> None:
             )
             """
         )
+        conn.execute(
+            """
+            UPDATE projects
+            SET
+              user_id = COALESCE(user_id, 'local-user'),
+              kb_type = COALESCE(kb_type, 'project_kb'),
+              status = COALESCE(status, 'active'),
+              metadata_json = COALESCE(metadata_json, '{}')
+            WHERE id = 'default-space'
+            """
+        )
+
+
+def ensure_compatible_schema(conn: sqlite3.Connection) -> None:
+    def columns(table: str) -> set[str]:
+        return {row["name"] for row in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+
+    def add_column(table: str, column: str, definition: str) -> None:
+        if column not in columns(table):
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+
+    add_column("projects", "user_id", "TEXT")
+    add_column("projects", "parent_id", "TEXT")
+    add_column("projects", "kb_type", "TEXT")
+    add_column("projects", "status", "TEXT")
+    add_column("projects", "metadata_json", "TEXT")
+    add_column("folders", "parent_id", "TEXT")
+    add_column("folders", "mirror_tag_id", "TEXT")
+    add_column("folders", "updated_at", "TEXT")
+    add_column("tags", "project_id", "TEXT")
+    add_column("tags", "user_id", "TEXT")
+    add_column("tags", "description", "TEXT")
+    add_column("tags", "created_by", "TEXT")
+    add_column("tags", "updated_at", "TEXT")
+    add_column("sources", "primary_folder_id", "TEXT")
+    add_column("knowledge_units", "primary_folder_id", "TEXT")
+    timestamp = "datetime('now')"
+    conn.execute(
+        f"""
+        UPDATE projects
+        SET
+          user_id = COALESCE(user_id, 'local-user'),
+          kb_type = COALESCE(kb_type, 'project_kb'),
+          status = COALESCE(status, 'active'),
+          metadata_json = COALESCE(metadata_json, '{{}}'),
+          updated_at = COALESCE(updated_at, {timestamp})
+        """
+    )
+    conn.execute(
+        f"""
+        UPDATE folders
+        SET updated_at = COALESCE(updated_at, created_at, {timestamp})
+        """
+    )
+    conn.execute(
+        f"""
+        UPDATE tags
+        SET
+          project_id = COALESCE(project_id, 'default-space'),
+          user_id = COALESCE(user_id, 'local-user'),
+          created_by = COALESCE(created_by, 'system'),
+          updated_at = COALESCE(updated_at, created_at, {timestamp})
+        """
+    )
 
 
 def quick_check() -> str:
@@ -103,27 +168,45 @@ CREATE TABLE IF NOT EXISTS local_users (
 
 CREATE TABLE IF NOT EXISTS projects (
   id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL DEFAULT 'local-user',
+  parent_id TEXT,
   name TEXT NOT NULL,
   description TEXT,
+  kb_type TEXT NOT NULL DEFAULT 'project_kb',
+  status TEXT NOT NULL DEFAULT 'active',
+  metadata_json TEXT NOT NULL DEFAULT '{}',
   created_at TEXT NOT NULL,
-  updated_at TEXT NOT NULL
+  updated_at TEXT NOT NULL,
+  FOREIGN KEY(user_id) REFERENCES local_users(id)
 );
 
 CREATE TABLE IF NOT EXISTS folders (
   id TEXT PRIMARY KEY,
   project_id TEXT NOT NULL,
+  parent_id TEXT,
   name TEXT NOT NULL,
   path TEXT NOT NULL,
+  mirror_tag_id TEXT,
   created_at TEXT NOT NULL,
-  FOREIGN KEY(project_id) REFERENCES projects(id)
+  updated_at TEXT NOT NULL,
+  FOREIGN KEY(project_id) REFERENCES projects(id),
+  FOREIGN KEY(parent_id) REFERENCES folders(id),
+  FOREIGN KEY(mirror_tag_id) REFERENCES tags(id)
 );
 
 CREATE TABLE IF NOT EXISTS tags (
   id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL DEFAULT 'default-space',
+  user_id TEXT NOT NULL DEFAULT 'local-user',
   name TEXT NOT NULL,
   namespace TEXT NOT NULL,
   tag_type TEXT NOT NULL,
-  created_at TEXT NOT NULL
+  description TEXT,
+  created_by TEXT NOT NULL DEFAULT 'system',
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  FOREIGN KEY(project_id) REFERENCES projects(id),
+  FOREIGN KEY(user_id) REFERENCES local_users(id)
 );
 
 CREATE TABLE IF NOT EXISTS upload_tasks (
@@ -211,13 +294,15 @@ CREATE TABLE IF NOT EXISTS file_inspection_results (
 CREATE TABLE IF NOT EXISTS sources (
   id TEXT PRIMARY KEY,
   project_id TEXT NOT NULL,
+  primary_folder_id TEXT,
   title TEXT NOT NULL,
   source_type TEXT NOT NULL,
   source_origin TEXT NOT NULL,
   content_hash TEXT NOT NULL,
   metadata_json TEXT NOT NULL,
   created_at TEXT NOT NULL,
-  FOREIGN KEY(project_id) REFERENCES projects(id)
+  FOREIGN KEY(project_id) REFERENCES projects(id),
+  FOREIGN KEY(primary_folder_id) REFERENCES folders(id)
 );
 
 CREATE TABLE IF NOT EXISTS chunks (
@@ -282,6 +367,7 @@ CREATE TABLE IF NOT EXISTS knowledge_units (
   source_id TEXT NOT NULL,
   chunk_id TEXT NOT NULL,
   project_id TEXT NOT NULL,
+  primary_folder_id TEXT,
   title TEXT NOT NULL,
   type TEXT NOT NULL,
   content TEXT NOT NULL,
@@ -292,7 +378,28 @@ CREATE TABLE IF NOT EXISTS knowledge_units (
   updated_at TEXT NOT NULL,
   FOREIGN KEY(source_id) REFERENCES sources(id),
   FOREIGN KEY(chunk_id) REFERENCES chunks(id),
-  FOREIGN KEY(project_id) REFERENCES projects(id)
+  FOREIGN KEY(project_id) REFERENCES projects(id),
+  FOREIGN KEY(primary_folder_id) REFERENCES folders(id)
+);
+
+CREATE TABLE IF NOT EXISTS source_tags (
+  source_id TEXT NOT NULL,
+  tag_id TEXT NOT NULL,
+  tag_source TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  PRIMARY KEY(source_id, tag_id, tag_source),
+  FOREIGN KEY(source_id) REFERENCES sources(id),
+  FOREIGN KEY(tag_id) REFERENCES tags(id)
+);
+
+CREATE TABLE IF NOT EXISTS knowledge_unit_tags (
+  knowledge_unit_id TEXT NOT NULL,
+  tag_id TEXT NOT NULL,
+  tag_source TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  PRIMARY KEY(knowledge_unit_id, tag_id, tag_source),
+  FOREIGN KEY(knowledge_unit_id) REFERENCES knowledge_units(id),
+  FOREIGN KEY(tag_id) REFERENCES tags(id)
 );
 
 CREATE TABLE IF NOT EXISTS review_tasks (
@@ -452,4 +559,9 @@ CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
   source_id UNINDEXED,
   knowledge_unit_id UNINDEXED
 );
+
+CREATE INDEX IF NOT EXISTS idx_folders_project ON folders(project_id);
+CREATE INDEX IF NOT EXISTS idx_tags_project_namespace ON tags(project_id, namespace);
+CREATE INDEX IF NOT EXISTS idx_source_tags_tag ON source_tags(tag_id);
+CREATE INDEX IF NOT EXISTS idx_ku_tags_tag ON knowledge_unit_tags(tag_id);
 """

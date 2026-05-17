@@ -6,11 +6,12 @@ import sqlite3
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 from app.core.config import get_settings
 from app.core.errors import AppError
 from app.db.sqlite import db, json_dumps
+from app.services.organization import source_tags
 
 TEXT_EXTENSIONS = {".csv", ".json", ".md", ".markdown", ".txt"}
 TEXT_MIME_PREFIXES = ("text/",)
@@ -317,20 +318,41 @@ def get_parse_task(parse_task_id: str) -> dict:
         return parse_task_response(conn, parse_task_id)
 
 
-def list_sources(project_id: str = "default-space") -> list[dict]:
+def list_sources(
+    project_id: str = "default-space",
+    folder_id: Optional[str] = None,
+    tag_ids: Optional[list[str]] = None,
+) -> list[dict]:
+    tag_ids = tag_ids or []
+    conditions = ["s.project_id = ?"]
+    params: list[Any] = [project_id]
+    if folder_id:
+        conditions.append("s.primary_folder_id = ?")
+        params.append(folder_id)
+    for tag_id in tag_ids:
+        conditions.append(
+            """
+            EXISTS (
+              SELECT 1 FROM source_tags st
+              WHERE st.source_id = s.id AND st.tag_id = ?
+            )
+            """
+        )
+        params.append(tag_id)
+    where_clause = " AND ".join(conditions)
     with db() as conn:
         rows = conn.execute(
-            """
+            f"""
             SELECT s.*, COUNT(c.id) AS chunk_count
             FROM sources s
             LEFT JOIN chunks c ON c.source_id = s.id
-            WHERE s.project_id = ?
+            WHERE {where_clause}
             GROUP BY s.id
             ORDER BY s.created_at DESC
             """,
-            (project_id,),
+            params,
         ).fetchall()
-    return [source_row_to_response(row) for row in rows]
+        return [source_row_to_response(row, source_tags(conn, row["id"])) for row in rows]
 
 
 def get_source(source_id: str) -> dict:
@@ -347,14 +369,17 @@ def get_source(source_id: str) -> dict:
             (source_id,),
         ).fetchall()
         metadata = json.loads(source["metadata_json"])
+        tags = source_tags(conn, source_id)
     return {
         "id": source["id"],
         "project_id": source["project_id"],
+        "primary_folder_id": source["primary_folder_id"],
         "title": source["title"],
         "source_type": source["source_type"],
         "source_origin": source["source_origin"],
         "content_hash": source["content_hash"],
         "metadata": metadata,
+        "tags": tags,
         "chunk_count": len(chunks),
         "chunks": [chunk_row_to_response(chunk) for chunk in chunks],
         "created_at": source["created_at"],
@@ -582,15 +607,17 @@ def insert_chunk_quality_check(
     )
 
 
-def source_row_to_response(row: sqlite3.Row) -> dict:
+def source_row_to_response(row: sqlite3.Row, tags: Optional[list[dict]] = None) -> dict:
     return {
         "id": row["id"],
         "project_id": row["project_id"],
+        "primary_folder_id": row["primary_folder_id"],
         "title": row["title"],
         "source_type": row["source_type"],
         "source_origin": row["source_origin"],
         "content_hash": row["content_hash"],
         "metadata": json.loads(row["metadata_json"]),
+        "tags": tags or [],
         "chunk_count": row["chunk_count"],
         "created_at": row["created_at"],
     }

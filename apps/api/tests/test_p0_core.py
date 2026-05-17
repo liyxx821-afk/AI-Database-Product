@@ -66,6 +66,254 @@ def test_settings_language_persistence_and_validation(monkeypatch, tmp_path):
         assert unknown.json()["error"]["code"] == "validation_error"
 
 
+def test_space_tag_metadata_filters(monkeypatch, tmp_path):
+    monkeypatch.setenv("KB_APP_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("KB_LOCAL_TOKEN", "test-token")
+    headers = {"x-kb-local-token": "test-token"}
+    json_headers = {"content-type": "application/json", **headers}
+    with TestClient(create_app()) as client:
+        unauthorized = client.get("/api/projects")
+        assert unauthorized.status_code == 401
+        assert unauthorized.json()["error"]["code"] == "sidecar_auth_failed"
+
+        projects = client.get("/api/projects", headers=headers)
+        assert projects.status_code == 200
+        assert any(project["id"] == "default-space" for project in projects.json())
+
+        created_project = client.post(
+            "/api/projects",
+            headers=json_headers,
+            json={
+                "name": "D114 Space",
+                "description": "Organization filter test",
+                "kb_type": "project_kb",
+            },
+        )
+        assert created_project.status_code == 200
+        assert created_project.json()["status"] == "active"
+
+        folder = client.post(
+            "/api/folders",
+            headers=json_headers,
+            json={"project_id": "default-space", "name": "D114 Folder"},
+        )
+        assert folder.status_code == 200
+        folder_body = folder.json()
+        assert folder_body["mirror_tag_id"]
+
+        mirror_tags = client.get(
+            "/api/tags",
+            headers=headers,
+            params={"project_id": "default-space", "namespace": "folder"},
+        )
+        assert mirror_tags.status_code == 200
+        assert any(tag["id"] == folder_body["mirror_tag_id"] for tag in mirror_tags.json())
+        assert any(tag["name"] == "D114 Folder" for tag in mirror_tags.json())
+
+        topic_tag = client.post(
+            "/api/tags",
+            headers=json_headers,
+            json={
+                "project_id": "default-space",
+                "name": "D114 Topic",
+                "namespace": "topic",
+                "tag_type": "topic_tag",
+            },
+        )
+        assert topic_tag.status_code == 200
+        topic_tag_id = topic_tag.json()["id"]
+
+        imported = client.post(
+            "/api/text-imports",
+            headers=json_headers,
+            json={
+                "title": "D114 Metadata Filter Source",
+                "content": "D114 metadata filter confirmed evidence belongs to a folder tag.",
+            },
+        )
+        assert imported.status_code == 200
+        imported_body = imported.json()
+        source_id = imported_body["source_id"]
+        ku_id = imported_body["candidate_knowledge_unit_ids"][0]
+
+        organization = client.patch(
+            f"/api/sources/{source_id}/organization",
+            headers=json_headers,
+            json={"folder_id": folder_body["id"], "tag_ids": [topic_tag_id]},
+        )
+        assert organization.status_code == 200
+        organization_body = organization.json()
+        assert organization_body["folder_id"] == folder_body["id"]
+        assert ku_id in organization_body["synced_knowledge_unit_ids"]
+        assert {tag["id"] for tag in organization_body["tags"]} == {
+            folder_body["mirror_tag_id"],
+            topic_tag_id,
+        }
+
+        filtered_sources = client.get(
+            "/api/sources",
+            headers=headers,
+            params={
+                "folder_id": folder_body["id"],
+                "tag_ids": topic_tag_id,
+            },
+        )
+        assert filtered_sources.status_code == 200
+        assert [source["id"] for source in filtered_sources.json()] == [source_id]
+        assert filtered_sources.json()[0]["primary_folder_id"] == folder_body["id"]
+
+        pending_preview = client.post(
+            "/api/retrieval/preview",
+            headers=json_headers,
+            json={
+                "query": "D114 metadata filter",
+                "folder_id": folder_body["id"],
+                "tag_ids": [topic_tag_id],
+            },
+        )
+        assert pending_preview.status_code == 200
+        assert pending_preview.json()["evidence_pack"]["failure_type"] == "no_retrieval_result"
+
+        confirmed = client.post(
+            f"/api/review-tasks/{imported_body['review_task_ids'][0]}:confirm",
+            headers=headers,
+        )
+        assert confirmed.status_code == 200
+
+        filtered_kus = client.get(
+            "/api/knowledge-units",
+            headers=headers,
+            params={
+                "folder_id": folder_body["id"],
+                "tag_ids": topic_tag_id,
+                "status": "confirmed",
+            },
+        )
+        assert filtered_kus.status_code == 200
+        assert [ku["id"] for ku in filtered_kus.json()] == [ku_id]
+
+        matching_preview = client.post(
+            "/api/retrieval/preview",
+            headers=json_headers,
+            json={
+                "query": "D114 metadata filter",
+                "folder_id": folder_body["id"],
+                "tag_ids": [topic_tag_id],
+            },
+        )
+        assert matching_preview.status_code == 200
+        matching_body = matching_preview.json()
+        assert matching_body["evidence_pack"]["status"] == "ready"
+        assert matching_body["query_explanation"]["filters"]["folder_id"] == folder_body["id"]
+        assert matching_body["query_explanation"]["filters"]["tag_ids"] == [topic_tag_id]
+
+        excluding_tag = client.post(
+            "/api/tags",
+            headers=json_headers,
+            json={
+                "project_id": "default-space",
+                "name": "D114 Excluding Topic",
+                "namespace": "topic",
+                "tag_type": "topic_tag",
+            },
+        )
+        assert excluding_tag.status_code == 200
+        excluded_preview = client.post(
+            "/api/retrieval/preview",
+            headers=json_headers,
+            json={
+                "query": "D114 metadata filter",
+                "folder_id": folder_body["id"],
+                "tag_ids": [excluding_tag.json()["id"]],
+            },
+        )
+        assert excluded_preview.status_code == 200
+        assert excluded_preview.json()["evidence_pack"]["failure_type"] == "no_retrieval_result"
+
+        pending_import = client.post(
+            "/api/text-imports",
+            headers=json_headers,
+            json={
+                "title": "D114 Pending Only",
+                "content": "pending-only-secret should not enter evidence even when tagged.",
+            },
+        )
+        assert pending_import.status_code == 200
+        pending_source_id = pending_import.json()["source_id"]
+        pending_org = client.patch(
+            f"/api/sources/{pending_source_id}/organization",
+            headers=json_headers,
+            json={"folder_id": folder_body["id"], "tag_ids": [topic_tag_id]},
+        )
+        assert pending_org.status_code == 200
+        pending_filtered_preview = client.post(
+            "/api/retrieval/preview",
+            headers=json_headers,
+            json={
+                "query": "pending-only-secret",
+                "folder_id": folder_body["id"],
+                "tag_ids": [topic_tag_id],
+            },
+        )
+        assert pending_filtered_preview.status_code == 200
+        assert (
+            pending_filtered_preview.json()["evidence_pack"]["failure_type"]
+            == "no_retrieval_result"
+        )
+
+        ku_tag = client.post(
+            "/api/tags",
+            headers=json_headers,
+            json={
+                "project_id": "default-space",
+                "name": "D114 KU Only",
+                "namespace": "custom",
+                "tag_type": "custom_tag",
+            },
+        )
+        assert ku_tag.status_code == 200
+        ku_org = client.patch(
+            f"/api/knowledge-units/{ku_id}/organization",
+            headers=json_headers,
+            json={"folder_id": folder_body["id"], "tag_ids": [ku_tag.json()["id"]]},
+        )
+        assert ku_org.status_code == 200
+        assert ku_org.json()["folder_id"] == folder_body["id"]
+
+        ku_only_filtered = client.get(
+            "/api/knowledge-units",
+            headers=headers,
+            params={"tag_ids": ku_tag.json()["id"], "status": "confirmed"},
+        )
+        assert ku_only_filtered.status_code == 200
+        assert [ku["id"] for ku in ku_only_filtered.json()] == [ku_id]
+
+        source_after_ku_patch = client.get(
+            f"/api/sources/{source_id}",
+            headers=headers,
+        )
+        assert source_after_ku_patch.status_code == 200
+        assert ku_tag.json()["id"] not in {
+            tag["id"] for tag in source_after_ku_patch.json()["tags"]
+        }
+
+        invalid_source_org = client.patch(
+            f"/api/sources/{source_id}/organization",
+            headers=json_headers,
+            json={"folder_id": folder_body["id"], "tag_ids": ["tag_missing"]},
+        )
+        assert invalid_source_org.status_code == 404
+        assert invalid_source_org.json()["error"]["code"] == "tag_not_found"
+
+        invalid_folder_preview = client.post(
+            "/api/retrieval/preview",
+            headers=json_headers,
+            json={"query": "D114 metadata filter", "folder_id": "folder_missing"},
+        )
+        assert invalid_folder_preview.status_code == 404
+        assert invalid_folder_preview.json()["error"]["code"] == "folder_not_found"
+
+
 def test_z0a_text_import_review_and_evidence(monkeypatch, tmp_path):
     monkeypatch.setenv("KB_APP_DATA_DIR", str(tmp_path))
     monkeypatch.setenv("KB_LOCAL_TOKEN", "test-token")

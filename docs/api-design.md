@@ -1,8 +1,8 @@
 # API 设计草案
 
-版本：v0.27-draft
+版本：v0.28-draft
 日期：2026-05-17  
-状态：P0 API 边界草案——完整上传/文件处理/File Inspection/切片前准备层/切片执行 profile/AI 结构化整理 profile/D-079 structuring summary 子字段/结构化整理检查门/知识切片质量闭环/AI/RAG API + D-080 知识调用 profile / implicit_agent / D-081 Z0a-Z2 持久化边界 / D-082 InvocationProfileSchema / D-083 前端状态与反馈策略 / D-085 Z0a 调用锚点、feedback 与 citation 边界修正 + D-098 页面到现有 API 组映射 + D-105 Citation Detail / Evidence Pack replay 实现边界 + D-106 Settings language 持久化边界 + D-107 Feedback Events / Memory Draft Review Z0b-lite + D-108 Feedback Diagnostics / Event Replay Z0b-lite + D-110 Feedback Diagnostics Export Z0b-lite + D-111 Feedback Diagnostics Advanced Filters / Export History Z0b-lite + D-112 Citation Detail Focus / Evidence Trace Interaction Z0b-lite + D-113 Citation Annotation / Evidence Compare Z0b-lite + 安全运维横切层 + 检查门映射单一来源 + 事件枚举单一来源 + P0-Z0a/ProcessingJob/sensitive grant 契约收紧
+状态：P0 API 边界草案——完整上传/文件处理/File Inspection/切片前准备层/切片执行 profile/AI 结构化整理 profile/D-079 structuring summary 子字段/结构化整理检查门/知识切片质量闭环/AI/RAG API + D-080 知识调用 profile / implicit_agent / D-081 Z0a-Z2 持久化边界 / D-082 InvocationProfileSchema / D-083 前端状态与反馈策略 / D-085 Z0a 调用锚点、feedback 与 citation 边界修正 + D-098 页面到现有 API 组映射 + D-105 Citation Detail / Evidence Pack replay 实现边界 + D-106 Settings language 持久化边界 + D-107 Feedback Events / Memory Draft Review Z0b-lite + D-108 Feedback Diagnostics / Event Replay Z0b-lite + D-110 Feedback Diagnostics Export Z0b-lite + D-111 Feedback Diagnostics Advanced Filters / Export History Z0b-lite + D-112 Citation Detail Focus / Evidence Trace Interaction Z0b-lite + D-113 Citation Annotation / Evidence Compare Z0b-lite + D-114 Knowledge Space / Folder-Tag / Metadata Filters Z0b-lite + 安全运维横切层 + 检查门映射单一来源 + 事件枚举单一来源 + P0-Z0a/ProcessingJob/sensitive grant 契约收紧
 
 ## 1. 文档目的
 
@@ -285,9 +285,10 @@ GET /api/auth/status
 
 ## 5. Project / Folder / Tag APIs
 
-### 5.1 创建 Project
+### 5.1 查询 / 创建 Project
 
 ```text
+GET /api/projects
 POST /api/projects
 ```
 
@@ -317,9 +318,12 @@ POST /api/projects
 }
 ```
 
-### 5.2 创建 Folder
+`GET /api/projects` 返回本地 `default-space` 和用户创建的 Project / Knowledge Space；无 local token 时按现有安全规则拒绝。
+
+### 5.2 查询 / 创建 Folder
 
 ```text
+GET /api/folders?project_id=...
 POST /api/folders
 ```
 
@@ -338,17 +342,43 @@ P0 行为：
 - 创建 Folder。
 - 自动创建或复用 folder mirror tag。
 - 返回 `mirror_tag_id`。
+- folder mirror tag 固定为 `namespace=folder`、`tag_type=folder_tag`、`name=folder.path`。
 
-### 5.3 查询 Tags
+### 5.3 查询 / 创建 Tags
 
 ```text
 GET /api/tags?project_id=...&namespace=folder
+POST /api/tags
 ```
 
 用途：
 
 - 支持 tag filter。
 - 支持 Folder-Tag Mirroring 检查。
+
+### 5.4 Source / KU Organization
+
+```text
+PATCH /api/sources/{source_id}/organization
+PATCH /api/knowledge-units/{knowledge_unit_id}/organization
+```
+
+请求：
+
+```json
+{
+  "folder_id": "folder_id",
+  "tag_ids": ["tag_id_1", "tag_id_2"]
+}
+```
+
+D-114 Z0b-lite 实现口径：
+
+- Source organization patch 会更新 `sources.primary_folder_id`，替换 `source_tags`，并把 folder mirror 与 source-assignment tags 同步到当前已派生 KU。
+- KU organization patch 会更新 `knowledge_units.primary_folder_id`，替换 KU 自身 user tags 与 folder mirror tags；不修改 Source 原始内容，也不覆盖已继承的 source-assignment tags。
+- `GET /api/sources`、`GET /api/knowledge-units`、`POST /api/retrieval/preview`、`POST /api/retrieval/evidence-only` 均支持 `project_id`、`folder_id`、`tag_ids` 过滤。
+- `pending_review` KU 即使带 folder/tag，也不得进入 Evidence Pack。
+- invalid project/folder/tag/source/KU id 使用现有 error envelope，例如 `project_not_found`、`folder_not_found`、`tag_not_found`、`source_not_found`、`knowledge_unit_not_found`。
 
 ---
 
@@ -1096,6 +1126,13 @@ D-113 Z0b-lite 扩展口径：
 - `detail_summary` 增加 `annotation_count` 和 `annotation_counts`，由后端按 `citation_annotations` 聚合。
 - Citation annotation 是本地复盘记录，不等同于 feedback，不写 `feedback_events`，不影响 ranking 或 confirmed knowledge。
 - Evidence compare 是 response-only 只读能力，不保存 compare result，不记录复制行为。
+
+D-114 Z0b-lite 组织过滤口径：
+
+- Retrieval Preview 与 evidence-only request 支持 `project_id`、`folder_id`、`tag_ids`。
+- 后端只查询 `knowledge_units.status=confirmed`；folder/tag 过滤不能让 `pending_review` KU 进入 Evidence Pack。
+- query explanation 的 `filters` 应回显 project/folder/tag 范围，便于 Search / Ask 复盘当前组织过滤。
+- folder/tag 不参与 ranking 权重，只作为检索范围约束。
 
 响应：
 

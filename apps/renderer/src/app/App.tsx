@@ -41,9 +41,14 @@ import type {
   FeedbackExportHistoryRecord,
   FeedbackRequest,
   FileRecord,
+  FolderRecord,
+  KnowledgeUnitRecord,
   MemoryDraftRecord,
   MemoryDraftRequest,
-  ReviewTask
+  ProjectRecord,
+  ReviewTask,
+  SourceRecord,
+  TagRecord
 } from "@knowledgebase-dev/api-types";
 import { appIdentity, defaultRendererRoute } from "@knowledgebase-dev/shared-config";
 import { uploadFile } from "../services/fileApi";
@@ -55,7 +60,9 @@ import { useReviewStore } from "../stores/reviewStore";
 import { useRetrievalStore } from "../stores/retrievalStore";
 import { useSettingsStore } from "../stores/settingsStore";
 import { useFeedbackMemoryStore } from "../stores/feedbackMemoryStore";
+import { useOrganizationStore } from "../stores/organizationStore";
 import { hasBridge } from "../services/apiClient";
+import { listKnowledgeUnits } from "../services/knowledgeApi";
 import type {
   FeedbackDiagnosticsFilters,
   FeedbackExportFormat,
@@ -116,6 +123,7 @@ export function App() {
   const [activePath, setActivePath] = useState<RouteKey>(currentPath());
   const runtime = useRuntimeStore();
   const workspace = useWorkspaceStore();
+  const refreshOrganization = useOrganizationStore((state) => state.refresh);
   const refreshSettings = useSettingsStore((state) => state.refresh);
   const refreshMemories = useFeedbackMemoryStore((state) => state.refreshMemories);
   const t = useT();
@@ -123,6 +131,7 @@ export function App() {
   useEffect(() => {
     runtime.refresh();
     workspace.refresh();
+    refreshOrganization();
     refreshSettings();
     refreshMemories();
   }, []);
@@ -254,6 +263,8 @@ function DashboardPage() {
         <Metric label={t("metric.files")} value={workspace.summary.file_count} />
         <Metric label={t("metric.knowledgeUnits")} value={workspace.summary.knowledge_unit_count} />
         <Metric label={t("metric.pendingReview")} value={workspace.summary.pending_review_count} />
+        <Metric label={t("metric.folders")} value={workspace.summary.folder_count} />
+        <Metric label={t("metric.tags")} value={workspace.summary.tag_count} />
       </div>
       <PageFrame
         state={workspace.state}
@@ -261,6 +272,10 @@ function DashboardPage() {
         sections={[
           [t("dashboard.runtime"), runtime.status?.status_reason ?? t("dashboard.runtimeReady")],
           [t("dashboard.recentImports"), t("dashboard.filesReceived", { count: workspace.summary.file_count })],
+          [t("dashboard.organization"), t("dashboard.organizationSummary", {
+            folders: workspace.summary.folder_count,
+            tags: workspace.summary.tag_count
+          })],
           [t("dashboard.evidence"), t("dashboard.evidencePacks", { count: workspace.summary.evidence_pack_count })]
         ]}
       />
@@ -435,19 +450,29 @@ function LibraryPage() {
   const sources = useSourceStore();
   const review = useReviewStore();
   const workspace = useWorkspaceStore();
+  const organization = useOrganizationStore();
+  const activeFilters = useMemo(
+    () => ({
+      projectId: organization.selectedProjectId,
+      folderId: organization.selectedFolderId,
+      tagIds: organization.selectedTagIds
+    }),
+    [organization.selectedProjectId, organization.selectedFolderId, organization.selectedTagIds]
+  );
   useEffect(() => {
     files.refresh();
-    sources.refresh();
+    organization.refresh();
+    sources.refresh(activeFilters);
     review.refresh();
-  }, []);
+  }, [organization.selectedProjectId, organization.selectedFolderId, organization.selectedTagIds.join("|")]);
 
   async function parseAndRefresh(fileId: string) {
     await files.parse(fileId);
-    await Promise.all([sources.refresh(), workspace.refresh()]);
+    await Promise.all([sources.refresh(activeFilters), workspace.refresh()]);
   }
 
   async function extractAndRefresh(sourceId: string) {
-    await sources.extract(sourceId);
+    await sources.extract(sourceId, activeFilters);
     await Promise.all([review.refresh(), workspace.refresh()]);
   }
 
@@ -457,18 +482,53 @@ function LibraryPage() {
     } else {
       await review.ignore(taskId);
     }
+    await sources.refresh(activeFilters);
     await workspace.refresh();
+  }
+
+  async function refreshOrganizationBoundData() {
+    await Promise.all([organization.refresh(), sources.refresh(activeFilters), workspace.refresh()]);
   }
 
   return (
     <section className="page-grid">
+      <OrganizationPanel
+        projects={organization.projects}
+        folders={organization.folders}
+        tags={organization.tags}
+        sources={sources.sources}
+        state={organization.state}
+        errorCode={organization.errorCode}
+        selectedProjectId={organization.selectedProjectId}
+        selectedFolderId={organization.selectedFolderId}
+        selectedTagIds={organization.selectedTagIds}
+        onRefresh={refreshOrganizationBoundData}
+        onSelectProject={organization.setSelectedProject}
+        onSelectFolder={organization.setSelectedFolder}
+        onSelectTagIds={organization.setSelectedTagIds}
+        onReset={organization.resetFilters}
+        onCreateProject={organization.createProject}
+        onCreateFolder={organization.createFolder}
+        onCreateTag={organization.createTag}
+        onUpdateSource={async (sourceId, folderId, tagIds) => {
+          await organization.updateSourceOrganization(sourceId, { folder_id: folderId, tag_ids: tagIds });
+          await refreshOrganizationBoundData();
+        }}
+        onUpdateKnowledgeUnit={async (knowledgeUnitId, folderId, tagIds) => {
+          await organization.updateKnowledgeUnitOrganization(knowledgeUnitId, {
+            folder_id: folderId,
+            tag_ids: tagIds
+          });
+          await refreshOrganizationBoundData();
+        }}
+      />
       <FileListPanel
         files={files.files}
         state={files.state}
         onRefresh={files.refresh}
         onVerify={files.verify}
         onParse={parseAndRefresh}
-        onParsed={() => Promise.all([sources.refresh(), workspace.refresh()]).then(() => undefined)}
+        onParsed={() => Promise.all([sources.refresh(activeFilters), workspace.refresh()]).then(() => undefined)}
       />
       <SourceListPanel
         sources={sources.sources}
@@ -499,14 +559,27 @@ function LibraryPage() {
 function SearchPage() {
   const t = useT();
   const retrieval = useRetrievalStore();
+  const organization = useOrganizationStore();
   const [query, setQuery] = useState(retrieval.lastQuery || "Evidence Pack Source Chunk");
   const preview = retrieval.preview;
   const explanation = preview?.query_explanation ?? {};
+  const activeFilters = useMemo(
+    () => ({
+      projectId: organization.selectedProjectId,
+      folderId: organization.selectedFolderId,
+      tagIds: organization.selectedTagIds
+    }),
+    [organization.selectedProjectId, organization.selectedFolderId, organization.selectedTagIds]
+  );
+
+  useEffect(() => {
+    organization.refresh();
+  }, [organization.selectedProjectId]);
 
   async function runSearch() {
     const trimmed = query.trim();
     if (!trimmed) return;
-    await retrieval.previewQuery(trimmed);
+    await retrieval.previewQuery(trimmed, activeFilters);
   }
 
   return (
@@ -546,6 +619,25 @@ function SearchPage() {
             <span>{retrieval.previewErrorCode}</span>
           </div>
         ) : null}
+      </section>
+
+      <section className="page-frame">
+        <div className="section-title-row">
+          <h2>{t("organization.filters")}</h2>
+          <span className={`state-chip state-${organization.state}`}>{organization.state}</span>
+        </div>
+        <OrganizationFilterControls
+          projects={organization.projects}
+          folders={organization.folders}
+          tags={organization.tags}
+          selectedProjectId={organization.selectedProjectId}
+          selectedFolderId={organization.selectedFolderId}
+          selectedTagIds={organization.selectedTagIds}
+          onSelectProject={organization.setSelectedProject}
+          onSelectFolder={organization.setSelectedFolder}
+          onSelectTagIds={organization.setSelectedTagIds}
+          onReset={organization.resetFilters}
+        />
       </section>
 
       <section className="page-frame">
@@ -638,10 +730,23 @@ function AskPage() {
   const retrieval = useRetrievalStore();
   const review = useReviewStore();
   const feedbackMemory = useFeedbackMemoryStore();
+  const organization = useOrganizationStore();
   const [query, setQuery] = useState(retrieval.lastQuery || "Evidence Pack Source Chunk");
   const [memoryType, setMemoryType] = useState<MemoryDraftRequest["memory_type"]>("decision");
   const [memoryContent, setMemoryContent] = useState("");
   const answer = retrieval.answer;
+  const activeFilters = useMemo(
+    () => ({
+      projectId: organization.selectedProjectId,
+      folderId: organization.selectedFolderId,
+      tagIds: organization.selectedTagIds
+    }),
+    [organization.selectedProjectId, organization.selectedFolderId, organization.selectedTagIds]
+  );
+
+  useEffect(() => {
+    organization.refresh();
+  }, [organization.selectedProjectId]);
 
   useEffect(() => {
     setMemoryContent(answer?.answer ?? "");
@@ -650,7 +755,7 @@ function AskPage() {
   async function runAsk() {
     const trimmed = query.trim();
     if (!trimmed) return;
-    await retrieval.ask(trimmed);
+    await retrieval.ask(trimmed, activeFilters);
   }
 
   async function submitAnswerFeedback(feedbackType: FeedbackRequest["feedback_type"]) {
@@ -712,6 +817,25 @@ function AskPage() {
             <span>{retrieval.answerErrorCode}</span>
           </div>
         ) : null}
+      </section>
+
+      <section className="page-frame">
+        <div className="section-title-row">
+          <h2>{t("organization.filters")}</h2>
+          <span className={`state-chip state-${organization.state}`}>{organization.state}</span>
+        </div>
+        <OrganizationFilterControls
+          projects={organization.projects}
+          folders={organization.folders}
+          tags={organization.tags}
+          selectedProjectId={organization.selectedProjectId}
+          selectedFolderId={organization.selectedFolderId}
+          selectedTagIds={organization.selectedTagIds}
+          onSelectProject={organization.setSelectedProject}
+          onSelectFolder={organization.setSelectedFolder}
+          onSelectTagIds={organization.setSelectedTagIds}
+          onReset={organization.resetFilters}
+        />
       </section>
 
       <section className="page-frame">
@@ -1549,19 +1673,310 @@ function FileListPanel({
   );
 }
 
+function OrganizationPanel({
+  projects,
+  folders,
+  tags,
+  sources,
+  state,
+  errorCode,
+  selectedProjectId,
+  selectedFolderId,
+  selectedTagIds,
+  onRefresh,
+  onSelectProject,
+  onSelectFolder,
+  onSelectTagIds,
+  onReset,
+  onCreateProject,
+  onCreateFolder,
+  onCreateTag,
+  onUpdateSource,
+  onUpdateKnowledgeUnit
+}: {
+  projects: ProjectRecord[];
+  folders: FolderRecord[];
+  tags: TagRecord[];
+  sources: SourceRecord[];
+  state: "loading" | "empty" | "degraded" | "recoverable_error" | "done";
+  errorCode: string | null;
+  selectedProjectId: string;
+  selectedFolderId: string | null;
+  selectedTagIds: string[];
+  onRefresh: () => Promise<void>;
+  onSelectProject: (projectId: string) => void;
+  onSelectFolder: (folderId: string | null) => void;
+  onSelectTagIds: (tagIds: string[]) => void;
+  onReset: () => void;
+  onCreateProject: (name: string) => Promise<void>;
+  onCreateFolder: (name: string) => Promise<void>;
+  onCreateTag: (name: string) => Promise<void>;
+  onUpdateSource: (sourceId: string, folderId: string | null, tagIds: string[]) => Promise<void>;
+  onUpdateKnowledgeUnit: (
+    knowledgeUnitId: string,
+    folderId: string | null,
+    tagIds: string[]
+  ) => Promise<void>;
+}) {
+  const t = useT();
+  const [projectName, setProjectName] = useState("");
+  const [folderName, setFolderName] = useState("");
+  const [tagName, setTagName] = useState("");
+  const [selectedSourceId, setSelectedSourceId] = useState("");
+  const [selectedKnowledgeUnitId, setSelectedKnowledgeUnitId] = useState("");
+  const [knowledgeUnits, setKnowledgeUnits] = useState<KnowledgeUnitRecord[]>([]);
+
+  useEffect(() => {
+    if (!hasBridge()) {
+      setKnowledgeUnits([]);
+      return;
+    }
+    listKnowledgeUnits(undefined, { projectId: selectedProjectId })
+      .then(setKnowledgeUnits)
+      .catch(() => setKnowledgeUnits([]));
+  }, [selectedProjectId, state]);
+
+  const currentFolderId = selectedFolderId || null;
+
+  async function createNamed(kind: "project" | "folder" | "tag") {
+    if (kind === "project" && projectName.trim()) {
+      await onCreateProject(projectName.trim());
+      setProjectName("");
+    }
+    if (kind === "folder" && folderName.trim()) {
+      await onCreateFolder(folderName.trim());
+      setFolderName("");
+    }
+    if (kind === "tag" && tagName.trim()) {
+      await onCreateTag(tagName.trim());
+      setTagName("");
+    }
+  }
+
+  return (
+    <section className="page-frame">
+      <div className="section-title-row">
+        <h2>{t("organization.title")}</h2>
+        <div className="inline-actions">
+          <span className={`state-chip state-${state}`}>{state}</span>
+          <button className="icon-command" type="button" onClick={onRefresh}>
+            <RefreshCw aria-hidden="true" size={16} />
+            <span>{t("action.refresh")}</span>
+          </button>
+        </div>
+      </div>
+      <p className="section-note">{t("organization.body")}</p>
+      <OrganizationFilterControls
+        projects={projects}
+        folders={folders}
+        tags={tags}
+        selectedProjectId={selectedProjectId}
+        selectedFolderId={selectedFolderId}
+        selectedTagIds={selectedTagIds}
+        onSelectProject={onSelectProject}
+        onSelectFolder={onSelectFolder}
+        onSelectTagIds={onSelectTagIds}
+        onReset={onReset}
+      />
+      <div className="organization-grid">
+        <label className="memory-label">
+          <span>{t("organization.newProject")}</span>
+          <input
+            className="query-input"
+            value={projectName}
+            placeholder={t("organization.projectPlaceholder")}
+            onChange={(event) => setProjectName(event.target.value)}
+          />
+          <button className="icon-command" type="button" onClick={() => createNamed("project")}>
+            <Save aria-hidden="true" size={16} />
+            <span>{t("action.create")}</span>
+          </button>
+        </label>
+        <label className="memory-label">
+          <span>{t("organization.newFolder")}</span>
+          <input
+            className="query-input"
+            value={folderName}
+            placeholder={t("organization.folderPlaceholder")}
+            onChange={(event) => setFolderName(event.target.value)}
+          />
+          <button className="icon-command" type="button" onClick={() => createNamed("folder")}>
+            <Save aria-hidden="true" size={16} />
+            <span>{t("action.create")}</span>
+          </button>
+        </label>
+        <label className="memory-label">
+          <span>{t("organization.newTag")}</span>
+          <input
+            className="query-input"
+            value={tagName}
+            placeholder={t("organization.tagPlaceholder")}
+            onChange={(event) => setTagName(event.target.value)}
+          />
+          <button className="icon-command" type="button" onClick={() => createNamed("tag")}>
+            <Save aria-hidden="true" size={16} />
+            <span>{t("action.create")}</span>
+          </button>
+        </label>
+      </div>
+      <div className="organization-grid">
+        <label className="memory-label">
+          <span>{t("organization.bindSource")}</span>
+          <select
+            className="settings-select"
+            value={selectedSourceId}
+            onChange={(event) => setSelectedSourceId(event.target.value)}
+          >
+            <option value="">{t("organization.selectSource")}</option>
+            {sources.map((source) => (
+              <option key={source.id} value={source.id}>
+                {source.title}
+              </option>
+            ))}
+          </select>
+          <button
+            className="icon-command"
+            type="button"
+            disabled={!selectedSourceId}
+            onClick={() => onUpdateSource(selectedSourceId, currentFolderId, selectedTagIds)}
+          >
+            <FileCheck aria-hidden="true" size={16} />
+            <span>{t("organization.applyBinding")}</span>
+          </button>
+        </label>
+        <label className="memory-label">
+          <span>{t("organization.bindKnowledgeUnit")}</span>
+          <select
+            className="settings-select"
+            value={selectedKnowledgeUnitId}
+            onChange={(event) => setSelectedKnowledgeUnitId(event.target.value)}
+          >
+            <option value="">{t("organization.selectKnowledgeUnit")}</option>
+            {knowledgeUnits.map((knowledgeUnit) => (
+              <option key={knowledgeUnit.id} value={knowledgeUnit.id}>
+                {knowledgeUnit.title}
+              </option>
+            ))}
+          </select>
+          <button
+            className="icon-command"
+            type="button"
+            disabled={!selectedKnowledgeUnitId}
+            onClick={() =>
+              onUpdateKnowledgeUnit(selectedKnowledgeUnitId, currentFolderId, selectedTagIds)
+            }
+          >
+            <FileCheck aria-hidden="true" size={16} />
+            <span>{t("organization.applyBinding")}</span>
+          </button>
+        </label>
+      </div>
+      {errorCode ? (
+        <div className="row-note">
+          <AlertCircle aria-hidden="true" size={15} />
+          <span>{errorCode}</span>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function OrganizationFilterControls({
+  projects,
+  folders,
+  tags,
+  selectedProjectId,
+  selectedFolderId,
+  selectedTagIds,
+  onSelectProject,
+  onSelectFolder,
+  onSelectTagIds,
+  onReset
+}: {
+  projects: ProjectRecord[];
+  folders: FolderRecord[];
+  tags: TagRecord[];
+  selectedProjectId: string;
+  selectedFolderId: string | null;
+  selectedTagIds: string[];
+  onSelectProject: (projectId: string) => void;
+  onSelectFolder: (folderId: string | null) => void;
+  onSelectTagIds: (tagIds: string[]) => void;
+  onReset: () => void;
+}) {
+  const t = useT();
+  function toggleTag(tagId: string) {
+    onSelectTagIds(
+      selectedTagIds.includes(tagId)
+        ? selectedTagIds.filter((id) => id !== tagId)
+        : [...selectedTagIds, tagId]
+    );
+  }
+  return (
+    <div className="organization-filter-grid">
+      <label className="memory-label">
+        <span>{t("organization.project")}</span>
+        <select
+          className="settings-select"
+          value={selectedProjectId}
+          onChange={(event) => onSelectProject(event.target.value)}
+        >
+          {projects.map((project) => (
+            <option key={project.id} value={project.id}>
+              {project.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="memory-label">
+        <span>{t("organization.folder")}</span>
+        <select
+          className="settings-select"
+          value={selectedFolderId ?? ""}
+          onChange={(event) => onSelectFolder(event.target.value || null)}
+        >
+          <option value="">{t("organization.allFolders")}</option>
+          {folders.map((folder) => (
+            <option key={folder.id} value={folder.id}>
+              {folder.path}
+            </option>
+          ))}
+        </select>
+      </label>
+      <div className="memory-label">
+        <span>{t("organization.tags")}</span>
+        <div className="tag-select-row">
+          {tags.length ? (
+            tags.map((tag) => (
+              <label className="tag-checkbox" key={tag.id}>
+                <input
+                  type="checkbox"
+                  checked={selectedTagIds.includes(tag.id)}
+                  onChange={() => toggleTag(tag.id)}
+                />
+                <span>{tag.name}</span>
+              </label>
+            ))
+          ) : (
+            <span className="muted-text">{t("organization.noTags")}</span>
+          )}
+        </div>
+      </div>
+      <button className="icon-command" type="button" onClick={onReset}>
+        <XCircle aria-hidden="true" size={16} />
+        <span>{t("organization.resetFilters")}</span>
+      </button>
+    </div>
+  );
+}
+
 function SourceListPanel({
   sources,
   state,
   onRefresh,
   onExtract
 }: {
-  sources: {
-    id: string;
-    title: string;
-    source_origin: string;
-    chunk_count: number;
-    created_at: string;
-  }[];
+  sources: SourceRecord[];
   state: "loading" | "empty" | "degraded" | "recoverable_error" | "done";
   onRefresh: () => Promise<void>;
   onExtract: (sourceId: string) => Promise<void>;
@@ -1583,9 +1998,10 @@ function SourceListPanel({
               <div>
                 <strong>{source.title}</strong>
                 <span>{source.source_origin}</span>
+                <span>{(source.tags ?? []).map((tag) => tag.name).join(" · ") || t("empty.none")}</span>
               </div>
               <StatusPill label="chunks" value={String(source.chunk_count)} />
-              <StatusPill label="state" value="parsed" />
+              <StatusPill label="folder" value={source.primary_folder_id ?? "none"} />
               <button className="icon-command" type="button" onClick={() => onExtract(source.id)}>
                 <FileText aria-hidden="true" size={16} />
                 <span>{t("action.extract")}</span>

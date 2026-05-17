@@ -167,6 +167,354 @@
         }
       }
     },
+    "/api/projects": {
+      "get": {
+        "summary": "Get Projects",
+        "operationId": "get_projects_api_projects_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ProjectRecord"
+                  },
+                  "type": "array",
+                  "title": "Response Get Projects Api Projects Get"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Post Project",
+        "operationId": "post_project_api_projects_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectRecord"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/folders": {
+      "get": {
+        "summary": "Get Folders",
+        "operationId": "get_folders_api_folders_get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "default-space",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "parent_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Parent Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/FolderRecord"
+                  },
+                  "title": "Response Get Folders Api Folders Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Post Folder",
+        "operationId": "post_folder_api_folders_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FolderCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FolderRecord"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tags": {
+      "get": {
+        "summary": "Get Tags",
+        "operationId": "get_tags_api_tags_get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "default-space",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "namespace",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Namespace"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TagRecord"
+                  },
+                  "title": "Response Get Tags Api Tags Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Post Tag",
+        "operationId": "post_tag_api_tags_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TagCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TagRecord"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sources/{source_id}/organization": {
+      "patch": {
+        "summary": "Patch Source Organization",
+        "operationId": "patch_source_organization_api_sources__source_id__organization_patch",
+        "parameters": [
+          {
+            "name": "source_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Source Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrganizationUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationUpdateResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/knowledge-units/{knowledge_unit_id}/organization": {
+      "patch": {
+        "summary": "Patch Knowledge Unit Organization",
+        "operationId": "patch_knowledge_unit_organization_api_knowledge_units__knowledge_unit_id__organization_patch",
+        "parameters": [
+          {
+            "name": "knowledge_unit_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Knowledge Unit Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrganizationUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationUpdateResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/uploads": {
       "post": {
         "summary": "Create Upload",
@@ -545,6 +893,38 @@
               "default": "default-space",
               "title": "Project Id"
             }
+          },
+          {
+            "name": "folder_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Folder Id"
+            }
+          },
+          {
+            "name": "tag_ids",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Tag Ids"
+            }
           }
         ],
         "responses": {
@@ -681,6 +1061,38 @@
                 }
               ],
               "title": "Status"
+            }
+          },
+          {
+            "name": "folder_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Folder Id"
+            }
+          },
+          {
+            "name": "tag_ids",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Tag Ids"
             }
           }
         ],
@@ -2952,6 +3364,24 @@
             "type": "string",
             "title": "Project Id",
             "default": "default-space"
+          },
+          "folder_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Folder Id"
+          },
+          "tag_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Tag Ids"
           }
         },
         "type": "object",
@@ -3892,6 +4322,100 @@
         ],
         "title": "FileRecord"
       },
+      "FolderCreateRequest": {
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "title": "Project Id",
+            "default": "default-space"
+          },
+          "parent_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Id"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Name"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "FolderCreateRequest"
+      },
+      "FolderRecord": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "project_id": {
+            "type": "string",
+            "title": "Project Id"
+          },
+          "parent_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "mirror_tag_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mirror Tag Id"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "project_id",
+          "parent_id",
+          "name",
+          "path",
+          "mirror_tag_id",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "FolderRecord"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -4128,6 +4652,17 @@
             "type": "string",
             "title": "Project Id"
           },
+          "primary_folder_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Primary Folder Id"
+          },
           "title": {
             "type": "string",
             "title": "Title"
@@ -4152,6 +4687,13 @@
             "additionalProperties": true,
             "type": "object",
             "title": "Metadata"
+          },
+          "tags": {
+            "items": {
+              "$ref": "#/components/schemas/TagRecord"
+            },
+            "type": "array",
+            "title": "Tags"
           },
           "created_at": {
             "type": "string",
@@ -4240,6 +4782,17 @@
             "type": "string",
             "title": "Project Id"
           },
+          "primary_folder_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Primary Folder Id"
+          },
           "title": {
             "type": "string",
             "title": "Title"
@@ -4264,6 +4817,13 @@
             "additionalProperties": true,
             "type": "object",
             "title": "Metadata"
+          },
+          "tags": {
+            "items": {
+              "$ref": "#/components/schemas/TagRecord"
+            },
+            "type": "array",
+            "title": "Tags"
           },
           "created_at": {
             "type": "string",
@@ -4410,6 +4970,87 @@
           "memory_type"
         ],
         "title": "MemoryDraftRequest"
+      },
+      "OrganizationUpdateRequest": {
+        "properties": {
+          "folder_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Folder Id"
+          },
+          "tag_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Tag Ids"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "OrganizationUpdateRequest"
+      },
+      "OrganizationUpdateResponse": {
+        "properties": {
+          "target_type": {
+            "type": "string",
+            "title": "Target Type"
+          },
+          "target_id": {
+            "type": "string",
+            "title": "Target Id"
+          },
+          "project_id": {
+            "type": "string",
+            "title": "Project Id"
+          },
+          "folder_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Folder Id"
+          },
+          "tags": {
+            "items": {
+              "$ref": "#/components/schemas/TagRecord"
+            },
+            "type": "array",
+            "title": "Tags"
+          },
+          "synced_knowledge_unit_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Synced Knowledge Unit Ids"
+          },
+          "updated_at": {
+            "type": "string",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "target_type",
+          "target_id",
+          "project_id",
+          "folder_id",
+          "tags",
+          "synced_knowledge_unit_ids",
+          "updated_at"
+        ],
+        "title": "OrganizationUpdateResponse"
       },
       "ParseTaskRecord": {
         "properties": {
@@ -4572,6 +5213,132 @@
         ],
         "title": "ParseWarningRecord"
       },
+      "ProjectCreateRequest": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "parent_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Id"
+          },
+          "kb_type": {
+            "type": "string",
+            "enum": [
+              "project_kb",
+              "reference_kb",
+              "person_kb",
+              "timeline_kb",
+              "inspiration_kb",
+              "method_kb",
+              "custom"
+            ],
+            "title": "Kb Type",
+            "default": "project_kb"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "ProjectCreateRequest"
+      },
+      "ProjectRecord": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "user_id": {
+            "type": "string",
+            "title": "User Id"
+          },
+          "parent_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "kb_type": {
+            "type": "string",
+            "title": "Kb Type"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Metadata"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "user_id",
+          "parent_id",
+          "name",
+          "description",
+          "kb_type",
+          "status",
+          "metadata",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "ProjectRecord"
+      },
       "RetrievalPreviewRequest": {
         "properties": {
           "query": {
@@ -4583,6 +5350,24 @@
             "type": "string",
             "title": "Project Id",
             "default": "default-space"
+          },
+          "folder_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Folder Id"
+          },
+          "tag_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Tag Ids"
           }
         },
         "type": "object",
@@ -4830,6 +5615,17 @@
             "type": "string",
             "title": "Project Id"
           },
+          "primary_folder_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Primary Folder Id"
+          },
           "title": {
             "type": "string",
             "title": "Title"
@@ -4850,6 +5646,13 @@
             "additionalProperties": true,
             "type": "object",
             "title": "Metadata"
+          },
+          "tags": {
+            "items": {
+              "$ref": "#/components/schemas/TagRecord"
+            },
+            "type": "array",
+            "title": "Tags"
           },
           "chunk_count": {
             "type": "integer",
@@ -4892,6 +5695,17 @@
             "type": "string",
             "title": "Project Id"
           },
+          "primary_folder_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Primary Folder Id"
+          },
           "title": {
             "type": "string",
             "title": "Title"
@@ -4912,6 +5726,13 @@
             "additionalProperties": true,
             "type": "object",
             "title": "Metadata"
+          },
+          "tags": {
+            "items": {
+              "$ref": "#/components/schemas/TagRecord"
+            },
+            "type": "array",
+            "title": "Tags"
           },
           "chunk_count": {
             "type": "integer",
@@ -4967,6 +5788,132 @@
           "vector"
         ],
         "title": "SystemStatusResponse"
+      },
+      "TagCreateRequest": {
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "title": "Project Id",
+            "default": "default-space"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "namespace": {
+            "type": "string",
+            "enum": [
+              "folder",
+              "topic",
+              "status",
+              "use",
+              "discipline",
+              "system",
+              "custom"
+            ],
+            "title": "Namespace",
+            "default": "topic"
+          },
+          "tag_type": {
+            "type": "string",
+            "enum": [
+              "folder_tag",
+              "topic_tag",
+              "discipline_tag",
+              "status_tag",
+              "use_tag",
+              "system_tag",
+              "custom_tag"
+            ],
+            "title": "Tag Type",
+            "default": "topic_tag"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "TagCreateRequest"
+      },
+      "TagRecord": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "project_id": {
+            "type": "string",
+            "title": "Project Id"
+          },
+          "user_id": {
+            "type": "string",
+            "title": "User Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "namespace": {
+            "type": "string",
+            "title": "Namespace"
+          },
+          "tag_type": {
+            "type": "string",
+            "title": "Tag Type"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "created_by": {
+            "type": "string",
+            "title": "Created By"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "project_id",
+          "user_id",
+          "name",
+          "namespace",
+          "tag_type",
+          "description",
+          "created_by",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "TagRecord"
       },
       "TextImportRequest": {
         "properties": {
@@ -5356,6 +6303,14 @@
             "type": "integer",
             "title": "Project Count"
           },
+          "folder_count": {
+            "type": "integer",
+            "title": "Folder Count"
+          },
+          "tag_count": {
+            "type": "integer",
+            "title": "Tag Count"
+          },
           "upload_count": {
             "type": "integer",
             "title": "Upload Count"
@@ -5392,6 +6347,8 @@
         "type": "object",
         "required": [
           "project_count",
+          "folder_count",
+          "tag_count",
           "upload_count",
           "file_count",
           "pending_file_count",

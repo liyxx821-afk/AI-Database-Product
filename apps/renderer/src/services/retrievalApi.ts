@@ -9,18 +9,34 @@ import type {
   RetrievalPreviewResponse
 } from "@knowledgebase-dev/api-types";
 import { apiFetch } from "./apiClient";
+import type { OrganizationFilters } from "./organizationApi";
 
-export async function previewRetrieval(query: string): Promise<RetrievalPreviewResponse> {
+function retrievalPayload(query: string, filters?: OrganizationFilters) {
+  return {
+    query,
+    project_id: filters?.projectId ?? "default-space",
+    folder_id: filters?.folderId ?? null,
+    tag_ids: filters?.tagIds ?? []
+  };
+}
+
+export async function previewRetrieval(
+  query: string,
+  filters?: OrganizationFilters
+): Promise<RetrievalPreviewResponse> {
   return apiFetch<RetrievalPreviewResponse>("/retrieval/preview", {
     method: "POST",
-    body: JSON.stringify({ query })
+    body: JSON.stringify(retrievalPayload(query, filters))
   });
 }
 
-export async function askEvidenceOnly(query: string): Promise<EvidenceOnlyResponse> {
+export async function askEvidenceOnly(
+  query: string,
+  filters?: OrganizationFilters
+): Promise<EvidenceOnlyResponse> {
   return apiFetch<EvidenceOnlyResponse>("/retrieval/evidence-only", {
     method: "POST",
-    body: JSON.stringify({ query })
+    body: JSON.stringify(retrievalPayload(query, filters))
   });
 }
 

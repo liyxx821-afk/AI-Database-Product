@@ -39,6 +39,8 @@ def _query_explanation(
     *,
     query: str,
     project_id: str,
+    folder_id: Optional[str],
+    tag_ids: List[str],
     provider_status: str,
     fallback_reason: Optional[str],
     evidence_count: int,
@@ -49,7 +51,12 @@ def _query_explanation(
         "retrieval_strategy_profile": RETRIEVAL_STRATEGY_PROFILE,
         "ranking_profile": RANKING_PROFILE,
         "citation_trace_profile": CITATION_TRACE_PROFILE,
-        "filters": {"project_id": project_id, "knowledge_unit_status": "confirmed"},
+        "filters": {
+            "project_id": project_id,
+            "folder_id": folder_id,
+            "tag_ids": tag_ids,
+            "knowledge_unit_status": "confirmed",
+        },
         "ranking_summary": {
             "method": "token_overlap",
             "candidate_scope": "confirmed_knowledge_units",
@@ -61,10 +68,32 @@ def _query_explanation(
     }
 
 
-def _load_confirmed_rows(project_id: str) -> List[Dict[str, Any]]:
-    with db() as conn:
-        rows = conn.execute(
+def _load_confirmed_rows(
+    project_id: str,
+    folder_id: Optional[str] = None,
+    tag_ids: Optional[List[str]] = None,
+) -> List[Dict[str, Any]]:
+    tag_ids = tag_ids or []
+    conditions = ["ku.project_id = ?", "ku.status = 'confirmed'"]
+    params: list[Any] = [project_id]
+    if folder_id:
+        conditions.append("ku.primary_folder_id = ?")
+        params.append(folder_id)
+    for tag_id in tag_ids:
+        conditions.append(
             """
+            EXISTS (
+              SELECT 1 FROM knowledge_unit_tags kut
+              WHERE kut.knowledge_unit_id = ku.id AND kut.tag_id = ?
+            )
+            """
+        )
+        params.append(tag_id)
+    where_clause = " AND ".join(conditions)
+    with db() as conn:
+        _validate_retrieval_filters(conn, project_id, folder_id, tag_ids)
+        rows = conn.execute(
+            f"""
             SELECT
               ku.id AS knowledge_unit_id,
               ku.title,
@@ -77,14 +106,34 @@ def _load_confirmed_rows(project_id: str) -> List[Dict[str, Any]]:
             FROM knowledge_units ku
             JOIN chunks c ON c.id = ku.chunk_id
             JOIN sources s ON s.id = ku.source_id
-            WHERE ku.project_id = ?
-              AND ku.status = 'confirmed'
+            WHERE {where_clause}
             ORDER BY ku.updated_at DESC
             LIMIT 50
             """,
-            (project_id,),
+            params,
         ).fetchall()
     return [dict(row) for row in rows]
+
+
+def _validate_retrieval_filters(
+    conn: Any,
+    project_id: str,
+    folder_id: Optional[str],
+    tag_ids: List[str],
+) -> None:
+    if not conn.execute("SELECT 1 FROM projects WHERE id = ?", (project_id,)).fetchone():
+        raise AppError("project_not_found", "Project was not found.", status_code=404)
+    if folder_id and not conn.execute(
+        "SELECT 1 FROM folders WHERE id = ? AND project_id = ?",
+        (folder_id, project_id),
+    ).fetchone():
+        raise AppError("folder_not_found", "Folder was not found.", status_code=404)
+    for tag_id in tag_ids:
+        if not conn.execute(
+            "SELECT 1 FROM tags WHERE id = ? AND project_id = ?",
+            (tag_id, project_id),
+        ).fetchone():
+            raise AppError("tag_not_found", "Tag was not found.", status_code=404)
 
 
 def _rank_evidence_rows(query: str, rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -592,16 +641,27 @@ def compare_evidence_items(evidence_pack_id: str, evidence_item_ids: List[str]) 
     }
 
 
-def build_retrieval_preview(query: str, project_id: str = "default-space") -> Dict[str, Any]:
+def build_retrieval_preview(
+    query: str,
+    project_id: str = "default-space",
+    folder_id: Optional[str] = None,
+    tag_ids: Optional[List[str]] = None,
+) -> Dict[str, Any]:
+    tag_ids = tag_ids or []
     vector = sqlite_vec_status()
     retrieval_log_id = new_id("retrieval")
     evidence_pack_id = new_id("epack")
     timestamp = now_iso()
-    ranked_rows = _rank_evidence_rows(query, _load_confirmed_rows(project_id))
+    ranked_rows = _rank_evidence_rows(
+        query,
+        _load_confirmed_rows(project_id, folder_id, tag_ids),
+    )
     evidence_count = len(ranked_rows)
     query_explanation = _query_explanation(
         query=query,
         project_id=project_id,
+        folder_id=folder_id,
+        tag_ids=tag_ids,
         provider_status=vector["status"],
         fallback_reason=vector["fallback_reason"],
         evidence_count=evidence_count,
@@ -696,8 +756,13 @@ def get_evidence_pack(
     return _build_evidence_pack_response(evidence_pack_id, focus_item_id)
 
 
-def build_evidence_only_answer(query: str, project_id: str = "default-space") -> Dict[str, Any]:
-    preview = build_retrieval_preview(query, project_id)
+def build_evidence_only_answer(
+    query: str,
+    project_id: str = "default-space",
+    folder_id: Optional[str] = None,
+    tag_ids: Optional[List[str]] = None,
+) -> Dict[str, Any]:
+    preview = build_retrieval_preview(query, project_id, folder_id, tag_ids)
     answer_id = new_id("answer")
     timestamp = now_iso()
     evidence_items = preview["evidence_pack"]["items"]

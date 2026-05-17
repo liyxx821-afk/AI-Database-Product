@@ -1,8 +1,8 @@
 # 技术栈与 P0 原型实施计划
 
-版本：v0.32
+版本：v0.33
 日期：2026-05-17  
-状态：已同步——完整 P0 四切片 + P0-Z0a/Z0b 竖切 + ProcessingJob + 切片前准备层 / 结构化整理检查门 + 知识切片质量闭环 + 安全运维横切层 + 技术选型矩阵 + Provider capability 契约收紧 + 切片执行 profile + AI 结构化整理 profile + D-079 存储映射 + D-080 知识调用 / implicit_agent / D-081-D085 调用 schema、反馈策略与前端系统技术矩阵 + D-088 README 对齐后的技术栈优化 + D-090 技术栈执行优化 + D-091 工程化验收门槛 + D-092 代码骨架前置契约优化 + D-093 桌面运行时硬化 + D-094 P0-Core 桌面工程骨架开工契约 + D-095 架构审查实现验收强化 + D-098 Knowledge Workspace 页面信息架构 + D-104 Search / Ask typed API 接入 + D-107 Feedback / Memory typed API 接入 + D-108 Feedback Diagnostics typed API 接入 + D-109 Desktop Runtime Smoke + D-110 Feedback Diagnostics Export typed API 接入 + D-111 Feedback Filters / Export History typed API 接入 + D-112 Citation Detail Focus typed API 接入 + D-113 Citation Annotation / Compare typed API 接入
+状态：已同步——完整 P0 四切片 + P0-Z0a/Z0b 竖切 + ProcessingJob + 切片前准备层 / 结构化整理检查门 + 知识切片质量闭环 + 安全运维横切层 + 技术选型矩阵 + Provider capability 契约收紧 + 切片执行 profile + AI 结构化整理 profile + D-079 存储映射 + D-080 知识调用 / implicit_agent / D-081-D085 调用 schema、反馈策略与前端系统技术矩阵 + D-088 README 对齐后的技术栈优化 + D-090 技术栈执行优化 + D-091 工程化验收门槛 + D-092 代码骨架前置契约优化 + D-093 桌面运行时硬化 + D-094 P0-Core 桌面工程骨架开工契约 + D-095 架构审查实现验收强化 + D-098 Knowledge Workspace 页面信息架构 + D-104 Search / Ask typed API 接入 + D-107 Feedback / Memory typed API 接入 + D-108 Feedback Diagnostics typed API 接入 + D-109 Desktop Runtime Smoke + D-110 Feedback Diagnostics Export typed API 接入 + D-111 Feedback Filters / Export History typed API 接入 + D-112 Citation Detail Focus typed API 接入 + D-113 Citation Annotation / Compare typed API 接入 + D-114 Organization typed API / store 接入
 
 ## 1. 文档目的
 
@@ -11,7 +11,7 @@
 当前已经存在：
 
 - `docs/product-architecture.md`：产品总架构。
-- `docs/data-model.md`：数据模型 v0.20-draft。
+- `docs/data-model.md`：数据模型 v0.25-draft。
 - `docs/mvp-scope.md`：P0 / P1 / P2 范围。
 - `docs/api-design.md`：P0 API 草案。
 - `docs/text-to-sql.md`：P0 查询契约。
@@ -678,6 +678,7 @@ pnpm smoke:p0-i18n-settings
 pnpm smoke:p0-file
 pnpm smoke:p0-parse
 pnpm smoke:p0-ku
+pnpm smoke:p0-space-tag-metadata
 pnpm smoke:p0-search-ask
 pnpm smoke:p0-citation-detail
 pnpm smoke:p0-citation-focus
@@ -689,7 +690,7 @@ pnpm smoke:p0-feedback-filters-history
 pnpm smoke:p0-z0a
 ```
 
-`smoke:p0-core` 是 API sidecar / local token / SQLite 骨架验收；`smoke:p0-desktop-runtime` 是已 build Electron Main / Preload、renderer preview、preload bridge、受保护 API 和 sidecar clean shutdown 的 pseudo-packaged runtime 验收；`smoke:p0-i18n-settings` 是 settings / config.json language 验收；`smoke:p0-file` 是 upload / integrity / File Inspection Z0a 验收；`smoke:p0-parse` 是 file → Source / Chunk 验收；`smoke:p0-ku` 是 Source / Chunk → Candidate KU / Review / fallback embedding 验收；`smoke:p0-search-ask` 是 confirmed KU → Retrieval Preview / Evidence Pack detail / evidence-only ask 验收；`smoke:p0-citation-detail` 是 Evidence Pack replay / Citation Detail 验收；`smoke:p0-citation-focus` 是 Citation Detail focus / trace path / copy-safe payload 验收；`smoke:p0-citation-annotate-compare` 是 Citation annotation CRUD 与同 pack evidence compare 验收；`smoke:p0-feedback-memory` 是 append-only feedback event 与 Memory Draft review 验收；`smoke:p0-feedback-diagnostics` 是 feedback event replay / diagnostics summary 验收；`smoke:p0-feedback-export` 是 feedback diagnostics JSON / CSV 脱敏导出验收；`smoke:p0-feedback-filters-history` 是 feedback advanced filters 与 export history metadata 验收；`smoke:p0-z0a` 是 text import 到 evidence-only 的业务竖切验收。所有 smoke 不能混成一个脚本，且必须按顺序通过。
+`smoke:p0-core` 是 API sidecar / local token / SQLite 骨架验收；`smoke:p0-desktop-runtime` 是已 build Electron Main / Preload、renderer preview、preload bridge、受保护 API 和 sidecar clean shutdown 的 pseudo-packaged runtime 验收；`smoke:p0-i18n-settings` 是 settings / config.json language 验收；`smoke:p0-file` 是 upload / integrity / File Inspection Z0a 验收；`smoke:p0-parse` 是 file → Source / Chunk 验收；`smoke:p0-ku` 是 Source / Chunk → Candidate KU / Review / fallback embedding 验收；`smoke:p0-space-tag-metadata` 是 Project / Folder / Tag、Folder-Tag Mirroring、Source/KU organization 和 retrieval filters 验收；`smoke:p0-search-ask` 是 confirmed KU → Retrieval Preview / Evidence Pack detail / evidence-only ask 验收；`smoke:p0-citation-detail` 是 Evidence Pack replay / Citation Detail 验收；`smoke:p0-citation-focus` 是 Citation Detail focus / trace path / copy-safe payload 验收；`smoke:p0-citation-annotate-compare` 是 Citation annotation CRUD 与同 pack evidence compare 验收；`smoke:p0-feedback-memory` 是 append-only feedback event 与 Memory Draft review 验收；`smoke:p0-feedback-diagnostics` 是 feedback event replay / diagnostics summary 验收；`smoke:p0-feedback-export` 是 feedback diagnostics JSON / CSV 脱敏导出验收；`smoke:p0-feedback-filters-history` 是 feedback advanced filters 与 export history metadata 验收；`smoke:p0-z0a` 是 text import 到 evidence-only 的业务竖切验收。所有 smoke 不能混成一个脚本，且必须按顺序通过。
 
 #### Runtime State 枚举
 
@@ -745,6 +746,7 @@ Renderer 的状态栏、`GET /api/system/runtime`、诊断报告和 Main 进程�
 | `smoke:p0-file` | upload task、分片接收、sha256 完整性校验、file_id、File Inspection Z0a summary |
 | `smoke:p0-parse` | inspected text file → Parser Router → Source → Chunk → source detail |
 | `smoke:p0-ku` | parsed Source / Chunk → Candidate KU → Review Task → `mock_fixed_384` fallback embedding → confirm → evidence-only |
+| `smoke:p0-space-tag-metadata` | text import → confirm KU → create folder/tag → bind Source/KU → list/retrieval filters → mirror tag / pending boundary checks |
 | `smoke:p0-search-ask` | confirmed KU → Retrieval Preview → Evidence Pack detail → evidence-only answer；pending_review 不进入证据包 |
 | `smoke:p0-citation-detail` | confirmed KU → Evidence Pack detail replay → KU / Chunk / Source / citation trace 字段完整 |
 | `smoke:p0-citation-focus` | multiple confirmed KU → Evidence Pack detail summary → focus item → trace path / copy-safe payload → invalid focus error |
@@ -755,7 +757,7 @@ Renderer 的状态栏、`GET /api/system/runtime`、诊断报告和 Main 进程�
 | `smoke:p0-feedback-filters-history` | evidence-only answer → mixed feedback events → advanced filters → filtered summary/export → export history list/delete → verify no token/source/path leakage |
 | `smoke:p0-z0a` | text import → rule chunk → KU review → fallback embedding → evidence-only |
 
-`smoke:p0-core` 是 W1 第一阻塞门槛。D-113 后，桌面运行时改动必须先通过 `smoke:p0-desktop-runtime`，P0-File / Parser / KU / Retrieval / Citation / Feedback 改动必须继续通过 `smoke:p0-file`、`smoke:p0-parse`、`smoke:p0-ku`、`smoke:p0-search-ask`、`smoke:p0-citation-detail`、`smoke:p0-citation-focus`、`smoke:p0-citation-annotate-compare`、`smoke:p0-feedback-memory`、`smoke:p0-feedback-diagnostics`、`smoke:p0-feedback-export` 和 `smoke:p0-feedback-filters-history`，再验证 P0-Z0a 的 text import / review / evidence-only 链路。
+`smoke:p0-core` 是 W1 第一阻塞门槛。D-114 后，桌面运行时改动必须先通过 `smoke:p0-desktop-runtime`，P0-File / Parser / KU / Organization / Retrieval / Citation / Feedback 改动必须继续通过 `smoke:p0-file`、`smoke:p0-parse`、`smoke:p0-ku`、`smoke:p0-space-tag-metadata`、`smoke:p0-search-ask`、`smoke:p0-citation-detail`、`smoke:p0-citation-focus`、`smoke:p0-citation-annotate-compare`、`smoke:p0-feedback-memory`、`smoke:p0-feedback-diagnostics`、`smoke:p0-feedback-export` 和 `smoke:p0-feedback-filters-history`，再验证 P0-Z0a 的 text import / review / evidence-only 链路。
 
 ### 2.8 架构审查实现验收强化（D-095）
 

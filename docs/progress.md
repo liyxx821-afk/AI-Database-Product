@@ -1,5 +1,42 @@
 # 进度记录
 
+## 2026-05-17（D-114 Knowledge Space / Folder-Tag / Metadata Filters Z0b-lite）
+
+### 已完成
+
+- 新增 Project / Folder / Tag API：`GET/POST /api/projects`、`GET/POST /api/folders`、`GET/POST /api/tags`。
+- 新增 Source / KU organization patch：`PATCH /api/sources/{source_id}/organization` 与 `PATCH /api/knowledge-units/{knowledge_unit_id}/organization`，支持 `folder_id` 与 `tag_ids` 绑定。
+- 补齐 SQLite 兼容迁移：扩展 `projects`、`folders`、`tags`、`sources`、`knowledge_units` 组织字段，并新增 `source_tags`、`knowledge_unit_tags` join 表。
+- 创建 Folder 时自动创建或复用 `namespace=folder`、`tag_type=folder_tag` 的 mirror tag；Source 绑定 folder/tag 时同步派生 KU 的 folder mirror 与 source-assignment tags，KU user tags 不被覆盖。
+- 扩展 Source / KU list、Retrieval Preview 和 evidence-only answer：支持 `project_id`、`folder_id`、`tag_ids` 过滤，且 `pending_review` KU 即使带 folder/tag 也不进入 Evidence Pack。
+- 扩展 `/api/workspace/summary`，返回 `folder_count` 与 `tag_count`。
+- Renderer 新增轻量 organization API/store；`/library` 增加 Organization 面板，支持 Project / Folder / Tag 创建、Source/KU folder/tag 绑定、空态/错误态/降级态。
+- `/search` 与 `/ask` 增加组织过滤条，并把过滤条件传给 Retrieval Preview 与 evidence-only answer；`/dashboard` 显示 folder/tag 摘要计数。
+- 新增中英双语 i18n 文案，覆盖 Organization 面板、组织过滤、绑定状态和 dashboard 摘要；用户文件名、KU 内容、source excerpt、tag 名、folder 名不翻译。
+- 新增 `scripts/smoke-p0-space-tag-metadata.mjs` 与 `pnpm smoke:p0-space-tag-metadata`；完整 smoke 顺序更新为 `smoke:p0-core` → `smoke:p0-desktop-runtime` → `smoke:p0-i18n-settings` → `smoke:p0-file` → `smoke:p0-parse` → `smoke:p0-ku` → `smoke:p0-space-tag-metadata` → `smoke:p0-search-ask` → `smoke:p0-citation-detail` → `smoke:p0-citation-focus` → `smoke:p0-citation-annotate-compare` → `smoke:p0-feedback-memory` → `smoke:p0-feedback-diagnostics` → `smoke:p0-feedback-export` → `smoke:p0-feedback-filters-history` → `smoke:p0-z0a`。
+- 已同步 README、`docs/development-plan.md`、`docs/data-model.md`、`docs/api-design.md`、`docs/api-implementation-plan.md`、`docs/testing-strategy.md`、`docs/technical-stack-and-prototype-plan.md`。
+
+### 验收
+
+- `pnpm generate:api-types` 通过，已更新 `packages/api-types/src/openapi.json` 与 `packages/api-types/src/generated.ts`。
+- `pnpm typecheck` 通过。
+- `pnpm api:ruff` 通过。
+- `pnpm api:test` 通过，11 个 API 测试通过。
+- `pnpm smoke:p0-space-tag-metadata` 通过，输出 `SMOKE_P0_SPACE_TAG_METADATA_OK`。
+- 完整 smoke 顺序通过：
+  `pnpm smoke:p0-core`、`pnpm smoke:p0-desktop-runtime`、`pnpm smoke:p0-i18n-settings`、`pnpm smoke:p0-file`、`pnpm smoke:p0-parse`、`pnpm smoke:p0-ku`、`pnpm smoke:p0-space-tag-metadata`、`pnpm smoke:p0-search-ask`、`pnpm smoke:p0-citation-detail`、`pnpm smoke:p0-citation-focus`、`pnpm smoke:p0-citation-annotate-compare`、`pnpm smoke:p0-feedback-memory`、`pnpm smoke:p0-feedback-diagnostics`、`pnpm smoke:p0-feedback-export`、`pnpm smoke:p0-feedback-filters-history`、`pnpm smoke:p0-z0a`。
+- `pnpm --filter @knowledgebase-dev/renderer build` 通过。
+- `pnpm --filter @knowledgebase-dev/desktop-preload build` 通过。
+- `pnpm --filter @knowledgebase-dev/desktop-main build` 通过。
+- `git diff --check` 通过。
+- in-app browser 检查通过：`/dashboard` 默认中文显示 folder/tag 摘要；`/library` 默认中文显示“知识组织”、新建 Folder / Tag、Source / KU 绑定；`/search` 默认中文显示“组织过滤”、Folder / Tag 过滤；普通浏览器显示 bridge degraded；`/settings` 临时切换英文后，SPA 内 `/library` 显示 “Knowledge organization / New Folder / New Tag / Bind Source / Bind KU”，`/search` 显示 “Search / Organization filters / Folder / Tags”；最终已切回中文并停在 `/ask`。
+
+### 备注
+
+- D-114 的 “Metadata” 只指 project / folder / tag / filter 这类结构化组织 metadata，不做任意 `metadata_json` key-value 编辑器。
+- 本阶段不新增主路由，不做关系图谱、真实 LLM、provider-backed RAG、reranker、Text-to-SQL provider 或 GraphRAG。
+- 普通浏览器无 Electron preload 时继续显示 bridge degraded；真实持久化和过滤以 Electron bridge / API smoke 为准。
+
 ## 2026-05-17（D-113 Citation Annotation / Evidence Compare Z0b-lite）
 
 ### 已完成

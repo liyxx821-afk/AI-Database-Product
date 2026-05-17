@@ -10,6 +10,7 @@ import type {
   RetrievalPreviewResponse
 } from "@knowledgebase-dev/api-types";
 import { hasBridge } from "../services/apiClient";
+import type { OrganizationFilters } from "../services/organizationApi";
 import {
   askEvidenceOnly,
   compareEvidenceItems,
@@ -43,8 +44,8 @@ type RetrievalState = {
   annotations?: CitationAnnotationListResponse;
   comparison?: CitationCompareResponse;
   focusedEvidenceItemId?: string;
-  previewQuery: (query: string) => Promise<void>;
-  ask: (query: string) => Promise<void>;
+  previewQuery: (query: string, filters?: OrganizationFilters) => Promise<void>;
+  ask: (query: string, filters?: OrganizationFilters) => Promise<void>;
   loadDetail: (evidencePackId: string, focusItemId?: string) => Promise<void>;
   refreshAnnotations: (evidencePackId: string) => Promise<void>;
   createAnnotation: (
@@ -68,7 +69,7 @@ export const useRetrievalStore = create<RetrievalState>((set) => ({
   detailState: "empty",
   annotationState: "empty",
   compareState: "empty",
-  async previewQuery(query: string) {
+  async previewQuery(query: string, filters) {
     if (!hasBridge()) {
       set({
         lastQuery: query,
@@ -87,7 +88,7 @@ export const useRetrievalStore = create<RetrievalState>((set) => ({
       previewErrorCode: undefined
     });
     try {
-      const preview = await previewRetrieval(query);
+      const preview = await previewRetrieval(query, filters);
       const nextState = preview.evidence_item_ids.length ? "done" : "empty";
       set({
         preview,
@@ -113,7 +114,7 @@ export const useRetrievalStore = create<RetrievalState>((set) => ({
       });
     }
   },
-  async ask(query: string) {
+  async ask(query: string, filters) {
     if (!hasBridge()) {
       set({
         lastQuery: query,
@@ -132,7 +133,7 @@ export const useRetrievalStore = create<RetrievalState>((set) => ({
       answerErrorCode: undefined
     });
     try {
-      const answer = await askEvidenceOnly(query);
+      const answer = await askEvidenceOnly(query, filters);
       const nextState = answer.evidence_item_ids.length ? "done" : "empty";
       set({
         answer,

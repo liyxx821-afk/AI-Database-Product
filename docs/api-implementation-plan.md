@@ -1,8 +1,8 @@
 # API Route-Level 实施计划
 
-版本：v0.29-draft
+版本：v0.30-draft
 日期：2026-05-17  
-状态：P0 API 实施映射草案——四切片 + P0-Z0a/Z0b 竖切 + 切片前准备层 / 结构化整理检查门 / 知识切片质量闭环 / 安全运维横切层 / 检查门映射单一来源 / 事件枚举单一来源 / ProcessingJob / sensitive grant / evidence-only / 切片执行 profile / AI 结构化整理 profile / D-079 存储映射契约对齐 / D-080 知识调用 profile 与 implicit_agent / D-081-D085 调用边界、profile schema、Z0a 锚点与前端状态契约对齐 / D-092 OpenAPI 类型生成、trace chain 与 migration 波次命名 / D-093 桌面运行时 API 约束 / D-094 P0-Core 工程骨架 API 顺序 / D-098 页面到 API 组映射 / D-105 Citation Detail replay / D-106 Settings language config 持久化 / D-107 Feedback Events 与 Memory Draft Review / D-108 Feedback Diagnostics 只读复盘 / D-110 Feedback Diagnostics Export 脱敏导出 / D-111 Feedback Advanced Filters 与 Export History / D-112 Citation Detail Focus 与 Evidence Trace Interaction / D-113 Citation Annotation 与 Evidence Compare
+状态：P0 API 实施映射草案——四切片 + P0-Z0a/Z0b 竖切 + 切片前准备层 / 结构化整理检查门 / 知识切片质量闭环 / 安全运维横切层 / 检查门映射单一来源 / 事件枚举单一来源 / ProcessingJob / sensitive grant / evidence-only / 切片执行 profile / AI 结构化整理 profile / D-079 存储映射契约对齐 / D-080 知识调用 profile 与 implicit_agent / D-081-D085 调用边界、profile schema、Z0a 锚点与前端状态契约对齐 / D-092 OpenAPI 类型生成、trace chain 与 migration 波次命名 / D-093 桌面运行时 API 约束 / D-094 P0-Core 工程骨架 API 顺序 / D-098 页面到 API 组映射 / D-105 Citation Detail replay / D-106 Settings language config 持久化 / D-107 Feedback Events 与 Memory Draft Review / D-108 Feedback Diagnostics 只读复盘 / D-110 Feedback Diagnostics Export 脱敏导出 / D-111 Feedback Advanced Filters 与 Export History / D-112 Citation Detail Focus 与 Evidence Trace Interaction / D-113 Citation Annotation 与 Evidence Compare / D-114 OrganizationService 与 Folder-Tag metadata filters
 
 ## 1. 文档目的
 
@@ -25,6 +25,8 @@ D-110 已新增 `GET /api/feedback/export`：FeedbackService 复用 D-108 过滤
 D-112 已扩展 `GET /api/evidence-packs/{evidence_pack_id}`：EvidencePackService 支持可选 `focus_item_id`，返回 `detail_summary`、item-level `trace_path` 与 copy-safe citation payload；非法 focus 使用 `evidence_item_not_in_pack` error envelope。Renderer `/search` 与 `/ask` 只调用 typed detail API 聚焦 item，不自行 join KU / Chunk / Source，也不保存复制行为。
 
 D-113 已新增 `citation_annotations` 与 annotation CRUD：CitationAnnotationService 校验 evidence item 必须属于目标 Evidence Pack；批注只作为本地 citation 复盘记录，不写 `feedback_events`。`POST /api/evidence-packs/{id}/compare` 只读组装同一 pack 内 2-3 条 evidence items 的 rank / source / chunk / KU / trace path / copy-safe summary，不保存 compare result。
+
+D-114 已新增 OrganizationService：Project / Folder / Tag route 统一负责知识空间、Folder-Tag Mirroring、`source_tags` / `knowledge_unit_tags` 组织绑定；Source/KU list 与 Retrieval Preview / evidence-only answer 复用 `project_id`、`folder_id`、`tag_ids` filters。Renderer 通过 typed organization API/store 消费这些接口，不在前端拼接 SQLite 关系或硬编码本地路径。
 
 目标：
 
@@ -357,7 +359,11 @@ QueryExplanationResponse
 | `POST /api/projects` | `ProjectService.createProject` | `ProjectRepository` | 创建知识空间 |
 | `GET /api/projects` | `ProjectService.listProjects` | `ProjectRepository` | 列出项目 |
 | `POST /api/folders` | `FolderService.createFolder` | `FolderRepository`, `TagRepository` | 创建 folder，并创建 / 复用 mirror tag |
+| `GET /api/folders` | `FolderService.listFolders` | `FolderRepository` | 按 project 列出 folders，供 Library/Search 过滤 |
+| `POST /api/tags` | `TagService.createTag` | `TagRepository` | 创建 user/custom tag；folder mirror tag 仍由 FolderService 创建或复用 |
 | `GET /api/tags` | `TagService.listTags` | `TagRepository` | 支持 namespace / project filter |
+| `PATCH /api/sources/{source_id}/organization` | `OrganizationService.updateSourceOrganization` | `SourceRepository`, `FolderRepository`, `TagRepository`, `SourceTagRepository`, `KnowledgeUnitTagRepository` | 绑定 Source folder/tags，并同步派生 KU 的 folder mirror 与 source-assignment tags |
+| `PATCH /api/knowledge-units/{knowledge_unit_id}/organization` | `OrganizationService.updateKnowledgeUnitOrganization` | `KnowledgeUnitRepository`, `FolderRepository`, `TagRepository`, `KnowledgeUnitTagRepository` | 独立调整 KU folder/tags，不修改 Source 原始内容 |
 
 事务边界：
 
@@ -602,12 +608,12 @@ commit
 
 | Route | Service | Repository / Module | P0 关键行为 |
 |---|---|---|---|
-| `POST /api/retrieval/preview` | `RetrievalPreviewService.preview` | `QueryUnderstandingService`, `RetrievalStrategyService`, `TextToSqlTemplateService`, `KnowledgeUnitRepository`, `EmbeddingRepository`, `VectorStoreService`, `ProviderCapabilityService`, `RetrievalLogRepository` | 规则 query understanding、strategy route、keyword/vector/hybrid merge、ranking/citation trace 摘要、检索解释、写 retrieval log |
+| `POST /api/retrieval/preview` | `RetrievalPreviewService.preview` | `QueryUnderstandingService`, `RetrievalStrategyService`, `TextToSqlTemplateService`, `KnowledgeUnitRepository`, `EmbeddingRepository`, `VectorStoreService`, `ProviderCapabilityService`, `RetrievalLogRepository`, `KnowledgeUnitTagRepository` | 规则 query understanding、strategy route、project/folder/tag filters、keyword/vector/hybrid merge、ranking/citation trace 摘要、检索解释、写 retrieval log |
 | `GET /api/evidence-packs/{evidence_pack_id}` | `EvidencePackService.getDetail` | `EvidencePackRepository`, `EvidenceItemRepository`, `KnowledgeUnitRepository`, `ChunkRepository`, `SourceRepository`, `RetrievalLogRepository`, `CitationAnnotationRepository` | D-113 Z0b-lite 已实现：按 ID 返回 Evidence Pack replay，支持 `focus_item_id`、`detail_summary`、annotation summary、KU/Chunk/Source trace path 和 copy-safe citation payload；非法 focus 返回 `evidence_item_not_in_pack` |
 | `GET/POST /api/evidence-packs/{evidence_pack_id}/annotations` | `CitationAnnotationService` | `EvidencePackRepository`, `EvidenceItemRepository`, `CitationAnnotationRepository` | D-113：列出 / 创建本地 citation 批注；annotation item 必须属于 pack；不写 feedback、不改 ranking |
 | `PATCH/DELETE /api/citation-annotations/{annotation_id}` | `CitationAnnotationService` | `CitationAnnotationRepository` | D-113：更新或物理删除批注；只允许 `annotation_type` 和 `content` |
 | `POST /api/evidence-packs/{evidence_pack_id}/compare` | `EvidenceCompareService.compare` | `EvidenceItemRepository`, `KnowledgeUnitRepository`, `ChunkRepository`, `SourceRepository` | D-113：只读对比同一 pack 内 2-3 条 evidence items，返回 differences / copy-safe summary，不持久化 compare |
-| `POST /api/retrieval/evidence-only` | `EvidenceOnlyAnswerService.answer` | `RetrievalPreviewService`, `AIAnswerRepository` | D-104 Z0a 已实现：复用 retrieval preview / evidence assembly，不调用 LLM；无证据只返回 no evidence reason，不生成伪答案 |
+| `POST /api/retrieval/evidence-only` | `EvidenceOnlyAnswerService.answer` | `RetrievalPreviewService`, `AIAnswerRepository` | D-104 Z0a 已实现，D-114 扩展 project/folder/tag filters：复用 retrieval preview / evidence assembly，不调用 LLM；无证据只返回 no evidence reason，不生成伪答案 |
 
 流程：
 
@@ -649,6 +655,8 @@ D-105 后，`GET /api/evidence-packs/{id}` 是 Search / Ask citation detail 的�
 D-112 后，Citation Detail focus 仍只读；不得修改 ranking、不得保存用户复制行为、不得让 `pending_review` KU 进入 Evidence Pack。
 
 D-113 后，Citation Annotation 是 citation / evidence item 的本地复盘对象，不进入 feedback signal，不进入检索证据；Evidence Compare 是 response-only，只比较同一 Evidence Pack 内 evidence items。
+
+D-114 后，Retrieval Preview 与 evidence-only answer 必须先应用 `project_id`、`folder_id`、`tag_ids` 范围过滤，再执行 token overlap / metadata fallback ranking；这些过滤只收窄候选集合，不改变 ranking 权重，也不得让 `pending_review` KU 进入 Evidence Pack。
 
 D-106 后，`GET /api/settings` 与 `PATCH /api/settings` 是语言偏好持久化的单一后端入口；Renderer 普通浏览器 fallback 只能保留 session 语言，不得绕过 preload bridge 直接读写 `config.json`。
 

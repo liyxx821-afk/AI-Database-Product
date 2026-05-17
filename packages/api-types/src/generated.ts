@@ -105,6 +105,8 @@ export type ApiSchemas = {
   "EvidenceOnlyRequest": {
   "query": string;
   "project_id"?: string;
+  "folder_id"?: string | null;
+  "tag_ids"?: string[];
 };
   "EvidenceOnlyResponse": {
   "retrieval_log_id": string;
@@ -250,6 +252,21 @@ export type ApiSchemas = {
   "created_at": string;
   "updated_at": string;
 };
+  "FolderCreateRequest": {
+  "project_id"?: string;
+  "parent_id"?: string | null;
+  "name": string;
+};
+  "FolderRecord": {
+  "id": string;
+  "project_id": string;
+  "parent_id": string | null;
+  "name": string;
+  "path": string;
+  "mirror_tag_id": string | null;
+  "created_at": string;
+  "updated_at": string;
+};
   "HTTPValidationError": {
   "detail"?: ValidationError[];
 };
@@ -295,12 +312,14 @@ export type ApiSchemas = {
   "source_id": string;
   "chunk_id": string;
   "project_id": string;
+  "primary_folder_id"?: string | null;
   "title": string;
   "type": string;
   "content": string;
   "status": string;
   "user_verified": boolean;
   "metadata": Record<string, unknown>;
+  "tags"?: TagRecord[];
   "created_at": string;
   "updated_at": string;
   "source": SourceRecord | null;
@@ -313,12 +332,14 @@ export type ApiSchemas = {
   "source_id": string;
   "chunk_id": string;
   "project_id": string;
+  "primary_folder_id"?: string | null;
   "title": string;
   "type": string;
   "content": string;
   "status": string;
   "user_verified": boolean;
   "metadata": Record<string, unknown>;
+  "tags"?: TagRecord[];
   "created_at": string;
   "updated_at": string;
 };
@@ -341,6 +362,19 @@ export type ApiSchemas = {
   "memory_type": "preference" | "decision" | "style" | "conclusion" | "reusable_context";
   "permission"?: string;
   "project_id"?: string;
+};
+  "OrganizationUpdateRequest": {
+  "folder_id"?: string | null;
+  "tag_ids"?: string[];
+};
+  "OrganizationUpdateResponse": {
+  "target_type": string;
+  "target_id": string;
+  "project_id": string;
+  "folder_id": string | null;
+  "tags": TagRecord[];
+  "synced_knowledge_unit_ids": string[];
+  "updated_at": string;
 };
   "ParseTaskRecord": {
   "id": string;
@@ -367,9 +401,29 @@ export type ApiSchemas = {
   "source_location": string | null;
   "created_at": string;
 };
+  "ProjectCreateRequest": {
+  "name": string;
+  "description"?: string | null;
+  "parent_id"?: string | null;
+  "kb_type"?: "project_kb" | "reference_kb" | "person_kb" | "timeline_kb" | "inspiration_kb" | "method_kb" | "custom";
+};
+  "ProjectRecord": {
+  "id": string;
+  "user_id": string;
+  "parent_id": string | null;
+  "name": string;
+  "description": string | null;
+  "kb_type": string;
+  "status": string;
+  "metadata": Record<string, unknown>;
+  "created_at": string;
+  "updated_at": string;
+};
   "RetrievalPreviewRequest": {
   "query": string;
   "project_id"?: string;
+  "folder_id"?: string | null;
+  "tag_ids"?: string[];
 };
   "RetrievalPreviewResponse": {
   "retrieval_log_id": string;
@@ -414,11 +468,13 @@ export type ApiSchemas = {
   "SourceDetail": {
   "id": string;
   "project_id": string;
+  "primary_folder_id"?: string | null;
   "title": string;
   "source_type": string;
   "source_origin": string;
   "content_hash": string;
   "metadata": Record<string, unknown>;
+  "tags"?: TagRecord[];
   "chunk_count": number;
   "created_at": string;
   "chunks": ChunkRecord[];
@@ -426,11 +482,13 @@ export type ApiSchemas = {
   "SourceRecord": {
   "id": string;
   "project_id": string;
+  "primary_folder_id"?: string | null;
   "title": string;
   "source_type": string;
   "source_origin": string;
   "content_hash": string;
   "metadata": Record<string, unknown>;
+  "tags"?: TagRecord[];
   "chunk_count": number;
   "created_at": string;
 };
@@ -439,6 +497,25 @@ export type ApiSchemas = {
   "database": Record<string, unknown>;
   "provider": Record<string, unknown>;
   "vector": Record<string, unknown>;
+};
+  "TagCreateRequest": {
+  "project_id"?: string;
+  "name": string;
+  "namespace"?: "folder" | "topic" | "status" | "use" | "discipline" | "system" | "custom";
+  "tag_type"?: "folder_tag" | "topic_tag" | "discipline_tag" | "status_tag" | "use_tag" | "system_tag" | "custom_tag";
+  "description"?: string | null;
+};
+  "TagRecord": {
+  "id": string;
+  "project_id": string;
+  "user_id": string;
+  "name": string;
+  "namespace": string;
+  "tag_type": string;
+  "description": string | null;
+  "created_by": string;
+  "created_at": string;
+  "updated_at": string;
 };
   "TextImportRequest": {
   "title": string;
@@ -502,6 +579,8 @@ export type ApiSchemas = {
 };
   "WorkspaceSummaryResponse": {
   "project_count": number;
+  "folder_count": number;
+  "tag_count": number;
   "upload_count": number;
   "file_count": number;
   "pending_file_count": number;
@@ -630,6 +709,8 @@ export type EvidenceItemRecord = {
 export type EvidenceOnlyRequest = {
   "query": string;
   "project_id"?: string;
+  "folder_id"?: string | null;
+  "tag_ids"?: string[];
 };
 
 export type EvidenceOnlyResponse = {
@@ -788,6 +869,23 @@ export type FileRecord = {
   "updated_at": string;
 };
 
+export type FolderCreateRequest = {
+  "project_id"?: string;
+  "parent_id"?: string | null;
+  "name": string;
+};
+
+export type FolderRecord = {
+  "id": string;
+  "project_id": string;
+  "parent_id": string | null;
+  "name": string;
+  "path": string;
+  "mirror_tag_id": string | null;
+  "created_at": string;
+  "updated_at": string;
+};
+
 export type HTTPValidationError = {
   "detail"?: ValidationError[];
 };
@@ -839,12 +937,14 @@ export type KnowledgeUnitDetail = {
   "source_id": string;
   "chunk_id": string;
   "project_id": string;
+  "primary_folder_id"?: string | null;
   "title": string;
   "type": string;
   "content": string;
   "status": string;
   "user_verified": boolean;
   "metadata": Record<string, unknown>;
+  "tags"?: TagRecord[];
   "created_at": string;
   "updated_at": string;
   "source": SourceRecord | null;
@@ -858,12 +958,14 @@ export type KnowledgeUnitRecord = {
   "source_id": string;
   "chunk_id": string;
   "project_id": string;
+  "primary_folder_id"?: string | null;
   "title": string;
   "type": string;
   "content": string;
   "status": string;
   "user_verified": boolean;
   "metadata": Record<string, unknown>;
+  "tags"?: TagRecord[];
   "created_at": string;
   "updated_at": string;
 };
@@ -888,6 +990,21 @@ export type MemoryDraftRequest = {
   "memory_type": "preference" | "decision" | "style" | "conclusion" | "reusable_context";
   "permission"?: string;
   "project_id"?: string;
+};
+
+export type OrganizationUpdateRequest = {
+  "folder_id"?: string | null;
+  "tag_ids"?: string[];
+};
+
+export type OrganizationUpdateResponse = {
+  "target_type": string;
+  "target_id": string;
+  "project_id": string;
+  "folder_id": string | null;
+  "tags": TagRecord[];
+  "synced_knowledge_unit_ids": string[];
+  "updated_at": string;
 };
 
 export type ParseTaskRecord = {
@@ -917,9 +1034,31 @@ export type ParseWarningRecord = {
   "created_at": string;
 };
 
+export type ProjectCreateRequest = {
+  "name": string;
+  "description"?: string | null;
+  "parent_id"?: string | null;
+  "kb_type"?: "project_kb" | "reference_kb" | "person_kb" | "timeline_kb" | "inspiration_kb" | "method_kb" | "custom";
+};
+
+export type ProjectRecord = {
+  "id": string;
+  "user_id": string;
+  "parent_id": string | null;
+  "name": string;
+  "description": string | null;
+  "kb_type": string;
+  "status": string;
+  "metadata": Record<string, unknown>;
+  "created_at": string;
+  "updated_at": string;
+};
+
 export type RetrievalPreviewRequest = {
   "query": string;
   "project_id"?: string;
+  "folder_id"?: string | null;
+  "tag_ids"?: string[];
 };
 
 export type RetrievalPreviewResponse = {
@@ -971,11 +1110,13 @@ export type SettingsResponse = {
 export type SourceDetail = {
   "id": string;
   "project_id": string;
+  "primary_folder_id"?: string | null;
   "title": string;
   "source_type": string;
   "source_origin": string;
   "content_hash": string;
   "metadata": Record<string, unknown>;
+  "tags"?: TagRecord[];
   "chunk_count": number;
   "created_at": string;
   "chunks": ChunkRecord[];
@@ -984,11 +1125,13 @@ export type SourceDetail = {
 export type SourceRecord = {
   "id": string;
   "project_id": string;
+  "primary_folder_id"?: string | null;
   "title": string;
   "source_type": string;
   "source_origin": string;
   "content_hash": string;
   "metadata": Record<string, unknown>;
+  "tags"?: TagRecord[];
   "chunk_count": number;
   "created_at": string;
 };
@@ -998,6 +1141,27 @@ export type SystemStatusResponse = {
   "database": Record<string, unknown>;
   "provider": Record<string, unknown>;
   "vector": Record<string, unknown>;
+};
+
+export type TagCreateRequest = {
+  "project_id"?: string;
+  "name": string;
+  "namespace"?: "folder" | "topic" | "status" | "use" | "discipline" | "system" | "custom";
+  "tag_type"?: "folder_tag" | "topic_tag" | "discipline_tag" | "status_tag" | "use_tag" | "system_tag" | "custom_tag";
+  "description"?: string | null;
+};
+
+export type TagRecord = {
+  "id": string;
+  "project_id": string;
+  "user_id": string;
+  "name": string;
+  "namespace": string;
+  "tag_type": string;
+  "description": string | null;
+  "created_by": string;
+  "created_at": string;
+  "updated_at": string;
 };
 
 export type TextImportRequest = {
@@ -1069,6 +1233,8 @@ export type ValidationError = {
 
 export type WorkspaceSummaryResponse = {
   "project_count": number;
+  "folder_count": number;
+  "tag_count": number;
   "upload_count": number;
   "file_count": number;
   "pending_file_count": number;
@@ -1087,6 +1253,11 @@ export type ApiPath =
   | "/api/workspace/summary"
   | "/api/auth/status"
   | "/api/settings"
+  | "/api/projects"
+  | "/api/folders"
+  | "/api/tags"
+  | "/api/sources/{source_id}/organization"
+  | "/api/knowledge-units/{knowledge_unit_id}/organization"
   | "/api/uploads"
   | "/api/uploads/{upload_id}/parts/{part_no}"
   | "/api/uploads/{upload_id}:complete"

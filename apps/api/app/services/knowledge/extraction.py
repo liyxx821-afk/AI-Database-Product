@@ -10,6 +10,7 @@ from typing import Any
 from app.core.errors import AppError
 from app.db.sqlite import db, json_dumps
 from app.services.embedding.fallback import MOCK_FIXED_PROFILE, ensure_mock_embedding
+from app.services.organization import knowledge_unit_tags
 
 
 def now_iso() -> str:
@@ -92,6 +93,14 @@ def extract_candidates_from_source(
         candidate_ids: list[str] = []
         review_task_ids: list[str] = []
         embedding_ids: list[str] = []
+        inherited_tags = conn.execute(
+            """
+            SELECT tag_id, tag_source
+            FROM source_tags
+            WHERE source_id = ?
+            """,
+            (source_id,),
+        ).fetchall()
 
         for chunk in chunks:
             ku_id = new_id("ku")
@@ -106,15 +115,16 @@ def extract_candidates_from_source(
             conn.execute(
                 """
                 INSERT INTO knowledge_units
-                  (id, source_id, chunk_id, project_id, title, type, content, status,
-                   user_verified, metadata_json, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, 'claim', ?, 'pending_review', 0, ?, ?, ?)
+                  (id, source_id, chunk_id, project_id, primary_folder_id, title, type,
+                   content, status, user_verified, metadata_json, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, 'claim', ?, 'pending_review', 0, ?, ?, ?)
                 """,
                 (
                     ku_id,
                     source_id,
                     chunk["id"],
                     project_id,
+                    source["primary_folder_id"],
                     title,
                     chunk["content"],
                     json_dumps(metadata),
@@ -122,6 +132,16 @@ def extract_candidates_from_source(
                     timestamp,
                 ),
             )
+            for tag in inherited_tags:
+                conn.execute(
+                    """
+                    INSERT OR IGNORE INTO knowledge_unit_tags (
+                      knowledge_unit_id, tag_id, tag_source, created_at
+                    )
+                    VALUES (?, ?, ?, ?)
+                    """,
+                    (ku_id, tag["tag_id"], tag["tag_source"], timestamp),
+                )
 
             review_task_id = new_id("review")
             review_task_ids.append(review_task_id)
@@ -209,27 +229,39 @@ def extract_candidates_from_source(
 def list_knowledge_units(
     project_id: str = "default-space",
     status: str | None = None,
+    folder_id: str | None = None,
+    tag_ids: list[str] | None = None,
 ) -> list[dict]:
+    tag_ids = tag_ids or []
+    conditions = ["project_id = ?"]
+    params: list[Any] = [project_id]
+    if status:
+        conditions.append("status = ?")
+        params.append(status)
+    if folder_id:
+        conditions.append("primary_folder_id = ?")
+        params.append(folder_id)
+    for tag_id in tag_ids:
+        conditions.append(
+            """
+            EXISTS (
+              SELECT 1 FROM knowledge_unit_tags kut
+              WHERE kut.knowledge_unit_id = knowledge_units.id AND kut.tag_id = ?
+            )
+            """
+        )
+        params.append(tag_id)
+    where_clause = " AND ".join(conditions)
     with db() as conn:
-        if status:
-            rows = conn.execute(
-                """
-                SELECT * FROM knowledge_units
-                WHERE project_id = ? AND status = ?
-                ORDER BY updated_at DESC
-                """,
-                (project_id, status),
-            ).fetchall()
-        else:
-            rows = conn.execute(
-                """
-                SELECT * FROM knowledge_units
-                WHERE project_id = ?
-                ORDER BY updated_at DESC
-                """,
-                (project_id,),
-            ).fetchall()
-    return [knowledge_unit_row(row) for row in rows]
+        rows = conn.execute(
+            f"""
+            SELECT * FROM knowledge_units
+            WHERE {where_clause}
+            ORDER BY updated_at DESC
+            """,
+            params,
+        ).fetchall()
+        return [knowledge_unit_row(row, knowledge_unit_tags(conn, row["id"])) for row in rows]
 
 
 def get_knowledge_unit(knowledge_unit_id: str) -> dict:
@@ -263,7 +295,9 @@ def get_knowledge_unit(knowledge_unit_id: str) -> dict:
             """,
             (knowledge_unit_id,),
         ).fetchone()
-    detail = knowledge_unit_row(row)
+    with db() as conn:
+        tags = knowledge_unit_tags(conn, knowledge_unit_id)
+    detail = knowledge_unit_row(row, tags)
     detail["source"] = source_row(source) if source else None
     detail["chunk"] = chunk_row(chunk) if chunk else None
     detail["embeddings"] = [embedding_row(embedding) for embedding in embeddings]
@@ -419,18 +453,20 @@ def insert_event(
     )
 
 
-def knowledge_unit_row(row: sqlite3.Row) -> dict:
+def knowledge_unit_row(row: sqlite3.Row, tags: list[dict] | None = None) -> dict:
     return {
         "id": row["id"],
         "source_id": row["source_id"],
         "chunk_id": row["chunk_id"],
         "project_id": row["project_id"],
+        "primary_folder_id": row["primary_folder_id"],
         "title": row["title"],
         "type": row["type"],
         "content": row["content"],
         "status": row["status"],
         "user_verified": bool(row["user_verified"]),
         "metadata": json.loads(row["metadata_json"]),
+        "tags": tags or [],
         "created_at": row["created_at"],
         "updated_at": row["updated_at"],
     }
@@ -440,11 +476,13 @@ def source_row(row: sqlite3.Row) -> dict:
     return {
         "id": row["id"],
         "project_id": row["project_id"],
+        "primary_folder_id": row["primary_folder_id"],
         "title": row["title"],
         "source_type": row["source_type"],
         "source_origin": row["source_origin"],
         "content_hash": row["content_hash"],
         "metadata": json.loads(row["metadata_json"]),
+        "tags": [],
         "chunk_count": 0,
         "created_at": row["created_at"],
     }

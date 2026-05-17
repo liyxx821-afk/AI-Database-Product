@@ -6,7 +6,17 @@ from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import auth, feedback_memory, knowledge, settings, sources, system, uploads, z0a
+from app.api.routes import (
+    auth,
+    feedback_memory,
+    knowledge,
+    organization,
+    settings,
+    sources,
+    system,
+    uploads,
+    z0a,
+)
 from app.core.errors import (
     AppError,
     RequestContextMiddleware,
@@ -40,6 +50,7 @@ def create_app() -> FastAPI:
     app.include_router(system.router, prefix="/api")
     app.include_router(auth.router, prefix="/api")
     app.include_router(settings.router, prefix="/api")
+    app.include_router(organization.router, prefix="/api")
     app.include_router(uploads.router, prefix="/api")
     app.include_router(sources.router, prefix="/api")
     app.include_router(knowledge.router, prefix="/api")

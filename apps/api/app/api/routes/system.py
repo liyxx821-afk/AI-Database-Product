@@ -99,6 +99,8 @@ def workspace_summary() -> dict:
         counts = {}
         for key, table in {
             "project_count": "projects",
+            "folder_count": "folders",
+            "tag_count": "tags",
             "upload_count": "upload_tasks",
             "file_count": "files",
             "pending_file_count": "files WHERE inspection_status != 'completed'",

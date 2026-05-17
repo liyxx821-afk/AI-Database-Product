@@ -1,5 +1,7 @@
 export const workspaceFixture = {
   project_count: 1,
+  folder_count: 0,
+  tag_count: 0,
   upload_count: 0,
   file_count: 0,
   pending_file_count: 0,

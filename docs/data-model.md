@@ -1,8 +1,8 @@
-# 数据模型 v0.24-draft
+# 数据模型 v0.25-draft
 
-版本：v0.24-draft
+版本：v0.25-draft
 日期：2026-05-17  
-状态：草案——完整 P0 入库与知识处理平台 + 切片前准备层 / 切片执行 profile / AI 结构化整理 profile / D-079 结构化整理子字段与存储映射 / D-080 知识调用 profile 与隐式 Agent / D-081 调用持久化边界 / D-082 InvocationProfileSchema v1 / D-083 前端状态与反馈策略 / D-085 Z0a 调用锚点、反馈和 citation 边界修正 / D-092 trace chain 与 Evidence Pack 失败态 / D-104 Retrieval Preview 复用既有调用对象 / D-107 feedback_events 与 memories Z0b-lite 物理表 / D-108 feedback_events 诊断读取与 Event Replay / D-113 citation_annotations 批注与 evidence compare 只读边界 / 知识切片质量闭环 / 安全运维横切层 / 检查门映射单一来源 / 事件枚举单一来源 / P0-Z0a/Z0b 最小迁移 / ProcessingJob / sensitive grant / evidence-only 契约收紧
+状态：草案——完整 P0 入库与知识处理平台 + 切片前准备层 / 切片执行 profile / AI 结构化整理 profile / D-079 结构化整理子字段与存储映射 / D-080 知识调用 profile 与隐式 Agent / D-081 调用持久化边界 / D-082 InvocationProfileSchema v1 / D-083 前端状态与反馈策略 / D-085 Z0a 调用锚点、反馈和 citation 边界修正 / D-092 trace chain 与 Evidence Pack 失败态 / D-104 Retrieval Preview 复用既有调用对象 / D-107 feedback_events 与 memories Z0b-lite 物理表 / D-108 feedback_events 诊断读取与 Event Replay / D-113 citation_annotations 批注与 evidence compare 只读边界 / D-114 Project-Folder-Tag 组织过滤与 Source/KU organization 绑定 / 知识切片质量闭环 / 安全运维横切层 / 检查门映射单一来源 / 事件枚举单一来源 / P0-Z0a/Z0b 最小迁移 / ProcessingJob / sensitive grant / evidence-only 契约收紧
 
 ## 1. 文档目的
 
@@ -345,7 +345,7 @@ P0 可以先用配置 manifest 实现 profile registry；如果实现期需要�
 
 | 层级 | P0 波次 | 表 / 对象 | 说明 |
 |---|---|---|---|
-| P0-Core | Z0a/Z0b | users, projects, folders, tags, user_profiles, auth_identities, roles, access_policies, audit_logs, system_logs | Z0a 只要求 `local_user` 和空间/标签骨架；账号预埋、审计和系统日志可在 Z0b 补齐 |
+| P0-Core | Z0a/Z0b | users, projects, folders, tags, source_tags, knowledge_unit_tags, user_profiles, auth_identities, roles, access_policies, audit_logs, system_logs | Z0a 只要求 `local_user`、空间/标签骨架与 D-114 organization join；账号预埋、审计和系统日志可在 Z0b 补齐 |
 | P0-File | Z0a/Z0b/Z1 | upload_tasks, upload_parts, files, file_integrity_checks, file_inspection_results, processing_jobs(`ingestion_jobs`), processing_status_events, sources | Z0a 支持直传或 text_import 和 inspection summary；分片恢复、完整 report 和增强恢复进入 Z0b/Z1 |
 | P0-AI | Z0a/Z0b/Z1 | source_descriptions, parse_tasks, parse_warnings, chunks, chunk_quality_checks, quality_events, knowledge_units, knowledge_unit_chunks, knowledge_unit_tags, knowledge_relations, embeddings, review_tasks | Z0a 先做解析、Chunk、KU、Review、Embedding；source description、标签明细、质量事件和关系逐步补齐 |
 | P0-RAG | Z0a/Z0b/Z2 | retrieval_logs, evidence_packs, evidence_items, ai_answers, feedback_events, memories, answer_citations, sensitive_access_grants, invocation_requests, retrieval_plans, retrieval_feedback | Z0a 只做 retrieval log + evidence pack + `evidence_only_answer`；D-107 已提前实现 `feedback_events` append-only 与 pending-review `memories`，两者不影响真值、不进入 retrieval；citation 明细与敏感授权 Z0b；invocation plan、retrieval_feedback、LLM answer 在 Z2 补齐 |
@@ -358,6 +358,7 @@ users
 projects
 folders
 tags
+source_tags
 upload_tasks
 files
 file_integrity_checks
@@ -370,6 +371,7 @@ parse_warnings
 chunks
 knowledge_units
 knowledge_unit_chunks
+knowledge_unit_tags
 embeddings
 review_tasks
 retrieval_logs
@@ -390,7 +392,6 @@ access_policies
 upload_parts
 source_descriptions
 chunk_quality_checks
-knowledge_unit_tags
 answer_citations
 sensitive_access_grants
 audit_logs
@@ -554,8 +555,12 @@ P1 可评估方案 B：合并 5 张表为统一 `events` 表 + 多态字段。
 erDiagram
   users ||--o{ projects : owns
   projects ||--o{ folders : contains
+  projects ||--o{ tags : owns
   projects ||--o{ sources : contains
   folders ||--o{ sources : groups
+  folders ||--|| tags : mirror_tag
+  sources ||--o{ source_tags : tagged_by
+  tags ||--o{ source_tags : labels
   sources ||--|| source_descriptions : describes
   sources ||--o{ chunks : splits_into
   sources ||--o{ knowledge_units : supports
@@ -875,6 +880,7 @@ P0 预埋权限模型，默认只有 `local_owner`。
 | 字段 | 类型建议 | 说明 |
 |---|---|---|
 | id | uuid | Tag ID |
+| project_id | uuid | 所属项目 |
 | user_id | uuid | 所属用户 |
 | name | text | 标签名 |
 | namespace | text | folder / topic / status / use / discipline / system / custom |
@@ -882,8 +888,27 @@ P0 预埋权限模型，默认只有 `local_owner`。
 | description | text nullable | 标签说明 |
 | created_by | text | user / system / ai_mock / ai |
 | created_at | timestamptz | 创建时间 |
+| updated_at | timestamptz | 更新时间 |
 
-### 6.4.1 upload_tasks
+D-114 实现备注：
+
+- `projects`、`folders`、`tags` 会通过 SQLite idempotent 兼容迁移补齐旧库缺失列，不清空已有本地数据。
+- 创建 Folder 时自动创建或复用 mirror tag：`namespace=folder`、`tag_type=folder_tag`、`name=folder.path`。
+- `source_tags` 记录 Source 的显式和派生标签；`knowledge_unit_tags` 记录 KU 的 folder mirror、source assignment 和 user tags。
+- Source organization patch 会把 folder mirror 与 source-assignment tags 同步到当前已派生 KU；KU organization patch 可继续细调 KU 自身 user tags，不覆盖 Source 原始内容。
+
+### 6.4.1 source_tags
+
+| 字段 | 类型建议 | 说明 |
+|---|---|---|
+| source_id | uuid | Source ID |
+| tag_id | uuid | Tag ID |
+| tag_source | text | folder_mirror / source_assignment / user |
+| created_at | timestamptz | 创建时间 |
+
+P0 物理实现使用 `(source_id, tag_id, tag_source)` 作为唯一约束。`source_assignment` 表示用户在 Source 组织面板绑定的标签；`folder_mirror` 表示由 `primary_folder_id` 派生的镜像标签。
+
+### 6.4.2 upload_tasks
 
 | 字段 | 类型建议 | 说明 |
 |---|---|---|
@@ -903,7 +928,7 @@ P0 预埋权限模型，默认只有 `local_owner`。
 | updated_at | timestamptz | 更新时间 |
 | metadata_json | jsonb | 扩展字段（P0 预期：前端预检查结果、重试信息、`upload_adapter=uppy`、`protocol=tus_style`、`status_channel=sse`） |
 
-### 6.4.2 upload_parts
+### 6.4.3 upload_parts
 
 | 字段 | 类型建议 | 说明 |
 |---|---|---|
@@ -916,7 +941,7 @@ P0 预埋权限模型，默认只有 `local_owner`。
 | status | text | pending / received / verified / failed |
 | received_at | timestamptz nullable | 接收时间 |
 
-### 6.4.3 files
+### 6.4.4 files
 
 `files` 是物理文件对象，区别于语义来源 `sources`。
 
@@ -940,7 +965,7 @@ P0 预埋权限模型，默认只有 `local_owner`。
 | updated_at | timestamptz | 更新时间 |
 | metadata_json | jsonb | 扩展字段（P0 预期：`storage_adapter=local_fs`、`s3_compatible_contract=true`、`declared_mime_type`、`detected_mime_type`、`detected_encoding`、`file_signature`、`risk_level`、`risk_flags`、`preview_status`、`primary_preview_path`、EXIF 摘要） |
 
-### 6.4.4 file_inspection_results
+### 6.4.5 file_inspection_results
 
 `file_inspection_results` 是上传完成后、Parser Router 前的统一检查结果表。它承载真实类型识别、编码检测、安全检查、结构识别、预览生成、表格检测和媒体探测，不为每类检查拆新表。
 
@@ -998,7 +1023,7 @@ D-103 实现备注：
 
 `blocked` 表示策略阻断但文件仍在普通本地存储；`quarantined` 表示文件已移动或标记为隔离存储，默认不参与预览、解析或 RAG。
 
-### 6.4.5 file_integrity_checks
+### 6.4.6 file_integrity_checks
 
 | 字段 | 类型建议 | 说明 |
 |---|---|---|
@@ -1011,7 +1036,7 @@ D-103 实现备注：
 | notes | text nullable | 说明 |
 | created_at | timestamptz | 创建时间 |
 
-### 6.4.6 processing_jobs / processing_status_events
+### 6.4.7 processing_jobs / processing_status_events
 
 `ProcessingJob` 是领域对象名，用于表达上传、检查、解析、切片、Embedding 和 RAG 相关长任务。P0 可以继续使用物理表名 `ingestion_jobs`，但 service、repository 和文档叙述应优先使用 `ProcessingJob`，避免把 preview / embedding / RAG answer 误解为"入库任务"。
 
@@ -1027,7 +1052,7 @@ D-103 实现备注：
 | id | uuid | Source ID |
 | user_id | uuid | 所属用户 |
 | project_id | uuid | 所属知识空间 |
-| folder_id | uuid nullable | 主文件夹 |
+| primary_folder_id | uuid nullable | 主文件夹 |
 | file_id | uuid nullable | 对应物理文件；text_import 可为空 |
 | upload_task_id | uuid nullable | 来源上传任务 |
 | title | text | 来源标题 |
@@ -1439,14 +1464,15 @@ relation_suggestion
 
 | 字段 | 类型建议 | 说明 |
 |---|---|---|
-| id | uuid | 关系 ID |
 | knowledge_unit_id | uuid | Knowledge Unit |
 | tag_id | uuid | Tag |
-| tag_source | text | folder_mirror / user / rule / ai_mock / ai |
+| tag_source | text | folder_mirror / source_assignment / user / rule / ai_mock / ai |
 | confidence | numeric nullable | 置信度 |
 | confirmed_by_user | boolean | 是否确认 |
 | reason | text nullable | 推荐理由 |
 | created_at | timestamptz | 创建时间 |
+
+D-114 物理实现使用 `(knowledge_unit_id, tag_id, tag_source)` 作为唯一约束，先落地 `folder_mirror`、`source_assignment`、`user` 三类来源；`confidence`、`confirmed_by_user` 和 `reason` 仍可在后续 AI tagging / tag review 阶段补齐。`source_assignment` 来自 Source organization patch 的继承，KU organization patch 只替换 KU 自身 `user` 与 `folder_mirror` 标签，不删除已继承的 Source 标签。
 
 ### 6.11 knowledge_relations
 
@@ -1837,6 +1863,8 @@ D-113 提前实现 `citation_annotations` 作为 Z0b-lite 本地复盘对象。�
 
 D-113 evidence compare 不新增表。`POST /api/evidence-packs/{id}/compare` 只读取同一 pack 内 2-3 条 `evidence_items`，通过既有 KU / Chunk / Source join 生成 differences 和 copy-safe summary，不保存 compare result，也不记录复制行为。
 
+D-114 organization metadata 不新增任意 key-value 编辑器；它只把 project / folder / tag / filter 从文档契约落到本地 SQLite。`source_tags` 与 `knowledge_unit_tags` 只服务组织绑定和检索过滤，不写 feedback，不影响 ranking 权重，也不让 `pending_review` KU 进入 Evidence Pack。
+
 ### 7.6 ai_answers
 
 | 字段 | 类型建议 | 说明 |
@@ -1917,7 +1945,8 @@ D-107 / D-108 反馈 / Memory 边界：
 - `memories`：D-107 已实现 pending-review Memory Draft；confirm / ignore 只改变 memory 状态，不创建 confirmed KU，也不加入 retrieval results。
 - `retrieval_feedback`：Z2 起的检索反馈持久化对象，必须能关联 Invocation / Evidence / Answer，并携带 `feedback_policy`、作用域、权重上限和是否参与 ranking suggestion。
 - D-113 的 `citation_annotations` 只服务 Citation Detail 本地复盘；不得作为 feedback/ranking signal，也不得让批注内容进入检索证据。
-- D-107 / D-108 / D-113 不新增 `invocation_requests`、`retrieval_plans`、真实 LLM answer、GraphRAG、provider-backed RAG 或 `retrieval_feedback`。
+- D-114 的 `source_tags` / `knowledge_unit_tags` 只服务 project / folder / tag 组织绑定与过滤；不得作为 feedback/ranking signal，也不得让 `pending_review` KU 因为有 tag/folder 而进入检索证据。
+- D-107 / D-108 / D-113 / D-114 不新增 `invocation_requests`、`retrieval_plans`、真实 LLM answer、GraphRAG、provider-backed RAG 或 `retrieval_feedback`。
 
 ---
 

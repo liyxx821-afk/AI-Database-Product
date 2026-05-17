@@ -1,8 +1,9 @@
 import type { KnowledgeExtractResponse, SourceDetail, SourceRecord } from "@knowledgebase-dev/api-types";
 import { apiFetch } from "./apiClient";
+import { organizationQuery, type OrganizationFilters } from "./organizationApi";
 
-export async function listSources(): Promise<SourceRecord[]> {
-  return apiFetch<SourceRecord[]>("/sources");
+export async function listSources(filters?: OrganizationFilters): Promise<SourceRecord[]> {
+  return apiFetch<SourceRecord[]>(`/sources${organizationQuery(filters)}`);
 }
 
 export async function getSource(sourceId: string): Promise<SourceDetail> {

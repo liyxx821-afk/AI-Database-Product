@@ -237,12 +237,22 @@ def ignore_review_task(task_id: str) -> dict:
 
 @router.post("/retrieval/evidence-only", response_model=EvidenceOnlyResponse)
 def evidence_only(payload: EvidenceOnlyRequest) -> dict:
-    return build_evidence_only_answer(payload.query, payload.project_id)
+    return build_evidence_only_answer(
+        payload.query,
+        payload.project_id,
+        payload.folder_id,
+        payload.tag_ids,
+    )
 
 
 @router.post("/retrieval/preview", response_model=RetrievalPreviewResponse)
 def retrieval_preview(payload: RetrievalPreviewRequest) -> dict:
-    return build_retrieval_preview(payload.query, payload.project_id)
+    return build_retrieval_preview(
+        payload.query,
+        payload.project_id,
+        payload.folder_id,
+        payload.tag_ids,
+    )
 
 
 @router.get("/evidence-packs/{evidence_pack_id}", response_model=EvidencePackDetail)

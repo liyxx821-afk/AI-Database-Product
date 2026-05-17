@@ -60,6 +60,106 @@ FeedbackRankingEffect = Literal[
 FeedbackSortOrder = Literal["created_desc", "created_asc"]
 MemoryType = Literal["preference", "decision", "style", "conclusion", "reusable_context"]
 CitationAnnotationType = Literal["note", "question", "risk", "follow_up"]
+TagNamespace = Literal["folder", "topic", "status", "use", "discipline", "system", "custom"]
+TagType = Literal[
+    "folder_tag",
+    "topic_tag",
+    "discipline_tag",
+    "status_tag",
+    "use_tag",
+    "system_tag",
+    "custom_tag",
+]
+KnowledgeBaseType = Literal[
+    "project_kb",
+    "reference_kb",
+    "person_kb",
+    "timeline_kb",
+    "inspiration_kb",
+    "method_kb",
+    "custom",
+]
+
+
+class ProjectCreateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1, max_length=160)
+    description: Optional[str] = Field(default=None, max_length=1000)
+    parent_id: Optional[str] = None
+    kb_type: KnowledgeBaseType = "project_kb"
+
+
+class ProjectRecord(BaseModel):
+    id: str
+    user_id: str
+    parent_id: Optional[str]
+    name: str
+    description: Optional[str]
+    kb_type: str
+    status: str
+    metadata: Dict[str, Any]
+    created_at: str
+    updated_at: str
+
+
+class FolderCreateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    project_id: str = "default-space"
+    parent_id: Optional[str] = None
+    name: str = Field(min_length=1, max_length=160)
+
+
+class FolderRecord(BaseModel):
+    id: str
+    project_id: str
+    parent_id: Optional[str]
+    name: str
+    path: str
+    mirror_tag_id: Optional[str]
+    created_at: str
+    updated_at: str
+
+
+class TagCreateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    project_id: str = "default-space"
+    name: str = Field(min_length=1, max_length=160)
+    namespace: TagNamespace = "topic"
+    tag_type: TagType = "topic_tag"
+    description: Optional[str] = Field(default=None, max_length=1000)
+
+
+class TagRecord(BaseModel):
+    id: str
+    project_id: str
+    user_id: str
+    name: str
+    namespace: str
+    tag_type: str
+    description: Optional[str]
+    created_by: str
+    created_at: str
+    updated_at: str
+
+
+class OrganizationUpdateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    folder_id: Optional[str] = None
+    tag_ids: List[str] = Field(default_factory=list)
+
+
+class OrganizationUpdateResponse(BaseModel):
+    target_type: str
+    target_id: str
+    project_id: str
+    folder_id: Optional[str]
+    tags: List[TagRecord]
+    synced_knowledge_unit_ids: List[str]
+    updated_at: str
 
 
 class SettingsResponse(BaseModel):
@@ -192,11 +292,13 @@ class ChunkRecord(BaseModel):
 class SourceRecord(BaseModel):
     id: str
     project_id: str
+    primary_folder_id: Optional[str] = None
     title: str
     source_type: str
     source_origin: str
     content_hash: str
     metadata: Dict[str, Any]
+    tags: List[TagRecord] = Field(default_factory=list)
     chunk_count: int
     created_at: str
 
@@ -264,12 +366,14 @@ class KnowledgeUnitRecord(BaseModel):
     source_id: str
     chunk_id: str
     project_id: str
+    primary_folder_id: Optional[str] = None
     title: str
     type: str
     content: str
     status: str
     user_verified: bool
     metadata: Dict[str, Any]
+    tags: List[TagRecord] = Field(default_factory=list)
     created_at: str
     updated_at: str
 
@@ -316,6 +420,8 @@ class ReviewActionResponse(BaseModel):
 class EvidenceOnlyRequest(BaseModel):
     query: str = Field(min_length=1)
     project_id: str = "default-space"
+    folder_id: Optional[str] = None
+    tag_ids: List[str] = Field(default_factory=list)
 
 
 class EvidenceOnlyResponse(BaseModel):
@@ -437,6 +543,8 @@ class MemoryDraftRecord(BaseModel):
 class RetrievalPreviewRequest(BaseModel):
     query: str = Field(min_length=1)
     project_id: str = "default-space"
+    folder_id: Optional[str] = None
+    tag_ids: List[str] = Field(default_factory=list)
 
 
 class EvidenceItemRecord(BaseModel):
@@ -581,6 +689,8 @@ class CitationCompareResponse(BaseModel):
 
 class WorkspaceSummaryResponse(BaseModel):
     project_count: int
+    folder_count: int
+    tag_count: int
     upload_count: int
     file_count: int
     pending_file_count: int
