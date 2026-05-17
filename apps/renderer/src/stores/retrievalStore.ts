@@ -24,6 +24,7 @@ import {
   previewRetrieval,
   updateCitationAnnotation
 } from "../services/retrievalApi";
+import { storeErrorCode } from "./errors";
 
 type ViewState = "loading" | "empty" | "degraded" | "recoverable_error" | "done";
 
@@ -112,7 +113,7 @@ export const useRetrievalStore = create<RetrievalState>((set) => ({
         previewErrorCode: undefined
       });
     } catch (error) {
-      const errorCode = error instanceof Error ? error.message : "retrieval_preview_failed";
+      const errorCode = storeErrorCode(error, "retrieval_preview_failed");
       set({
         state: "recoverable_error",
         previewState: "recoverable_error",
@@ -157,7 +158,7 @@ export const useRetrievalStore = create<RetrievalState>((set) => ({
         answerErrorCode: undefined
       });
     } catch (error) {
-      const errorCode = error instanceof Error ? error.message : "evidence_only_answer_failed";
+      const errorCode = storeErrorCode(error, "evidence_only_answer_failed");
       set({
         state: "recoverable_error",
         answerState: "recoverable_error",
@@ -199,7 +200,7 @@ export const useRetrievalStore = create<RetrievalState>((set) => ({
         annotationErrorCode: undefined
       });
     } catch (error) {
-      const errorCode = error instanceof Error ? error.message : "evidence_pack_detail_failed";
+      const errorCode = storeErrorCode(error, "evidence_pack_detail_failed");
       set({
         state: "recoverable_error",
         detailState: "recoverable_error",
@@ -227,7 +228,7 @@ export const useRetrievalStore = create<RetrievalState>((set) => ({
         annotationErrorCode: undefined
       });
     } catch (error) {
-      const errorCode = error instanceof Error ? error.message : "citation_annotations_failed";
+      const errorCode = storeErrorCode(error, "citation_annotations_failed");
       set({ annotationState: "recoverable_error", annotationErrorCode: errorCode });
     }
   },
@@ -253,7 +254,7 @@ export const useRetrievalStore = create<RetrievalState>((set) => ({
       });
       return annotation;
     } catch (error) {
-      const errorCode = error instanceof Error ? error.message : "citation_annotation_create_failed";
+      const errorCode = storeErrorCode(error, "citation_annotation_create_failed");
       set({ annotationState: "recoverable_error", annotationErrorCode: errorCode });
       return undefined;
     }
@@ -281,8 +282,7 @@ export const useRetrievalStore = create<RetrievalState>((set) => ({
       });
       return response;
     } catch (error) {
-      const errorCode =
-        error instanceof Error ? error.message : "citation_annotation_batch_create_failed";
+      const errorCode = storeErrorCode(error, "citation_annotation_batch_create_failed");
       set({ annotationState: "recoverable_error", annotationErrorCode: errorCode });
       return undefined;
     }
@@ -309,7 +309,7 @@ export const useRetrievalStore = create<RetrievalState>((set) => ({
       });
       return annotation;
     } catch (error) {
-      const errorCode = error instanceof Error ? error.message : "citation_annotation_update_failed";
+      const errorCode = storeErrorCode(error, "citation_annotation_update_failed");
       set({ annotationState: "recoverable_error", annotationErrorCode: errorCode });
       return undefined;
     }
@@ -346,7 +346,7 @@ export const useRetrievalStore = create<RetrievalState>((set) => ({
         set({ annotationState: "done", annotationErrorCode: undefined });
       }
     } catch (error) {
-      const errorCode = error instanceof Error ? error.message : "citation_annotation_delete_failed";
+      const errorCode = storeErrorCode(error, "citation_annotation_delete_failed");
       set({ annotationState: "recoverable_error", annotationErrorCode: errorCode });
     }
   },
@@ -367,7 +367,7 @@ export const useRetrievalStore = create<RetrievalState>((set) => ({
         compareErrorCode: undefined
       });
     } catch (error) {
-      const errorCode = error instanceof Error ? error.message : "citation_compare_failed";
+      const errorCode = storeErrorCode(error, "citation_compare_failed");
       set({ compareState: "recoverable_error", compareErrorCode: errorCode });
     }
   },

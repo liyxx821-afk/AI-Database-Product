@@ -1,5 +1,29 @@
 # 进度记录
 
+## 2026-05-18（Retrieval Store 错误处理接入优化）
+
+### 审查结论
+
+- `retrievalStore` 是 renderer store 中最后一块仍手写 `error instanceof Error ? error.message : fallback` 的状态 store。
+- 它驱动 `/search`、`/ask`、Citation Detail、annotation 和 compare 状态，重复错误提取会让 Search / Ask / Citation 错误语义继续分叉。
+
+### 已优化
+
+- `retrievalStore` 接入共享 `storeErrorCode`。
+- 覆盖 retrieval preview、evidence-only answer、Evidence Pack detail、annotation list/create/batch/update/delete 和 compare。
+- 保留既有 fallback error code、state 字段、degraded/recoverable_error 行为和 Citation 状态机结构。
+
+### 验收
+
+- `pnpm typecheck` 通过。
+- `pnpm --filter @knowledgebase-dev/renderer build` 通过。
+- `git diff --check` 通过。
+- in-app browser 检查 `/search` 与 `/ask` 可达，Retrieval / Ask / Citation Detail 面板仍显示预期 degraded / empty 状态。
+
+### 备注
+
+- 本轮只做 renderer store 层维护性优化，不改 OpenAPI schema、数据库、主路由、业务语义或 smoke 命令。
+
 ## 2026-05-18（Feedback Memory Store 错误处理接入优化）
 
 ### 审查结论
