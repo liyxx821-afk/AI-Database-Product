@@ -1452,11 +1452,18 @@ function KnowledgeExportPanel({
 }) {
   const t = useT();
   const [exportKnowledgeUnits, setExportKnowledgeUnits] = useState<KnowledgeUnitRecord[]>([]);
+  const selectedKnowledgeUnitIdSet = useMemo(
+    () => new Set(selectedKnowledgeUnitIds),
+    [selectedKnowledgeUnitIds]
+  );
 
   useEffect(() => {
+    let cancelled = false;
     if (!hasBridge() || exportKind !== "knowledge_units") {
       setExportKnowledgeUnits([]);
-      return;
+      return () => {
+        cancelled = true;
+      };
     }
     listKnowledgeUnits(includePendingReview ? undefined : "confirmed", {
       projectId: selectedProjectId,
@@ -1464,13 +1471,15 @@ function KnowledgeExportPanel({
       tagIds: selectedTagIds
     })
       .then((records) => {
+        if (cancelled) return;
         setExportKnowledgeUnits(records);
-        const validIds = new Set(records.map((record) => record.id));
-        onSelectedKnowledgeUnitIdsChange(
-          selectedKnowledgeUnitIds.filter((knowledgeUnitId) => validIds.has(knowledgeUnitId))
-        );
       })
-      .catch(() => setExportKnowledgeUnits([]));
+      .catch(() => {
+        if (!cancelled) setExportKnowledgeUnits([]);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [
     exportKind,
     includePendingReview,
@@ -1479,9 +1488,28 @@ function KnowledgeExportPanel({
     selectedTagIds.join("|")
   ]);
 
+  useEffect(() => {
+    if (exportKind !== "knowledge_units") {
+      if (selectedKnowledgeUnitIds.length) onSelectedKnowledgeUnitIdsChange([]);
+      return;
+    }
+    const validIds = new Set(exportKnowledgeUnits.map((record) => record.id));
+    const prunedIds = selectedKnowledgeUnitIds.filter((knowledgeUnitId) =>
+      validIds.has(knowledgeUnitId)
+    );
+    if (prunedIds.length !== selectedKnowledgeUnitIds.length) {
+      onSelectedKnowledgeUnitIdsChange(prunedIds);
+    }
+  }, [
+    exportKind,
+    exportKnowledgeUnits,
+    onSelectedKnowledgeUnitIdsChange,
+    selectedKnowledgeUnitIds
+  ]);
+
   function toggleSelectedKnowledgeUnit(knowledgeUnitId: string) {
     onSelectedKnowledgeUnitIdsChange(
-      selectedKnowledgeUnitIds.includes(knowledgeUnitId)
+      selectedKnowledgeUnitIdSet.has(knowledgeUnitId)
         ? selectedKnowledgeUnitIds.filter((id) => id !== knowledgeUnitId)
         : [...selectedKnowledgeUnitIds, knowledgeUnitId]
     );
@@ -1613,7 +1641,7 @@ function KnowledgeExportPanel({
                   <label className="compare-check">
                     <input
                       type="checkbox"
-                      checked={selectedKnowledgeUnitIds.includes(knowledgeUnit.id)}
+                      checked={selectedKnowledgeUnitIdSet.has(knowledgeUnit.id)}
                       onChange={() => toggleSelectedKnowledgeUnit(knowledgeUnit.id)}
                     />
                     <span>{knowledgeUnit.title}</span>
@@ -2238,6 +2266,11 @@ function OrganizationPanel({
   const [selectedSourceIds, setSelectedSourceIds] = useState<string[]>([]);
   const [selectedKnowledgeUnitIds, setSelectedKnowledgeUnitIds] = useState<string[]>([]);
   const [knowledgeUnits, setKnowledgeUnits] = useState<KnowledgeUnitRecord[]>([]);
+  const selectedSourceIdSet = useMemo(() => new Set(selectedSourceIds), [selectedSourceIds]);
+  const selectedKnowledgeUnitIdSet = useMemo(
+    () => new Set(selectedKnowledgeUnitIds),
+    [selectedKnowledgeUnitIds]
+  );
 
   useEffect(() => {
     if (!hasBridge()) {
@@ -2395,8 +2428,8 @@ function OrganizationPanel({
                 <label className="compare-check" key={source.id}>
                   <input
                     type="checkbox"
-                    checked={selectedSourceIds.includes(source.id)}
-                    disabled={!selectedSourceIds.includes(source.id) && selectedSourceIds.length >= 50}
+                    checked={selectedSourceIdSet.has(source.id)}
+                    disabled={!selectedSourceIdSet.has(source.id) && selectedSourceIds.length >= 50}
                     onChange={() => toggleSourceSelection(source.id)}
                   />
                   <span>{source.title}</span>
@@ -2425,9 +2458,9 @@ function OrganizationPanel({
                 <label className="compare-check" key={knowledgeUnit.id}>
                   <input
                     type="checkbox"
-                    checked={selectedKnowledgeUnitIds.includes(knowledgeUnit.id)}
+                    checked={selectedKnowledgeUnitIdSet.has(knowledgeUnit.id)}
                     disabled={
-                      !selectedKnowledgeUnitIds.includes(knowledgeUnit.id) &&
+                      !selectedKnowledgeUnitIdSet.has(knowledgeUnit.id) &&
                       selectedKnowledgeUnitIds.length >= 50
                     }
                     onChange={() => toggleKnowledgeUnitSelection(knowledgeUnit.id)}
@@ -2767,6 +2800,11 @@ function CitationDetailPanel({
   const [editingAnnotationId, setEditingAnnotationId] = useState<string>();
   const [compareSelection, setCompareSelection] = useState<string[]>([]);
   const [batchAnnotationSelection, setBatchAnnotationSelection] = useState<string[]>([]);
+  const compareSelectionSet = useMemo(() => new Set(compareSelection), [compareSelection]);
+  const batchAnnotationSelectionSet = useMemo(
+    () => new Set(batchAnnotationSelection),
+    [batchAnnotationSelection]
+  );
   const explanation = detail?.query_explanation ?? {};
   const visibleItems = useMemo(() => {
     const needle = filter.trim().toLowerCase();
@@ -3311,9 +3349,9 @@ function CitationDetailPanel({
                   <label className="compare-check">
                     <input
                       type="checkbox"
-                      checked={compareSelection.includes(item.id)}
+                      checked={compareSelectionSet.has(item.id)}
                       disabled={
-                        !compareSelection.includes(item.id) && compareSelection.length >= 3
+                        !compareSelectionSet.has(item.id) && compareSelection.length >= 3
                       }
                       onChange={() => toggleCompareSelection(item.id)}
                     />
@@ -3322,9 +3360,9 @@ function CitationDetailPanel({
                   <label className="compare-check">
                     <input
                       type="checkbox"
-                      checked={batchAnnotationSelection.includes(item.id)}
+                      checked={batchAnnotationSelectionSet.has(item.id)}
                       disabled={
-                        !batchAnnotationSelection.includes(item.id) &&
+                        !batchAnnotationSelectionSet.has(item.id) &&
                         batchAnnotationSelection.length >= 20
                       }
                       onChange={() => toggleBatchAnnotationSelection(item.id)}

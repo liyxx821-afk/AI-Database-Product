@@ -1,5 +1,34 @@
 # 进度记录
 
+## 2026-05-17（D-118 代码审查与批量操作优化）
+
+### 审查结论
+
+- 批量组织与批量批注链路功能完整，但后端批量接口在校验 Source / KU / evidence item 时仍按单条循环查询，随着 50 个 Source/KU 或 20 个 evidence item 的上限会产生不必要的 N+1 查询。
+- `/outputs` KU 选择导出的列表刷新与选择裁剪耦合在同一个异步回调里，请求返回较慢时可能使用旧闭包裁剪当前选择。
+- 前端批量选择列表在渲染时多次使用 `Array.includes`，当前上限较小但在多列表、频繁重绘下可读性和性能都不如显式 `Set`。
+
+### 已优化
+
+- 后端 `OrganizationService` 增加批量读取 helper：Source / KU 批量接口先用 `IN (...)` 一次读取并按请求顺序还原，再做同 project 校验和写入。
+- 后端 tag 校验改为一次查询所有 tag id，保留去重、project 校验和 `tag_not_found` error envelope。
+- 后端 Citation annotation 批量接口复用新的 evidence item 批量校验 helper，避免逐条 `_load_item_for_pack` 查询，同时保持跨 pack item 返回 `evidence_item_not_in_pack`。
+- Renderer `KnowledgeExportPanel` 将 KU 列表 fetch 和选择裁剪拆成两个 effect，并加入取消标记，避免过期请求覆盖当前选择。
+- Renderer Organization / Citation / Export 的批量选择渲染改用 memoized `Set` 做勾选和禁用判断，减少重复线性查找并让选择边界更清晰。
+
+### 验收
+
+- `pnpm typecheck` 通过。
+- `pnpm api:ruff` 通过。
+- `pnpm api:test` 通过，13 个 API 测试通过。
+- `pnpm smoke:p0-batch-actions` 通过，输出 `SMOKE_P0_BATCH_ACTIONS_OK`。
+- `pnpm --filter @knowledgebase-dev/renderer build` 通过。
+
+### 备注
+
+- 本轮不修改 OpenAPI schema，不需要重新运行 `pnpm generate:api-types`。
+- 本轮不新增功能、主路由、数据库表或 smoke 命令，只优化 D-118 既有批量链路的查询方式和前端状态稳定性。
+
 ## 2026-05-17（D-118 Citation / Organization / Export Batch Actions Z0b-lite）
 
 ### 已完成

@@ -373,22 +373,32 @@ def _build_evidence_pack_response(
 
 
 def _load_item_for_pack(conn: Any, evidence_pack_id: str, evidence_item_id: str) -> Any:
-    item = conn.execute(
-        """
+    return _load_items_for_pack(conn, evidence_pack_id, [evidence_item_id])[0]
+
+
+def _load_items_for_pack(
+    conn: Any,
+    evidence_pack_id: str,
+    evidence_item_ids: List[str],
+) -> List[Any]:
+    placeholders = ",".join("?" for _ in evidence_item_ids)
+    rows = conn.execute(
+        f"""
         SELECT *
         FROM evidence_items
-        WHERE id = ?
-          AND evidence_pack_id = ?
+        WHERE evidence_pack_id = ?
+          AND id IN ({placeholders})
         """,
-        (evidence_item_id, evidence_pack_id),
-    ).fetchone()
-    if not item:
+        (evidence_pack_id, *evidence_item_ids),
+    ).fetchall()
+    rows_by_id = {row["id"]: row for row in rows}
+    if any(evidence_item_id not in rows_by_id for evidence_item_id in evidence_item_ids):
         raise AppError(
             "evidence_item_not_in_pack",
             "Evidence item is not part of this Evidence Pack.",
             status_code=404,
         )
-    return item
+    return [rows_by_id[evidence_item_id] for evidence_item_id in evidence_item_ids]
 
 
 def list_citation_annotations(evidence_pack_id: str) -> Dict[str, Any]:
@@ -502,8 +512,7 @@ def create_citation_annotations_batch(
                 "Evidence Pack was not found.",
                 status_code=404,
             )
-        for evidence_item_id in unique_item_ids:
-            _load_item_for_pack(conn, evidence_pack_id, evidence_item_id)
+        _load_items_for_pack(conn, evidence_pack_id, unique_item_ids)
         for evidence_item_id in unique_item_ids:
             annotation_id = new_id("canno")
             conn.execute(

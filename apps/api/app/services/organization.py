@@ -376,7 +376,7 @@ def update_sources_organization_batch(
         )
     timestamp = now_iso()
     with db() as conn:
-        sources = [_require_source(conn, source_id) for source_id in unique_source_ids]
+        sources = _require_sources_for_batch(conn, unique_source_ids)
         project_id = sources[0]["project_id"]
         if any(source["project_id"] != project_id for source in sources):
             raise AppError(
@@ -538,10 +538,7 @@ def update_knowledge_units_organization_batch(
         )
     timestamp = now_iso()
     with db() as conn:
-        knowledge_units = [
-            _require_knowledge_unit(conn, knowledge_unit_id)
-            for knowledge_unit_id in unique_knowledge_unit_ids
-        ]
+        knowledge_units = _require_knowledge_units_for_batch(conn, unique_knowledge_unit_ids)
         project_id = knowledge_units[0]["project_id"]
         if any(knowledge_unit["project_id"] != project_id for knowledge_unit in knowledge_units):
             raise AppError(
@@ -757,8 +754,20 @@ def _require_tag(
 
 def _require_tags(conn: sqlite3.Connection, project_id: str, tag_ids: Iterable[str]) -> list[str]:
     unique_ids = list(dict.fromkeys(tag_ids))
-    for tag_id in unique_ids:
-        _require_tag(conn, tag_id, project_id)
+    if not unique_ids:
+        return []
+    placeholders = ",".join("?" for _ in unique_ids)
+    rows = conn.execute(
+        f"""
+        SELECT id
+        FROM tags
+        WHERE project_id = ? AND id IN ({placeholders})
+        """,
+        (project_id, *unique_ids),
+    ).fetchall()
+    found_ids = {row["id"] for row in rows}
+    if any(tag_id not in found_ids for tag_id in unique_ids):
+        raise AppError("tag_not_found", "Tag was not found.", status_code=404)
     return unique_ids
 
 
@@ -791,6 +800,25 @@ def _require_source(conn: sqlite3.Connection, source_id: str) -> sqlite3.Row:
     return row
 
 
+def _require_sources_for_batch(
+    conn: sqlite3.Connection,
+    source_ids: list[str],
+) -> list[sqlite3.Row]:
+    placeholders = ",".join("?" for _ in source_ids)
+    rows = conn.execute(
+        f"""
+        SELECT *
+        FROM sources
+        WHERE id IN ({placeholders})
+        """,
+        tuple(source_ids),
+    ).fetchall()
+    rows_by_id = {row["id"]: row for row in rows}
+    if any(source_id not in rows_by_id for source_id in source_ids):
+        raise AppError("source_not_found", "Source was not found.", status_code=404)
+    return [rows_by_id[source_id] for source_id in source_ids]
+
+
 def _require_knowledge_unit(conn: sqlite3.Connection, knowledge_unit_id: str) -> sqlite3.Row:
     row = conn.execute(
         "SELECT * FROM knowledge_units WHERE id = ?",
@@ -803,6 +831,29 @@ def _require_knowledge_unit(conn: sqlite3.Connection, knowledge_unit_id: str) ->
             status_code=404,
         )
     return row
+
+
+def _require_knowledge_units_for_batch(
+    conn: sqlite3.Connection,
+    knowledge_unit_ids: list[str],
+) -> list[sqlite3.Row]:
+    placeholders = ",".join("?" for _ in knowledge_unit_ids)
+    rows = conn.execute(
+        f"""
+        SELECT *
+        FROM knowledge_units
+        WHERE id IN ({placeholders})
+        """,
+        tuple(knowledge_unit_ids),
+    ).fetchall()
+    rows_by_id = {row["id"]: row for row in rows}
+    if any(knowledge_unit_id not in rows_by_id for knowledge_unit_id in knowledge_unit_ids):
+        raise AppError(
+            "knowledge_unit_not_found",
+            "Knowledge unit was not found.",
+            status_code=404,
+        )
+    return [rows_by_id[knowledge_unit_id] for knowledge_unit_id in knowledge_unit_ids]
 
 
 def _validate_folder_for_project(
