@@ -1,8 +1,8 @@
 # 桌面应用架构
 
-版本：v0.8
+版本：v0.9
 日期：2026-05-17
-状态：已同步完整 P0 入库、文件处理、开源优先 AI、P0-RAG 桌面边界、D-092 sidecar 打包验证 spike、D-093 桌面运行时硬化、D-094 P0-Core 工程骨架开工契约与 D-098 Knowledge Workspace 页面 IA / 桌面 shell 导航契约
+状态：已同步完整 P0 入库、文件处理、开源优先 AI、P0-RAG 桌面边界、D-092 sidecar 打包验证 spike、D-093 桌面运行时硬化、D-094 P0-Core 工程骨架开工契约、D-098 Knowledge Workspace 页面 IA / 桌面 shell 导航契约与 D-109 pseudo-packaged desktop runtime smoke
 
 ## 1. 文档目的
 
@@ -164,7 +164,33 @@ Electron main
 - 应用退出时 sidecar 被清理，不残留后台进程；
 - 本 spike 不要求正式签名、自动更新、完整安装器或正式品牌资源。
 
-### 3.6 D-093 Sidecar 本地安全通信
+### 3.6 D-109 Pseudo-Packaged Desktop Runtime Smoke
+
+D-109 将 D-092 / D-095 的最小打包态验证落成可运行 smoke，但仍不等同于正式打包、签名或安装器。
+
+当前 smoke 边界：
+
+```text
+pnpm build shared packages / desktop preload / desktop main / renderer
+→ Vite preview serves built renderer on 127.0.0.1
+→ Electron launches apps/desktop-main/dist/main.js
+→ Main loads apps/desktop-preload/dist/preload.js
+→ Main starts FastAPI sidecar on dynamic 127.0.0.1 port
+→ Renderer uses preload bridge to fetch protected sidecar API
+→ Main writes redacted result and stops sidecar
+→ script verifies sidecar pid is gone
+```
+
+验收：
+
+- `smoke:p0-desktop-runtime` 必须使用 build 产物，不通过 `desktop-main dev` 间接重跑 build；
+- Renderer 不允许硬编码 API base、token、Node fs 或 SQLite path，只能通过 preload bridge 获取 runtime config；
+- 无 token 访问受保护 API 必须失败，带 bridge token 必须成功；
+- smoke result 只能包含 token length / presence，不写出 token 明文；
+- sidecar 只允许 `127.0.0.1` 绑定；FastAPI CORS 只允许本地 `127.0.0.1:<port>` renderer 来源；
+- Electron 退出前必须等待 sidecar 退出，必要时强制终止并记录 forced 状态。
+
+### 3.7 D-093 Sidecar 本地安全通信
 
 P0 虽然只在本机运行，但 `localhost` 端口仍可能被其他本机进程访问。D-093 要求 sidecar 通信增加本地会话保护：
 
@@ -187,7 +213,7 @@ Electron Main
 - FastAPI middleware 对缺失、错误或过期 token 返回 `sidecar_auth_failed`；
 - 端口冲突、sidecar 启动失败和 token 校验失败必须进入主进程状态栏与诊断报告。
 
-### 3.7 D-094 P0-Core 启动状态机
+### 3.8 D-094 P0-Core 启动状态机
 
 D-094 要求桌面工程骨架先实现统一 runtime state，再进入上传、解析、RAG 或聊天业务。状态机由 Electron Main 维护，FastAPI sidecar 和 Renderer 只能消费或报告子系统状态。
 

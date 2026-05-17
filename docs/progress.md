@@ -1,5 +1,37 @@
 # 进度记录
 
+## 2026-05-17（D-109 Desktop Runtime Smoke / Pseudo-Packaged Sidecar Z0b-lite）
+
+### 已完成
+
+- 新增 Electron smoke-only 启动模式：`KB_DESKTOP_SMOKE=1` 下，Electron Main 启动 FastAPI sidecar、加载已 build preload、打开 renderer preview，并执行 Renderer bridge probe。
+- 新增 `scripts/smoke-p0-desktop-runtime.mjs` 与 `pnpm smoke:p0-desktop-runtime`：脚本构建 shared packages、desktop preload/main 和 renderer，启动 Vite preview，直接运行 Electron `dist/main.js`，并读取脱敏 smoke result。
+- smoke 覆盖 `runtime.getRuntimeConfig()`、`runtime.getRuntimeStatus()`、preload bridge 可用性、`/api/health`、无 token `/api/settings` 401、带 bridge token `/api/settings` 200、`/api/system/runtime` 200、Renderer 非空页面和 sidecar clean shutdown。
+- 修正 desktop preload build 产物路径：Electron Main 现在加载 `apps/desktop-preload/dist/preload.js`，与 TypeScript 实际输出和 `desktop-preload` package `main` 保持一致。
+- 改进 `SidecarManager.stop()`：等待 sidecar 退出，超时后强制终止，并返回 pid、exit code、signal 和 forced 状态，供 smoke 校验不残留 sidecar 进程。
+- 为 FastAPI sidecar 增加受限本地 CORS：只允许 `http://127.0.0.1:<port>` 来源，并允许 `content-type` / `x-kb-local-token`；`OPTIONS` 预检不要求 local token。
+- 完整 smoke 顺序更新为 `smoke:p0-core` → `smoke:p0-desktop-runtime` → `smoke:p0-i18n-settings` → `smoke:p0-file` → `smoke:p0-parse` → `smoke:p0-ku` → `smoke:p0-search-ask` → `smoke:p0-citation-detail` → `smoke:p0-feedback-memory` → `smoke:p0-feedback-diagnostics` → `smoke:p0-z0a`。
+- 已同步 README、`docs/development-plan.md`、`docs/desktop-architecture.md`、`docs/testing-strategy.md`、`docs/technical-stack-and-prototype-plan.md`。
+
+### 验收
+
+- `pnpm typecheck` 通过。
+- `pnpm api:ruff` 通过。
+- `pnpm api:test` 通过，9 个 API 测试通过。
+- `pnpm smoke:p0-desktop-runtime` 通过，输出 `SMOKE_P0_DESKTOP_RUNTIME_OK`。
+- 完整 smoke 顺序通过：
+  `pnpm smoke:p0-core`、`pnpm smoke:p0-desktop-runtime`、`pnpm smoke:p0-i18n-settings`、`pnpm smoke:p0-file`、`pnpm smoke:p0-parse`、`pnpm smoke:p0-ku`、`pnpm smoke:p0-search-ask`、`pnpm smoke:p0-citation-detail`、`pnpm smoke:p0-feedback-memory`、`pnpm smoke:p0-feedback-diagnostics`、`pnpm smoke:p0-z0a`。
+- `pnpm --filter @knowledgebase-dev/renderer build` 通过。
+- `pnpm --filter @knowledgebase-dev/desktop-preload build` 通过。
+- `pnpm --filter @knowledgebase-dev/desktop-main build` 通过。
+- `git diff --check` 通过。
+
+### 备注
+
+- D-109 不新增业务 API、数据库表、migration、主路由、真实打包签名、PyInstaller、OCR/ASR、真实 Provider、provider-backed RAG、Text-to-SQL provider 或 GraphRAG。
+- `smoke:p0-desktop-runtime` 是 pseudo-packaged runtime smoke：验证 build 产物和普通 FastAPI sidecar 的组合，不等同于正式安装器或发布包。
+- 下一阶段可继续推进 feedback diagnostics export、Citation detail 深层交互，或更接近真实 packaged sidecar 的构建 / 分发 spike。
+
 ## 2026-05-17（D-108 Feedback Diagnostics / Event Replay Z0b-lite）
 
 ### 已完成

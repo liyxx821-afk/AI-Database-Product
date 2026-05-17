@@ -13,6 +13,8 @@ PUBLIC_PATH_PREFIXES = ("/api/health", "/openapi.json", "/docs", "/redoc")
 class LocalTokenMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         settings = get_settings()
+        if request.method == "OPTIONS":
+            return await call_next(request)
         if settings.local_token and not request.url.path.startswith(PUBLIC_PATH_PREFIXES):
             token = request.headers.get("x-kb-local-token")
             if token != settings.local_token:

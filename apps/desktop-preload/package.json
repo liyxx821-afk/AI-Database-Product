@@ -3,7 +3,7 @@
   "version": "0.1.0-alpha",
   "private": true,
   "type": "commonjs",
-  "main": "dist/preload.cjs",
+  "main": "dist/preload.js",
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit"

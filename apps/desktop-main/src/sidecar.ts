@@ -14,6 +14,14 @@ export type SidecarRuntime = {
   statusReason: string | null;
 };
 
+export type SidecarStopResult = {
+  pid: number | null;
+  exited: boolean;
+  code: number | null;
+  signal: NodeJS.Signals | null;
+  forced: boolean;
+};
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, "..", "..", "..");
@@ -103,10 +111,43 @@ export class SidecarManager {
     return this.runtime;
   }
 
-  async stop(): Promise<void> {
-    if (!this.child) return;
+  async stop(timeoutMs = 5000): Promise<SidecarStopResult | null> {
+    const child = this.child;
+    if (!child) return null;
+    const pid = child.pid ?? null;
     if (this.runtime) this.runtime.status = "shutting_down";
-    this.child.kill("SIGTERM");
+
+    const waitForExit = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>((resolve) => {
+      if (child.exitCode !== null || child.signalCode !== null) {
+        resolve({ code: child.exitCode, signal: child.signalCode });
+        return;
+      }
+      child.once("exit", (code, signal) => resolve({ code, signal }));
+    });
+
+    let forced = false;
+    child.kill("SIGTERM");
+    let exit = await Promise.race([
+      waitForExit,
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), timeoutMs))
+    ]);
+
+    if (!exit) {
+      forced = true;
+      child.kill("SIGKILL");
+      exit = await Promise.race([
+        waitForExit,
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 2000))
+      ]);
+    }
+
     this.child = null;
+    return {
+      pid,
+      exited: Boolean(exit),
+      code: exit?.code ?? null,
+      signal: exit?.signal ?? null,
+      forced
+    };
   }
 }

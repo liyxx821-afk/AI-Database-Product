@@ -1,8 +1,8 @@
 # 测试与评估策略
 
-版本：v0.27
+版本：v0.28
 日期：2026-05-17  
-状态：完整 P0 入库、P0-Z0a/Z0b 竖切、ProcessingJob、File Inspection、切片前准备层、结构化整理检查门、知识切片质量闭环、安全运维横切层、检查门映射单一来源、事件枚举单一来源、切片执行 profile fixture、AI 结构化整理 profile 与 D-079 存储映射 fixture、D-080 知识调用 / implicit_agent / D-081-D085 调用边界、profile schema、反馈策略与前端状态 fixture、D-098 Knowledge Workspace 页面契约 fixture、D-105 Citation Detail / Evidence Pack replay smoke、D-106 i18n settings smoke、D-107 feedback / memory smoke、D-108 feedback diagnostics smoke、向量检索与 RAG 验收策略 + provider fallback fixture + D-090 技术栈执行优化测试口径 + D-091 工程化验收门槛 + D-092 代码骨架前置契约测试口径 + D-093 桌面运行时硬化测试口径 + D-094 P0-Core 工程骨架开工测试口径
+状态：完整 P0 入库、P0-Z0a/Z0b 竖切、ProcessingJob、File Inspection、切片前准备层、结构化整理检查门、知识切片质量闭环、安全运维横切层、检查门映射单一来源、事件枚举单一来源、切片执行 profile fixture、AI 结构化整理 profile 与 D-079 存储映射 fixture、D-080 知识调用 / implicit_agent / D-081-D085 调用边界、profile schema、反馈策略与前端状态 fixture、D-098 Knowledge Workspace 页面契约 fixture、D-105 Citation Detail / Evidence Pack replay smoke、D-106 i18n settings smoke、D-107 feedback / memory smoke、D-108 feedback diagnostics smoke、D-109 desktop runtime smoke、向量检索与 RAG 验收策略 + provider fallback fixture + D-090 技术栈执行优化测试口径 + D-091 工程化验收门槛 + D-092 代码骨架前置契约测试口径 + D-093 桌面运行时硬化测试口径 + D-094 P0-Core 工程骨架开工测试口径
 
 ## 1. 文档目的
 
@@ -142,7 +142,7 @@ D-093 后，首批桌面工程必须补充以下测试：
 
 ### 2.9 D-094 P0-Core 工程骨架开工测试口径
 
-D-094 后，首批代码工程必须先通过 `smoke:p0-core`，再运行或开发业务 smoke。D-108 后，阶段顺序固定为 `smoke:p0-core` → `smoke:p0-i18n-settings` → `smoke:p0-file` → `smoke:p0-parse` → `smoke:p0-ku` → `smoke:p0-search-ask` → `smoke:p0-citation-detail` → `smoke:p0-feedback-memory` → `smoke:p0-feedback-diagnostics` → `smoke:p0-z0a`：
+D-094 后，首批代码工程必须先通过 `smoke:p0-core`，再运行或开发业务 smoke。D-109 后，阶段顺序固定为 `smoke:p0-core` → `smoke:p0-desktop-runtime` → `smoke:p0-i18n-settings` → `smoke:p0-file` → `smoke:p0-parse` → `smoke:p0-ku` → `smoke:p0-search-ask` → `smoke:p0-citation-detail` → `smoke:p0-feedback-memory` → `smoke:p0-feedback-diagnostics` → `smoke:p0-z0a`：
 
 | 测试项 | 期望 |
 |---|---|
@@ -151,9 +151,10 @@ D-094 后，首批代码工程必须先通过 `smoke:p0-core`，再运行或开�
 | Preload API contract | 只暴露 `getRuntimeConfig / getRuntimeStatus / onRuntimeStatusChange / openFileDialog / exportDiagnostics`，不暴露 Node 能力 |
 | Sidecar local token health | 无 token、错误 token、旧 token 被拒绝；正确 token 可访问 `/api/health` 和 runtime endpoint |
 | App data dir + SQLite init | 数据库、WAL、日志、backup hook 全部落在 app data dir；SQLite init 包含 WAL、foreign keys、busy timeout、quick check |
+| Desktop runtime smoke | build 产物 Electron Main / Preload 可启动；Renderer 通过 bridge 读取 runtime config 并访问受保护 sidecar API；退出后 sidecar pid 不残留 |
 | Shutdown cleanup | 应用退出后 sidecar 和 worker 被清理，不残留后台进程或锁文件 |
 | Status bar mapping | runtime state 和 sidecar / DB / worker / provider / vector 子状态能映射到底部状态栏 |
-| Smoke order | `pnpm smoke:p0-core` 必须先于 `pnpm smoke:p0-i18n-settings`，`pnpm smoke:p0-i18n-settings` 必须先于 `pnpm smoke:p0-file`，`pnpm smoke:p0-file` 必须先于 `pnpm smoke:p0-parse`，`pnpm smoke:p0-parse` 必须先于 `pnpm smoke:p0-ku`，`pnpm smoke:p0-ku` 必须先于 `pnpm smoke:p0-search-ask`，`pnpm smoke:p0-search-ask` 必须先于 `pnpm smoke:p0-citation-detail`，`pnpm smoke:p0-citation-detail` 必须先于 `pnpm smoke:p0-feedback-memory`，`pnpm smoke:p0-feedback-memory` 必须先于 `pnpm smoke:p0-feedback-diagnostics`，`pnpm smoke:p0-feedback-diagnostics` 必须先于 `pnpm smoke:p0-z0a` 通过 |
+| Smoke order | `pnpm smoke:p0-core` 必须先于 `pnpm smoke:p0-desktop-runtime`，`pnpm smoke:p0-desktop-runtime` 必须先于 `pnpm smoke:p0-i18n-settings`，`pnpm smoke:p0-i18n-settings` 必须先于 `pnpm smoke:p0-file`，`pnpm smoke:p0-file` 必须先于 `pnpm smoke:p0-parse`，`pnpm smoke:p0-parse` 必须先于 `pnpm smoke:p0-ku`，`pnpm smoke:p0-ku` 必须先于 `pnpm smoke:p0-search-ask`，`pnpm smoke:p0-search-ask` 必须先于 `pnpm smoke:p0-citation-detail`，`pnpm smoke:p0-citation-detail` 必须先于 `pnpm smoke:p0-feedback-memory`，`pnpm smoke:p0-feedback-memory` 必须先于 `pnpm smoke:p0-feedback-diagnostics`，`pnpm smoke:p0-feedback-diagnostics` 必须先于 `pnpm smoke:p0-z0a` 通过 |
 | Business feature block | `smoke:p0-core` 通过前不得新增 upload parsing UI、RAG UI、真实 Provider 接入、OCR/ASR、图谱或用户聊天入口；初期可用 review checklist 执行，后续再自动化 |
 
 `smoke:p0-core` 最小链路固定为：
@@ -297,6 +298,34 @@ text import
 → filter diagnostics
 → summary checks
 → verify no retrieval_feedback write dependency
+```
+
+---
+
+### 2.15 D-109 Desktop Runtime Smoke / Pseudo-Packaged Sidecar 测试口径
+
+D-109 后，桌面运行时必须有可重复 smoke，证明不是只在 `uvicorn --reload` 或浏览器预览里成立。该 smoke 不代表正式安装器，只验证 build 产物、bridge、sidecar 和退出清理。
+
+| 测试项 | 期望 |
+|---|---|
+| build artifact launch | 使用已 build `desktop-main/dist/main.js`、`desktop-preload/dist/preload.js` 和 renderer preview 启动 |
+| bridge config | Renderer 通过 preload bridge 读取 `apiBaseUrl`、`appName`、`appVersion` 和会话 token；smoke result 不写出 token 明文 |
+| protected API | 无 token 访问 `/api/settings` 返回 401；带 bridge token 访问 `/api/settings` 和 `/api/system/runtime` 返回 200 |
+| local boundary | sidecar 只绑定 `127.0.0.1`；CORS 只允许本地 `127.0.0.1:<port>` renderer 来源 |
+| renderer health | 页面 body 非空，runtime status 可读 |
+| clean shutdown | Electron 退出前停止 sidecar，脚本确认 sidecar pid 不残留 |
+
+`smoke:p0-desktop-runtime` 固定链路：
+
+```text
+build shared packages / preload / main / renderer
+→ start renderer preview on 127.0.0.1
+→ launch Electron dist/main.js with KB_DESKTOP_SMOKE=1
+→ Electron Main starts FastAPI sidecar
+→ Renderer bridge probe calls health / settings / runtime
+→ write redacted result
+→ stop sidecar
+→ verify pid cleanup
 ```
 
 ---

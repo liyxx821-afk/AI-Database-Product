@@ -9,6 +9,7 @@
     "generate:api-types": "python3 scripts/export-openapi.py && node scripts/generate-api-types.mjs",
     "typecheck": "pnpm --filter @knowledgebase-dev/runtime-contracts build && pnpm --filter @knowledgebase-dev/shared-config build && pnpm --filter @knowledgebase-dev/api-types build && pnpm --filter @knowledgebase-dev/desktop-preload typecheck && pnpm --filter @knowledgebase-dev/desktop-main typecheck && pnpm --filter @knowledgebase-dev/renderer typecheck",
     "smoke:p0-core": "node scripts/smoke-p0-core.mjs",
+    "smoke:p0-desktop-runtime": "node scripts/smoke-p0-desktop-runtime.mjs",
     "smoke:p0-i18n-settings": "node scripts/smoke-p0-i18n-settings.mjs",
     "smoke:p0-file": "node scripts/smoke-p0-file.mjs",
     "smoke:p0-parse": "node scripts/smoke-p0-parse.mjs",
