@@ -1,5 +1,29 @@
 # 进度记录
 
+## 2026-05-18（Renderer Core Store 错误处理接入优化）
+
+### 审查结论
+
+- 上一轮新增了 `storeErrorCode`，但 core 小 store 仍保留多处 `error instanceof Error ? error.message : fallback` 重复逻辑。
+- 重复点集中在 runtime、settings、file、source、review 等基础状态 store，属于稳定但容易继续分叉的维护性问题。
+
+### 已优化
+
+- `runtimeStore`、`settingsStore`、`fileStore`、`sourceStore`、`reviewStore` 接入共享 `storeErrorCode`。
+- 保留既有 fallback error code、状态枚举和 UI degraded/recoverable_error 行为，不改变 API 调用路径。
+- 暂未改动更复杂的 `retrievalStore` / `feedbackMemoryStore`，避免在本轮扩大 Citation / Feedback 状态机改动面。
+
+### 验收
+
+- `pnpm typecheck` 通过。
+- `pnpm --filter @knowledgebase-dev/renderer build` 通过。
+- `git diff --check` 通过。
+- in-app browser 检查 `/dashboard`、`/library`、`/settings` 可达，基础状态栏、Organization 面板和 Settings 面板仍显示预期 degraded 状态。
+
+### 备注
+
+- 本轮只做 renderer store 层维护性优化，不改 OpenAPI schema、数据库、主路由、业务语义或 smoke 命令。
+
 ## 2026-05-18（Renderer Store 错误处理去重优化）
 
 ### 审查结论

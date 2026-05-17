@@ -3,6 +3,7 @@ import type { SourceRecord } from "@knowledgebase-dev/api-types";
 import { hasBridge } from "../services/apiClient";
 import type { OrganizationFilters } from "../services/organizationApi";
 import { extractKnowledgeFromSource, listSources } from "../services/sourceApi";
+import { storeErrorCode } from "./errors";
 
 type SourceStore = {
   sources: SourceRecord[];
@@ -28,7 +29,7 @@ export const useSourceStore = create<SourceStore>((set) => ({
     } catch (error) {
       set({
         state: "recoverable_error",
-        errorCode: error instanceof Error ? error.message : "source_list_failed"
+        errorCode: storeErrorCode(error, "source_list_failed")
       });
     }
   },
@@ -45,7 +46,7 @@ export const useSourceStore = create<SourceStore>((set) => ({
     } catch (error) {
       set({
         state: "recoverable_error",
-        errorCode: error instanceof Error ? error.message : "knowledge_extract_failed"
+        errorCode: storeErrorCode(error, "knowledge_extract_failed")
       });
     }
   }

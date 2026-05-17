@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { hasBridge } from "../services/apiClient";
 import { getSettings, patchSettings } from "../services/settingsApi";
 import { defaultLanguage, type LanguageCode } from "../services/i18n";
+import { storeErrorCode } from "./errors";
 
 type SettingsState = "loading" | "empty" | "degraded" | "recoverable_error" | "done";
 
@@ -36,7 +37,7 @@ export const useSettingsStore = create<SettingsStore>((set) => ({
     } catch (error) {
       set({
         state: "recoverable_error",
-        errorCode: error instanceof Error ? error.message : "settings_load_failed"
+        errorCode: storeErrorCode(error, "settings_load_failed")
       });
     }
   },
@@ -62,7 +63,7 @@ export const useSettingsStore = create<SettingsStore>((set) => ({
     } catch (error) {
       set({
         state: "recoverable_error",
-        errorCode: error instanceof Error ? error.message : "settings_save_failed"
+        errorCode: storeErrorCode(error, "settings_save_failed")
       });
     }
   }
