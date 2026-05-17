@@ -1,0 +1,3 @@
+export function resolveErrorCode(error: unknown, fallback: string): string {
+  return error instanceof Error ? error.message : fallback;
+}

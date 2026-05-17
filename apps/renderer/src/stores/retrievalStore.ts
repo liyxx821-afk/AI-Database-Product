@@ -24,7 +24,7 @@ import {
   previewRetrieval,
   updateCitationAnnotation
 } from "../services/retrievalApi";
-import { storeErrorCode } from "./errors";
+import { resolveErrorCode } from "../utils/errors";
 
 type ViewState = "loading" | "empty" | "degraded" | "recoverable_error" | "done";
 
@@ -113,12 +113,12 @@ export const useRetrievalStore = create<RetrievalState>((set) => ({
         previewErrorCode: undefined
       });
     } catch (error) {
-      const errorCode = storeErrorCode(error, "retrieval_preview_failed");
+      const nextErrorCode = resolveErrorCode(error, "retrieval_preview_failed");
       set({
         state: "recoverable_error",
         previewState: "recoverable_error",
-        errorCode,
-        previewErrorCode: errorCode
+        errorCode: nextErrorCode,
+        previewErrorCode: nextErrorCode
       });
     }
   },
@@ -158,12 +158,12 @@ export const useRetrievalStore = create<RetrievalState>((set) => ({
         answerErrorCode: undefined
       });
     } catch (error) {
-      const errorCode = storeErrorCode(error, "evidence_only_answer_failed");
+      const nextErrorCode = resolveErrorCode(error, "evidence_only_answer_failed");
       set({
         state: "recoverable_error",
         answerState: "recoverable_error",
-        errorCode,
-        answerErrorCode: errorCode
+        errorCode: nextErrorCode,
+        answerErrorCode: nextErrorCode
       });
     }
   },
@@ -200,14 +200,14 @@ export const useRetrievalStore = create<RetrievalState>((set) => ({
         annotationErrorCode: undefined
       });
     } catch (error) {
-      const errorCode = storeErrorCode(error, "evidence_pack_detail_failed");
+      const nextErrorCode = resolveErrorCode(error, "evidence_pack_detail_failed");
       set({
         state: "recoverable_error",
         detailState: "recoverable_error",
         annotationState: "recoverable_error",
-        errorCode,
-        detailErrorCode: errorCode,
-        annotationErrorCode: errorCode
+        errorCode: nextErrorCode,
+        detailErrorCode: nextErrorCode,
+        annotationErrorCode: nextErrorCode
       });
     }
   },
@@ -228,8 +228,8 @@ export const useRetrievalStore = create<RetrievalState>((set) => ({
         annotationErrorCode: undefined
       });
     } catch (error) {
-      const errorCode = storeErrorCode(error, "citation_annotations_failed");
-      set({ annotationState: "recoverable_error", annotationErrorCode: errorCode });
+      const nextErrorCode = resolveErrorCode(error, "citation_annotations_failed");
+      set({ annotationState: "recoverable_error", annotationErrorCode: nextErrorCode });
     }
   },
   async createAnnotation(evidencePackId: string, payload: CitationAnnotationRequest) {
@@ -254,8 +254,8 @@ export const useRetrievalStore = create<RetrievalState>((set) => ({
       });
       return annotation;
     } catch (error) {
-      const errorCode = storeErrorCode(error, "citation_annotation_create_failed");
-      set({ annotationState: "recoverable_error", annotationErrorCode: errorCode });
+      const nextErrorCode = resolveErrorCode(error, "citation_annotation_create_failed");
+      set({ annotationState: "recoverable_error", annotationErrorCode: nextErrorCode });
       return undefined;
     }
   },
@@ -282,8 +282,8 @@ export const useRetrievalStore = create<RetrievalState>((set) => ({
       });
       return response;
     } catch (error) {
-      const errorCode = storeErrorCode(error, "citation_annotation_batch_create_failed");
-      set({ annotationState: "recoverable_error", annotationErrorCode: errorCode });
+      const nextErrorCode = resolveErrorCode(error, "citation_annotation_batch_create_failed");
+      set({ annotationState: "recoverable_error", annotationErrorCode: nextErrorCode });
       return undefined;
     }
   },
@@ -309,8 +309,8 @@ export const useRetrievalStore = create<RetrievalState>((set) => ({
       });
       return annotation;
     } catch (error) {
-      const errorCode = storeErrorCode(error, "citation_annotation_update_failed");
-      set({ annotationState: "recoverable_error", annotationErrorCode: errorCode });
+      const nextErrorCode = resolveErrorCode(error, "citation_annotation_update_failed");
+      set({ annotationState: "recoverable_error", annotationErrorCode: nextErrorCode });
       return undefined;
     }
   },
@@ -346,8 +346,8 @@ export const useRetrievalStore = create<RetrievalState>((set) => ({
         set({ annotationState: "done", annotationErrorCode: undefined });
       }
     } catch (error) {
-      const errorCode = storeErrorCode(error, "citation_annotation_delete_failed");
-      set({ annotationState: "recoverable_error", annotationErrorCode: errorCode });
+      const nextErrorCode = resolveErrorCode(error, "citation_annotation_delete_failed");
+      set({ annotationState: "recoverable_error", annotationErrorCode: nextErrorCode });
     }
   },
   async compareItems(evidencePackId: string, evidenceItemIds: string[]) {
@@ -367,8 +367,8 @@ export const useRetrievalStore = create<RetrievalState>((set) => ({
         compareErrorCode: undefined
       });
     } catch (error) {
-      const errorCode = storeErrorCode(error, "citation_compare_failed");
-      set({ compareState: "recoverable_error", compareErrorCode: errorCode });
+      const nextErrorCode = resolveErrorCode(error, "citation_compare_failed");
+      set({ compareState: "recoverable_error", compareErrorCode: nextErrorCode });
     }
   },
   clearComparison() {

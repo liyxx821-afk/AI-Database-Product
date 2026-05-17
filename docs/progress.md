@@ -1,5 +1,30 @@
 # 进度记录
 
+## 2026-05-18（Renderer 错误码工具边界优化）
+
+### 审查结论
+
+- 前几轮已将 store 内错误提取统一为 `storeErrorCode`，但该函数本质是 renderer 通用错误码工具，却仍放在 `stores/` 目录。
+- `/import` 上传路径在 `App.tsx` 中仍保留一处手写 `error instanceof Error ? error.message : "upload_failed"`，会让上传错误文案与 store 错误处理继续分叉。
+
+### 已优化
+
+- 新增 `apps/renderer/src/utils/errors.ts`，提供通用 `resolveErrorCode(error, fallback)`。
+- 所有 renderer store 改为从 `utils/errors` 引用通用 helper，删除 store 专属 helper 文件。
+- `/import` 上传队列失败状态改用同一 helper，保留 `upload_failed` fallback 和现有 queue 状态语义。
+
+### 验收
+
+- `pnpm typecheck` 通过。
+- `pnpm --filter @knowledgebase-dev/renderer build` 通过。
+- `git diff --check` 通过。
+- renderer 内 `error instanceof Error` 只保留在通用 helper 中。
+- in-app browser 检查 `/import`、`/dashboard`、`/ask` 可达，普通浏览器仍显示预期 bridge degraded 状态。
+
+### 备注
+
+- 本轮只做 renderer 错误处理边界优化，不改 OpenAPI schema、数据库、主路由、业务语义或 smoke 命令。
+
 ## 2026-05-18（Retrieval Store 错误处理接入优化）
 
 ### 审查结论

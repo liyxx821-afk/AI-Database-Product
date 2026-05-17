@@ -12,7 +12,7 @@ import {
   exportProject,
   listKnowledgeExportHistory
 } from "../services/exportsApi";
-import { storeErrorCode } from "./errors";
+import { resolveErrorCode } from "../utils/errors";
 
 type ViewState = "loading" | "empty" | "degraded" | "recoverable_error" | "done";
 
@@ -56,7 +56,7 @@ export const useKnowledgeExportStore = create<KnowledgeExportStore>((set) => ({
     } catch (error) {
       set({
         state: "recoverable_error",
-        errorCode: storeErrorCode(error, "knowledge_export_failed")
+        errorCode: resolveErrorCode(error, "knowledge_export_failed")
       });
       return undefined;
     }
@@ -82,7 +82,7 @@ export const useKnowledgeExportStore = create<KnowledgeExportStore>((set) => ({
     } catch (error) {
       set({
         state: "recoverable_error",
-        errorCode: storeErrorCode(error, "project_export_failed")
+        errorCode: resolveErrorCode(error, "project_export_failed")
       });
       return undefined;
     }
@@ -107,7 +107,7 @@ export const useKnowledgeExportStore = create<KnowledgeExportStore>((set) => ({
     } catch (error) {
       set({
         historyState: "recoverable_error",
-        historyErrorCode: storeErrorCode(error, "knowledge_export_history_failed")
+        historyErrorCode: resolveErrorCode(error, "knowledge_export_history_failed")
       });
     }
   },
@@ -131,7 +131,7 @@ export const useKnowledgeExportStore = create<KnowledgeExportStore>((set) => ({
     } catch (error) {
       set({
         historyState: "recoverable_error",
-        historyErrorCode: storeErrorCode(error, "knowledge_export_history_delete_failed")
+        historyErrorCode: resolveErrorCode(error, "knowledge_export_history_delete_failed")
       });
     }
   }

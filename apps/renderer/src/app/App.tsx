@@ -78,6 +78,7 @@ import type {
   KnowledgeExportKind,
   KnowledgeUnitExportFormat
 } from "../services/exportsApi";
+import { resolveErrorCode } from "../utils/errors";
 import { supportedLanguages, translate, type LanguageCode, type MessageKey } from "../services/i18n";
 
 type RouteKey =
@@ -374,7 +375,7 @@ function ImportPage() {
     } catch (error) {
       updateQueue(item.id, {
         status: "error",
-        message: error instanceof Error ? error.message : "upload_failed"
+        message: resolveErrorCode(error, "upload_failed")
       });
     }
   }

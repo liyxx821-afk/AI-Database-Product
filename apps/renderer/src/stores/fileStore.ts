@@ -2,7 +2,7 @@ import { create } from "zustand";
 import type { FileRecord } from "@knowledgebase-dev/api-types";
 import { hasBridge } from "../services/apiClient";
 import { listFiles, parseFile, verifyFile } from "../services/fileApi";
-import { storeErrorCode } from "./errors";
+import { resolveErrorCode } from "../utils/errors";
 
 type FileStore = {
   files: FileRecord[];
@@ -29,7 +29,7 @@ export const useFileStore = create<FileStore>((set, get) => ({
     } catch (error) {
       set({
         state: "recoverable_error",
-        errorCode: storeErrorCode(error, "file_list_failed")
+        errorCode: resolveErrorCode(error, "file_list_failed")
       });
     }
   },
@@ -45,7 +45,7 @@ export const useFileStore = create<FileStore>((set, get) => ({
         errorCode: null
       });
     } catch (error) {
-      set({ errorCode: storeErrorCode(error, "file_verify_failed") });
+      set({ errorCode: resolveErrorCode(error, "file_verify_failed") });
     }
   },
   parse: async (fileId: string) => {
@@ -58,7 +58,7 @@ export const useFileStore = create<FileStore>((set, get) => ({
       const files = await listFiles();
       set({ files, state: files.length ? "done" : "empty", errorCode: null });
     } catch (error) {
-      set({ errorCode: storeErrorCode(error, "file_parse_failed") });
+      set({ errorCode: resolveErrorCode(error, "file_parse_failed") });
     }
   }
 }));

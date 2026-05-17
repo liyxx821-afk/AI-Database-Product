@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import type { RuntimeStatus } from "@knowledgebase-dev/runtime-contracts";
 import { apiFetch, hasBridge } from "../services/apiClient";
-import { storeErrorCode } from "./errors";
+import { resolveErrorCode } from "../utils/errors";
 
 type RuntimeStore = {
   bridgeAvailable: boolean;
@@ -23,7 +23,7 @@ export const useRuntimeStore = create<RuntimeStore>((set) => ({
       const status = await apiFetch<RuntimeStatus>("/system/runtime");
       set({ bridgeAvailable: true, status, errorCode: null });
     } catch (error) {
-      set({ errorCode: storeErrorCode(error, "runtime_status_failed") });
+      set({ errorCode: resolveErrorCode(error, "runtime_status_failed") });
     }
   }
 }));

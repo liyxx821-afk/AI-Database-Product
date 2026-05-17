@@ -2,7 +2,7 @@ import { create } from "zustand";
 import type { ReviewTask } from "@knowledgebase-dev/api-types";
 import { hasBridge } from "../services/apiClient";
 import { confirmReviewTask, ignoreReviewTask, listReviewTasks } from "../services/reviewApi";
-import { storeErrorCode } from "./errors";
+import { resolveErrorCode } from "../utils/errors";
 
 type ReviewStore = {
   tasks: ReviewTask[];
@@ -31,7 +31,7 @@ export const useReviewStore = create<ReviewStore>((set) => ({
     } catch (error) {
       set({
         state: "recoverable_error",
-        errorCode: storeErrorCode(error, "review_list_failed")
+        errorCode: resolveErrorCode(error, "review_list_failed")
       });
     }
   },
