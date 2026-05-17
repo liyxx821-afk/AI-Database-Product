@@ -1,5 +1,28 @@
 # 进度记录
 
+## 2026-05-18（前端组织面板异步状态优化）
+
+### 审查结论
+
+- `/library` Organization 面板的 KU 绑定列表通过 `listKnowledgeUnits` 异步刷新，但 effect 没有取消保护；快速切换 Knowledge Space 或 organization state 连续刷新时，旧请求可能在新请求之后返回并覆盖当前项目下的 KU 列表。
+- 该问题不影响 API schema 或后端数据正确性，但会降低批量 KU 绑定界面的状态稳定性。
+
+### 已优化
+
+- `OrganizationPanel` 的 KU 列表刷新加入 effect cleanup / cancellation guard，只有当前仍有效的请求可以写入 `knowledgeUnits`。
+- 普通浏览器无 Electron preload 时仍保持 degraded/empty 行为，未改变桥接边界、批量绑定语义或 UI 文案。
+
+### 验收
+
+- `pnpm typecheck` 通过。
+- `pnpm --filter @knowledgebase-dev/renderer build` 通过。
+- `git diff --check` 通过。
+- in-app browser 检查 `/library` 可达，Organization 面板仍显示批量绑定和 bridge degraded 状态。
+
+### 备注
+
+- 本轮只做前端状态稳定性优化，不新增产品功能、主路由、数据库表、OpenAPI schema 或 smoke 命令。
+
 ## 2026-05-18（知识导出校验路径优化）
 
 ### 审查结论

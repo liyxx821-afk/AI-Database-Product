@@ -2273,13 +2273,23 @@ function OrganizationPanel({
   );
 
   useEffect(() => {
+    let cancelled = false;
     if (!hasBridge()) {
       setKnowledgeUnits([]);
-      return;
+      return () => {
+        cancelled = true;
+      };
     }
     listKnowledgeUnits(undefined, { projectId: selectedProjectId })
-      .then(setKnowledgeUnits)
-      .catch(() => setKnowledgeUnits([]));
+      .then((records) => {
+        if (!cancelled) setKnowledgeUnits(records);
+      })
+      .catch(() => {
+        if (!cancelled) setKnowledgeUnits([]);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [selectedProjectId, state]);
 
   const currentFolderId = selectedFolderId || null;
