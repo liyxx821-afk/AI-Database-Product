@@ -1,5 +1,29 @@
 # 进度记录
 
+## 2026-05-18（Organization Store 写操作错误状态优化）
+
+### 审查结论
+
+- `organizationStore` 的批量 Source/KU 绑定已经有 `loading` / `recoverable_error` 状态处理，但创建 Project / Folder / Tag、单条 Source/KU organization update 仍直接 `await` API 与 refresh。
+- 一旦这些单条写操作失败，错误会从点击事件链路外溢，Organization 面板不一定稳定显示 `recoverable_error` 与 error code。
+
+### 已优化
+
+- 新增 `organizationErrorCode` helper，统一提取 `Error.message` 或 fallback code。
+- `createProject`、`createFolder`、`createTag`、`updateSourceOrganization`、`updateKnowledgeUnitOrganization` 增加 `loading`、`recoverable_error` 与 error code 处理。
+- 批量 Source/KU organization update 复用同一 error helper，保持现有错误语义。
+
+### 验收
+
+- `pnpm typecheck` 通过。
+- `pnpm --filter @knowledgebase-dev/renderer build` 通过。
+- `git diff --check` 通过。
+- in-app browser 检查 `/library` 可达，Organization 面板仍显示新建控件、批量绑定控件和普通浏览器 bridge degraded 状态。
+
+### 备注
+
+- 本轮只优化前端 store 的错误状态一致性，不新增 API、数据库表、主路由、业务功能或 smoke 命令。
+
 ## 2026-05-18（前端组织面板异步状态优化）
 
 ### 审查结论

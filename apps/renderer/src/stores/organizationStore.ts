@@ -68,6 +68,10 @@ const defaultProject: ProjectRecord = {
   updated_at: ""
 };
 
+function organizationErrorCode(error: unknown, fallback: string): string {
+  return error instanceof Error ? error.message : fallback;
+}
+
 export const useOrganizationStore = create<OrganizationStore>((set, get) => ({
   projects: [defaultProject],
   folders: [],
@@ -120,17 +124,33 @@ export const useOrganizationStore = create<OrganizationStore>((set, get) => ({
       set({ state: "degraded", errorCode: "desktop_bridge_unavailable" });
       return;
     }
-    const project = await createProject(name);
-    set({ selectedProjectId: project.id, selectedFolderId: null, selectedTagIds: [] });
-    await get().refresh();
+    set({ state: "loading", errorCode: null });
+    try {
+      const project = await createProject(name);
+      set({ selectedProjectId: project.id, selectedFolderId: null, selectedTagIds: [] });
+      await get().refresh();
+    } catch (error) {
+      set({
+        state: "recoverable_error",
+        errorCode: organizationErrorCode(error, "project_create_failed")
+      });
+    }
   },
   createFolder: async (name: string) => {
     if (!hasBridge()) {
       set({ state: "degraded", errorCode: "desktop_bridge_unavailable" });
       return;
     }
-    await createFolder(get().selectedProjectId, name);
-    await get().refresh();
+    set({ state: "loading", errorCode: null });
+    try {
+      await createFolder(get().selectedProjectId, name);
+      await get().refresh();
+    } catch (error) {
+      set({
+        state: "recoverable_error",
+        errorCode: organizationErrorCode(error, "folder_create_failed")
+      });
+    }
   },
   createTag: async (name: string) => {
     if (!hasBridge()) {
@@ -143,16 +163,32 @@ export const useOrganizationStore = create<OrganizationStore>((set, get) => ({
       namespace: "topic",
       tag_type: "topic_tag"
     };
-    await createTag(payload);
-    await get().refresh();
+    set({ state: "loading", errorCode: null });
+    try {
+      await createTag(payload);
+      await get().refresh();
+    } catch (error) {
+      set({
+        state: "recoverable_error",
+        errorCode: organizationErrorCode(error, "tag_create_failed")
+      });
+    }
   },
   updateSourceOrganization: async (sourceId: string, payload: OrganizationUpdateRequest) => {
     if (!hasBridge()) {
       set({ state: "degraded", errorCode: "desktop_bridge_unavailable" });
       return;
     }
-    await updateSourceOrganization(sourceId, payload);
-    await get().refresh();
+    set({ state: "loading", errorCode: null });
+    try {
+      await updateSourceOrganization(sourceId, payload);
+      await get().refresh();
+    } catch (error) {
+      set({
+        state: "recoverable_error",
+        errorCode: organizationErrorCode(error, "source_organization_failed")
+      });
+    }
   },
   updateSourcesOrganizationBatch: async (payload: SourceOrganizationBatchUpdateRequest) => {
     if (!hasBridge()) {
@@ -166,7 +202,7 @@ export const useOrganizationStore = create<OrganizationStore>((set, get) => ({
     } catch (error) {
       set({
         state: "recoverable_error",
-        errorCode: error instanceof Error ? error.message : "source_batch_organization_failed"
+        errorCode: organizationErrorCode(error, "source_batch_organization_failed")
       });
     }
   },
@@ -178,8 +214,16 @@ export const useOrganizationStore = create<OrganizationStore>((set, get) => ({
       set({ state: "degraded", errorCode: "desktop_bridge_unavailable" });
       return;
     }
-    await updateKnowledgeUnitOrganization(knowledgeUnitId, payload);
-    await get().refresh();
+    set({ state: "loading", errorCode: null });
+    try {
+      await updateKnowledgeUnitOrganization(knowledgeUnitId, payload);
+      await get().refresh();
+    } catch (error) {
+      set({
+        state: "recoverable_error",
+        errorCode: organizationErrorCode(error, "knowledge_unit_organization_failed")
+      });
+    }
   },
   updateKnowledgeUnitsOrganizationBatch: async (
     payload: KnowledgeUnitOrganizationBatchUpdateRequest
@@ -195,8 +239,7 @@ export const useOrganizationStore = create<OrganizationStore>((set, get) => ({
     } catch (error) {
       set({
         state: "recoverable_error",
-        errorCode:
-          error instanceof Error ? error.message : "knowledge_unit_batch_organization_failed"
+        errorCode: organizationErrorCode(error, "knowledge_unit_batch_organization_failed")
       });
     }
   }
