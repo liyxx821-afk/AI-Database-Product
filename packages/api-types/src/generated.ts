@@ -292,6 +292,19 @@ export type ApiSchemas = {
   "result": Record<string, unknown>;
   "events": JobEvent[];
 };
+  "KnowledgeExportResponse": {
+  "export_id": string;
+  "filename": string;
+  "mime_type": string;
+  "format": "markdown" | "json" | "zip";
+  "record_count": number;
+  "generated_at": string;
+  "filters": Record<string, unknown>;
+  "content"?: string | null;
+  "content_base64"?: string | null;
+  "redacted": boolean;
+  "includes_source_text": boolean;
+};
   "KnowledgeExtractRequest": {
   "source_id": string;
   "project_id"?: string;
@@ -326,6 +339,16 @@ export type ApiSchemas = {
   "chunk": ChunkRecord | null;
   "embeddings": EmbeddingRecord[];
   "review_task": Record<string, unknown> | null;
+};
+  "KnowledgeUnitExportRequest": {
+  "format"?: "markdown" | "json";
+  "project_id"?: string;
+  "folder_id"?: string | null;
+  "tag_ids"?: string[];
+  "knowledge_unit_ids"?: string[];
+  "include_chunks"?: boolean;
+  "include_sources"?: boolean;
+  "include_pending_review"?: boolean;
 };
   "KnowledgeUnitRecord": {
   "id": string;
@@ -406,6 +429,11 @@ export type ApiSchemas = {
   "description"?: string | null;
   "parent_id"?: string | null;
   "kb_type"?: "project_kb" | "reference_kb" | "person_kb" | "timeline_kb" | "inspiration_kb" | "method_kb" | "custom";
+};
+  "ProjectExportRequest": {
+  "project_id"?: string;
+  "include_pending_review"?: boolean;
+  "format"?: string;
 };
   "ProjectRecord": {
   "id": string;
@@ -915,6 +943,20 @@ export type JobSnapshot = {
   "events": JobEvent[];
 };
 
+export type KnowledgeExportResponse = {
+  "export_id": string;
+  "filename": string;
+  "mime_type": string;
+  "format": "markdown" | "json" | "zip";
+  "record_count": number;
+  "generated_at": string;
+  "filters": Record<string, unknown>;
+  "content"?: string | null;
+  "content_base64"?: string | null;
+  "redacted": boolean;
+  "includes_source_text": boolean;
+};
+
 export type KnowledgeExtractRequest = {
   "source_id": string;
   "project_id"?: string;
@@ -951,6 +993,17 @@ export type KnowledgeUnitDetail = {
   "chunk": ChunkRecord | null;
   "embeddings": EmbeddingRecord[];
   "review_task": Record<string, unknown> | null;
+};
+
+export type KnowledgeUnitExportRequest = {
+  "format"?: "markdown" | "json";
+  "project_id"?: string;
+  "folder_id"?: string | null;
+  "tag_ids"?: string[];
+  "knowledge_unit_ids"?: string[];
+  "include_chunks"?: boolean;
+  "include_sources"?: boolean;
+  "include_pending_review"?: boolean;
 };
 
 export type KnowledgeUnitRecord = {
@@ -1039,6 +1092,12 @@ export type ProjectCreateRequest = {
   "description"?: string | null;
   "parent_id"?: string | null;
   "kb_type"?: "project_kb" | "reference_kb" | "person_kb" | "timeline_kb" | "inspiration_kb" | "method_kb" | "custom";
+};
+
+export type ProjectExportRequest = {
+  "project_id"?: string;
+  "include_pending_review"?: boolean;
+  "format"?: string;
 };
 
 export type ProjectRecord = {
@@ -1272,6 +1331,8 @@ export type ApiPath =
   | "/api/knowledge-units:extract"
   | "/api/knowledge-units"
   | "/api/knowledge-units/{knowledge_unit_id}"
+  | "/api/exports/knowledge-units"
+  | "/api/exports/project"
   | "/api/feedback"
   | "/api/feedback/summary"
   | "/api/feedback/export"

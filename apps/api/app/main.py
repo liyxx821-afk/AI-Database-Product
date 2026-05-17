@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes import (
     auth,
+    exports,
     feedback_memory,
     knowledge,
     organization,
@@ -54,6 +55,7 @@ def create_app() -> FastAPI:
     app.include_router(uploads.router, prefix="/api")
     app.include_router(sources.router, prefix="/api")
     app.include_router(knowledge.router, prefix="/api")
+    app.include_router(exports.router, prefix="/api")
     app.include_router(feedback_memory.router, prefix="/api")
     app.include_router(z0a.router, prefix="/api")
 

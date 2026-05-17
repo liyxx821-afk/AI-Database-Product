@@ -1,8 +1,8 @@
 # API Route-Level 实施计划
 
-版本：v0.30-draft
+版本：v0.31-draft
 日期：2026-05-17  
-状态：P0 API 实施映射草案——四切片 + P0-Z0a/Z0b 竖切 + 切片前准备层 / 结构化整理检查门 / 知识切片质量闭环 / 安全运维横切层 / 检查门映射单一来源 / 事件枚举单一来源 / ProcessingJob / sensitive grant / evidence-only / 切片执行 profile / AI 结构化整理 profile / D-079 存储映射契约对齐 / D-080 知识调用 profile 与 implicit_agent / D-081-D085 调用边界、profile schema、Z0a 锚点与前端状态契约对齐 / D-092 OpenAPI 类型生成、trace chain 与 migration 波次命名 / D-093 桌面运行时 API 约束 / D-094 P0-Core 工程骨架 API 顺序 / D-098 页面到 API 组映射 / D-105 Citation Detail replay / D-106 Settings language config 持久化 / D-107 Feedback Events 与 Memory Draft Review / D-108 Feedback Diagnostics 只读复盘 / D-110 Feedback Diagnostics Export 脱敏导出 / D-111 Feedback Advanced Filters 与 Export History / D-112 Citation Detail Focus 与 Evidence Trace Interaction / D-113 Citation Annotation 与 Evidence Compare / D-114 OrganizationService 与 Folder-Tag metadata filters
+状态：P0 API 实施映射草案——四切片 + P0-Z0a/Z0b 竖切 + 切片前准备层 / 结构化整理检查门 / 知识切片质量闭环 / 安全运维横切层 / 检查门映射单一来源 / 事件枚举单一来源 / ProcessingJob / sensitive grant / evidence-only / 切片执行 profile / AI 结构化整理 profile / D-079 存储映射契约对齐 / D-080 知识调用 profile 与 implicit_agent / D-081-D085 调用边界、profile schema、Z0a 锚点与前端状态契约对齐 / D-092 OpenAPI 类型生成、trace chain 与 migration 波次命名 / D-093 桌面运行时 API 约束 / D-094 P0-Core 工程骨架 API 顺序 / D-098 页面到 API 组映射 / D-105 Citation Detail replay / D-106 Settings language config 持久化 / D-107 Feedback Events 与 Memory Draft Review / D-108 Feedback Diagnostics 只读复盘 / D-110 Feedback Diagnostics Export 脱敏导出 / D-111 Feedback Advanced Filters 与 Export History / D-112 Citation Detail Focus 与 Evidence Trace Interaction / D-113 Citation Annotation 与 Evidence Compare / D-114 OrganizationService 与 Folder-Tag metadata filters / D-115 KnowledgeExportService 与 Project ZIP export
 
 ## 1. 文档目的
 
@@ -27,6 +27,8 @@ D-112 已扩展 `GET /api/evidence-packs/{evidence_pack_id}`：EvidencePackServi
 D-113 已新增 `citation_annotations` 与 annotation CRUD：CitationAnnotationService 校验 evidence item 必须属于目标 Evidence Pack；批注只作为本地 citation 复盘记录，不写 `feedback_events`。`POST /api/evidence-packs/{id}/compare` 只读组装同一 pack 内 2-3 条 evidence items 的 rank / source / chunk / KU / trace path / copy-safe summary，不保存 compare result。
 
 D-114 已新增 OrganizationService：Project / Folder / Tag route 统一负责知识空间、Folder-Tag Mirroring、`source_tags` / `knowledge_unit_tags` 组织绑定；Source/KU list 与 Retrieval Preview / evidence-only answer 复用 `project_id`、`folder_id`、`tag_ids` filters。Renderer 通过 typed organization API/store 消费这些接口，不在前端拼接 SQLite 关系或硬编码本地路径。
+
+D-115 已新增 `POST /api/exports/knowledge-units` 与 `POST /api/exports/project`：KnowledgeExportService 只读 confirmed KU、Project/Folder/Tag、Source、Chunk 数据，返回 Markdown / JSON / ZIP 下载 envelope；后端不写用户本地路径，不保存长期导出历史，不包含 local token、SQLite path、app data path、完整本地路径或原始二进制文件。Renderer `/outputs` 只通过 typed exports API/store 触发 Blob download。
 
 目标：
 
@@ -738,6 +740,19 @@ commit
 | `POST /api/memory-drafts` | `MemoryService.createDraft` | `MemoryRepository`, `ReviewTaskRepository`, `AuditLogRepository`, `AIAnswerRepository` | D-107 已实现：从既有 `ai_answer_id` 创建 `memories.status=pending_review` 与 `review_tasks.target_type=memory` |
 | `GET /api/memory-drafts` | `MemoryService.listDrafts` | `MemoryRepository`, `ReviewTaskRepository` | D-107 已实现：返回 memory draft / confirmed / archived 摘要，可按 status 过滤 |
 | `GET /api/memory-drafts/{id}` | `MemoryService.getDraft` | `MemoryRepository`, `ReviewTaskRepository` | D-107 已实现：复盘单个 memory draft 与 review task 绑定 |
+
+### 5.9 Knowledge Export
+
+| Route | Service | Repository | P0 关键行为 |
+|---|---|---|---|
+| `POST /api/exports/knowledge-units` | `KnowledgeExportService.exportKnowledgeUnits` | `KnowledgeUnitRepository`, `ProjectRepository`, `FolderRepository`, `TagRepository`, `SourceRepository`, `ChunkRepository` | D-115 已实现：支持 `format=markdown|json`、project / folder / tag / KU ID filters、`include_chunks`、`include_sources` 和显式 `include_pending_review`；默认只导出 confirmed KU，返回 content envelope，不写本地路径 |
+| `POST /api/exports/project` | `KnowledgeExportService.exportProject` | `ProjectRepository`, `KnowledgeUnitRepository`, `FolderRepository`, `TagRepository`, `SourceRepository`, `ChunkRepository` | D-115 已实现：返回最小 ZIP base64 envelope，包含 `manifest.json`、`knowledge-units.json`、`tags.json`、`folders.json`、`sources.json`、`chunks.json` 和 `README.md`；不等同于数据库备份或可恢复快照 |
+
+约束：
+
+- Knowledge export 是本地知识资产下载能力，不是备份/还原、云同步、系统级诊断包或 Obsidian 双向同步。
+- 导出允许包含用户选择的 KU 内容和可选 chunk/source 摘要，但必须脱敏 token、SQLite path、app data path 与完整本地路径；`source_path` 只能保留 basename 或置空。
+- D-115 不新增 SQLite 表，不复用 feedback export history，也不让 `pending_review` 默认进入导出。
 
 约束：
 

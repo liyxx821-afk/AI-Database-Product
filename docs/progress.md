@@ -1,5 +1,41 @@
 # 进度记录
 
+## 2026-05-17（D-115 Knowledge Unit / Project Export Z0b-lite）
+
+### 已完成
+
+- 新增 `POST /api/exports/knowledge-units`：支持 `format=markdown|json`、`project_id`、`folder_id`、`tag_ids`、`knowledge_unit_ids`、`include_chunks`、`include_sources`、`include_pending_review=false`。
+- 新增 `POST /api/exports/project`：返回 Project ZIP export envelope，ZIP 固定包含 `manifest.json`、`knowledge-units.json`、`tags.json`、`folders.json`、`sources.json`、`chunks.json` 和 `README.md`。
+- 导出响应统一返回 `export_id`、`filename`、`mime_type`、`format`、`record_count`、`generated_at`、`filters`、`content` 或 `content_base64`、`redacted=true`、`includes_source_text`；后端不写用户本地路径。
+- Markdown 导出使用 YAML frontmatter，包含 KU id/title/type/status/tags/folder/source/chunk citation；JSON 导出包含 manifest、project、folders、tags、knowledge_units 和可选 chunks/sources。
+- Project ZIP 只作为最小知识资产包，不等同于数据库备份或可恢复快照；导出内容脱敏 local token、SQLite path、app data path 和完整本地路径。
+- Renderer 新增 exports typed API/store；`/outputs` 增加 Knowledge Export 面板，复用 D-114 Organization filters，支持导出类型、Markdown/JSON/ZIP、include chunks/sources/pending review 开关和 Blob download。
+- 普通浏览器无 Electron preload 时继续显示 bridge degraded；控件可见但真实持久化导出依赖 preload bridge / API smoke。
+- 新增中英双语 i18n 文案，覆盖 Knowledge Export 面板、导出格式、include 选项、最近导出状态；用户 KU 内容、tag 名、folder 名、source excerpt、API enum/status code 不翻译。
+- 新增 `scripts/smoke-p0-knowledge-export.mjs` 与 `pnpm smoke:p0-knowledge-export`；完整 smoke 顺序更新为 `smoke:p0-core` → `smoke:p0-desktop-runtime` → `smoke:p0-i18n-settings` → `smoke:p0-file` → `smoke:p0-parse` → `smoke:p0-ku` → `smoke:p0-space-tag-metadata` → `smoke:p0-knowledge-export` → `smoke:p0-search-ask` → `smoke:p0-citation-detail` → `smoke:p0-citation-focus` → `smoke:p0-citation-annotate-compare` → `smoke:p0-feedback-memory` → `smoke:p0-feedback-diagnostics` → `smoke:p0-feedback-export` → `smoke:p0-feedback-filters-history` → `smoke:p0-z0a`。
+- 已同步 README、`docs/development-plan.md`、`docs/data-model.md`、`docs/api-design.md`、`docs/api-implementation-plan.md`、`docs/testing-strategy.md`、`docs/technical-stack-and-prototype-plan.md`。
+
+### 验收
+
+- `pnpm generate:api-types` 通过，已更新 `packages/api-types/src/openapi.json` 与 `packages/api-types/src/generated.ts`。
+- `pnpm typecheck` 通过。
+- `pnpm api:ruff` 通过。
+- `pnpm api:test` 通过，12 个 API 测试通过。
+- `pnpm smoke:p0-knowledge-export` 通过，输出 `SMOKE_P0_KNOWLEDGE_EXPORT_OK`。
+- 完整 smoke 顺序通过：
+  `pnpm smoke:p0-core`、`pnpm smoke:p0-desktop-runtime`、`pnpm smoke:p0-i18n-settings`、`pnpm smoke:p0-file`、`pnpm smoke:p0-parse`、`pnpm smoke:p0-ku`、`pnpm smoke:p0-space-tag-metadata`、`pnpm smoke:p0-knowledge-export`、`pnpm smoke:p0-search-ask`、`pnpm smoke:p0-citation-detail`、`pnpm smoke:p0-citation-focus`、`pnpm smoke:p0-citation-annotate-compare`、`pnpm smoke:p0-feedback-memory`、`pnpm smoke:p0-feedback-diagnostics`、`pnpm smoke:p0-feedback-export`、`pnpm smoke:p0-feedback-filters-history`、`pnpm smoke:p0-z0a`。
+- `pnpm --filter @knowledgebase-dev/renderer build` 通过。
+- `pnpm --filter @knowledgebase-dev/desktop-preload build` 通过。
+- `pnpm --filter @knowledgebase-dev/desktop-main build` 通过。
+- `git diff --check` 通过。
+- in-app browser 检查通过：`/outputs` 默认中文显示“知识资产导出”、组织过滤、Markdown/ZIP 选项和 bridge degraded；普通浏览器 session 内切换英文后显示 “Knowledge Export / Export knowledge / Desktop bridge unavailable”；最终停回 `/ask`。
+
+### 备注
+
+- D-115 只做本地导出生成与浏览器下载，不保存长期导出历史；反馈诊断导出历史仍属于 D-111。
+- Project export 是最小知识资产 ZIP，不是数据库备份、恢复快照或原始文件归档。
+- 本阶段不做云同步、备份/还原、系统级诊断包、Obsidian 双向同步、真实 LLM、provider-backed RAG、Text-to-SQL provider 或 GraphRAG。
+
 ## 2026-05-17（D-114 Knowledge Space / Folder-Tag / Metadata Filters Z0b-lite）
 
 ### 已完成

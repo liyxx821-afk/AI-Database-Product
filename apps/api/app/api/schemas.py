@@ -52,6 +52,8 @@ FeedbackType = Literal[
     "downrank_source",
 ]
 FeedbackExportFormat = Literal["json", "csv"]
+KnowledgeUnitExportFormat = Literal["markdown", "json"]
+KnowledgeExportResponseFormat = Literal["markdown", "json", "zip"]
 FeedbackRankingEffect = Literal[
     "positive_weight_suggestion",
     "negative_weight_suggestion",
@@ -512,6 +514,41 @@ class FeedbackExportHistoryRecord(BaseModel):
     filters: Dict[str, Any]
     summary: FeedbackDiagnosticsSummary
     content_sha256: str
+    redacted: bool
+    includes_source_text: bool
+
+
+class KnowledgeUnitExportRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    format: KnowledgeUnitExportFormat = "markdown"
+    project_id: str = "default-space"
+    folder_id: Optional[str] = None
+    tag_ids: List[str] = Field(default_factory=list)
+    knowledge_unit_ids: List[str] = Field(default_factory=list)
+    include_chunks: bool = False
+    include_sources: bool = False
+    include_pending_review: bool = False
+
+
+class ProjectExportRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    project_id: str = "default-space"
+    include_pending_review: bool = False
+    format: Literal["zip"] = "zip"
+
+
+class KnowledgeExportResponse(BaseModel):
+    export_id: str
+    filename: str
+    mime_type: str
+    format: KnowledgeExportResponseFormat
+    record_count: int
+    generated_at: str
+    filters: Dict[str, Any]
+    content: Optional[str] = None
+    content_base64: Optional[str] = None
     redacted: bool
     includes_source_text: bool
 

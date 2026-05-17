@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import base64
 import csv
 import hashlib
 import io
 import json
+import zipfile
 
 from app.db.sqlite import db
 from app.main import create_app
@@ -312,6 +314,201 @@ def test_space_tag_metadata_filters(monkeypatch, tmp_path):
         )
         assert invalid_folder_preview.status_code == 404
         assert invalid_folder_preview.json()["error"]["code"] == "folder_not_found"
+
+
+def test_knowledge_unit_and_project_exports(monkeypatch, tmp_path):
+    monkeypatch.setenv("KB_APP_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("KB_LOCAL_TOKEN", "test-token")
+    headers = {"x-kb-local-token": "test-token"}
+    json_headers = {"content-type": "application/json", **headers}
+
+    with TestClient(create_app()) as client:
+        unauthorized = client.post("/api/exports/knowledge-units", json={})
+        assert unauthorized.status_code == 401
+        assert unauthorized.json()["error"]["code"] == "sidecar_auth_failed"
+
+        folder = client.post(
+            "/api/folders",
+            headers=json_headers,
+            json={"project_id": "default-space", "name": "D115 Folder"},
+        )
+        assert folder.status_code == 200
+        folder_body = folder.json()
+
+        topic_tag = client.post(
+            "/api/tags",
+            headers=json_headers,
+            json={
+                "project_id": "default-space",
+                "name": "D115 Topic",
+                "namespace": "topic",
+                "tag_type": "topic_tag",
+            },
+        )
+        assert topic_tag.status_code == 200
+        tag_id = topic_tag.json()["id"]
+
+        imported = client.post(
+            "/api/text-imports",
+            headers=json_headers,
+            json={
+                "title": "D115 Export Source",
+                "content": "D115 export confirmed knowledge keeps source and chunk citation.",
+            },
+        )
+        assert imported.status_code == 200
+        imported_body = imported.json()
+        source_id = imported_body["source_id"]
+        ku_id = imported_body["candidate_knowledge_unit_ids"][0]
+
+        source_org = client.patch(
+            f"/api/sources/{source_id}/organization",
+            headers=json_headers,
+            json={"folder_id": folder_body["id"], "tag_ids": [tag_id]},
+        )
+        assert source_org.status_code == 200
+
+        pending_export = client.post(
+            "/api/exports/knowledge-units",
+            headers=json_headers,
+            json={
+                "format": "markdown",
+                "folder_id": folder_body["id"],
+                "tag_ids": [tag_id],
+            },
+        )
+        assert pending_export.status_code == 200
+        assert pending_export.json()["record_count"] == 0
+
+        pending_included = client.post(
+            "/api/exports/knowledge-units",
+            headers=json_headers,
+            json={
+                "format": "json",
+                "knowledge_unit_ids": [ku_id],
+                "include_pending_review": True,
+            },
+        )
+        assert pending_included.status_code == 200
+        assert pending_included.json()["record_count"] == 1
+
+        confirmed = client.post(
+            f"/api/review-tasks/{imported_body['review_task_ids'][0]}:confirm",
+            headers=headers,
+        )
+        assert confirmed.status_code == 200
+
+        markdown_export = client.post(
+            "/api/exports/knowledge-units",
+            headers=json_headers,
+            json={
+                "format": "markdown",
+                "folder_id": folder_body["id"],
+                "tag_ids": [tag_id],
+                "include_chunks": True,
+                "include_sources": True,
+            },
+        )
+        assert markdown_export.status_code == 200
+        markdown_body = markdown_export.json()
+        assert markdown_body["format"] == "markdown"
+        assert markdown_body["record_count"] == 1
+        markdown_content = markdown_body["content"]
+        assert "type: \"claim\"" in markdown_content
+        assert "status: \"confirmed\"" in markdown_content
+        assert "tags:" in markdown_content
+        assert "source_id:" in markdown_content
+        assert "chunk_id:" in markdown_content
+        assert "citation_label:" in markdown_content
+        assert "D115 export confirmed knowledge" in markdown_content
+        assert "test-token" not in markdown_content
+        assert str(tmp_path) not in markdown_content
+        assert "knowledgebase.sqlite" not in markdown_content
+
+        excluding_tag = client.post(
+            "/api/tags",
+            headers=json_headers,
+            json={
+                "project_id": "default-space",
+                "name": "D115 Excluding",
+                "namespace": "topic",
+                "tag_type": "topic_tag",
+            },
+        )
+        assert excluding_tag.status_code == 200
+        excluded = client.post(
+            "/api/exports/knowledge-units",
+            headers=json_headers,
+            json={"format": "markdown", "tag_ids": [excluding_tag.json()["id"]]},
+        )
+        assert excluded.status_code == 200
+        assert excluded.json()["record_count"] == 0
+
+        json_export = client.post(
+            "/api/exports/knowledge-units",
+            headers=json_headers,
+            json={
+                "format": "json",
+                "knowledge_unit_ids": [ku_id],
+                "include_chunks": True,
+                "include_sources": True,
+            },
+        )
+        assert json_export.status_code == 200
+        json_content = json.loads(json_export.json()["content"])
+        assert json_content["manifest"]["record_count"] == 1
+        assert json_content["project"]["id"] == "default-space"
+        assert json_content["knowledge_units"][0]["id"] == ku_id
+        assert json_content["knowledge_units"][0]["citation"]["source_id"] == source_id
+        assert json_content["chunks"][0]["citation_label"].startswith("D115 Export Source")
+        serialized_json = json_export.json()["content"]
+        assert "test-token" not in serialized_json
+        assert str(tmp_path) not in serialized_json
+
+        project_zip = client.post(
+            "/api/exports/project",
+            headers=json_headers,
+            json={"project_id": "default-space"},
+        )
+        assert project_zip.status_code == 200
+        project_body = project_zip.json()
+        assert project_body["format"] == "zip"
+        archive_bytes = base64.b64decode(project_body["content_base64"])
+        with zipfile.ZipFile(io.BytesIO(archive_bytes)) as archive:
+            names = set(archive.namelist())
+            assert names == {
+                "manifest.json",
+                "knowledge-units.json",
+                "tags.json",
+                "folders.json",
+                "sources.json",
+                "chunks.json",
+                "README.md",
+            }
+            manifest = json.loads(archive.read("manifest.json"))
+            knowledge_units = json.loads(archive.read("knowledge-units.json"))
+            assert manifest["record_count"] == len(knowledge_units)
+            assert any(unit["id"] == ku_id for unit in knowledge_units)
+            combined = "\n".join(archive.read(name).decode("utf-8") for name in names)
+            assert "test-token" not in combined
+            assert str(tmp_path) not in combined
+            assert "knowledgebase.sqlite" not in combined
+
+        invalid_tag = client.post(
+            "/api/exports/knowledge-units",
+            headers=json_headers,
+            json={"tag_ids": ["tag_missing"]},
+        )
+        assert invalid_tag.status_code == 404
+        assert invalid_tag.json()["error"]["code"] == "tag_not_found"
+
+        invalid_ku = client.post(
+            "/api/exports/knowledge-units",
+            headers=json_headers,
+            json={"knowledge_unit_ids": ["ku_missing"]},
+        )
+        assert invalid_ku.status_code == 404
+        assert invalid_ku.json()["error"]["code"] == "knowledge_unit_not_found"
 
 
 def test_z0a_text_import_review_and_evidence(monkeypatch, tmp_path):

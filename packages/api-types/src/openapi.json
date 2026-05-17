@@ -1163,6 +1163,82 @@
         }
       }
     },
+    "/api/exports/knowledge-units": {
+      "post": {
+        "summary": "Post Knowledge Unit Export",
+        "operationId": "post_knowledge_unit_export_api_exports_knowledge_units_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KnowledgeUnitExportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgeExportResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/exports/project": {
+      "post": {
+        "summary": "Post Project Export",
+        "operationId": "post_project_export_api_exports_project_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectExportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgeExportResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/feedback": {
       "post": {
         "summary": "Submit Feedback Route",
@@ -4539,6 +4615,87 @@
         ],
         "title": "JobSnapshot"
       },
+      "KnowledgeExportResponse": {
+        "properties": {
+          "export_id": {
+            "type": "string",
+            "title": "Export Id"
+          },
+          "filename": {
+            "type": "string",
+            "title": "Filename"
+          },
+          "mime_type": {
+            "type": "string",
+            "title": "Mime Type"
+          },
+          "format": {
+            "type": "string",
+            "enum": [
+              "markdown",
+              "json",
+              "zip"
+            ],
+            "title": "Format"
+          },
+          "record_count": {
+            "type": "integer",
+            "title": "Record Count"
+          },
+          "generated_at": {
+            "type": "string",
+            "title": "Generated At"
+          },
+          "filters": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Filters"
+          },
+          "content": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content"
+          },
+          "content_base64": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content Base64"
+          },
+          "redacted": {
+            "type": "boolean",
+            "title": "Redacted"
+          },
+          "includes_source_text": {
+            "type": "boolean",
+            "title": "Includes Source Text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "export_id",
+          "filename",
+          "mime_type",
+          "format",
+          "record_count",
+          "generated_at",
+          "filters",
+          "redacted",
+          "includes_source_text"
+        ],
+        "title": "KnowledgeExportResponse"
+      },
       "KnowledgeExtractRequest": {
         "properties": {
           "source_id": {
@@ -4763,6 +4920,67 @@
           "review_task"
         ],
         "title": "KnowledgeUnitDetail"
+      },
+      "KnowledgeUnitExportRequest": {
+        "properties": {
+          "format": {
+            "type": "string",
+            "enum": [
+              "markdown",
+              "json"
+            ],
+            "title": "Format",
+            "default": "markdown"
+          },
+          "project_id": {
+            "type": "string",
+            "title": "Project Id",
+            "default": "default-space"
+          },
+          "folder_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Folder Id"
+          },
+          "tag_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Tag Ids"
+          },
+          "knowledge_unit_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Knowledge Unit Ids"
+          },
+          "include_chunks": {
+            "type": "boolean",
+            "title": "Include Chunks",
+            "default": false
+          },
+          "include_sources": {
+            "type": "boolean",
+            "title": "Include Sources",
+            "default": false
+          },
+          "include_pending_review": {
+            "type": "boolean",
+            "title": "Include Pending Review",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "KnowledgeUnitExportRequest"
       },
       "KnowledgeUnitRecord": {
         "properties": {
@@ -5265,6 +5483,29 @@
           "name"
         ],
         "title": "ProjectCreateRequest"
+      },
+      "ProjectExportRequest": {
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "title": "Project Id",
+            "default": "default-space"
+          },
+          "include_pending_review": {
+            "type": "boolean",
+            "title": "Include Pending Review",
+            "default": false
+          },
+          "format": {
+            "type": "string",
+            "const": "zip",
+            "title": "Format",
+            "default": "zip"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "ProjectExportRequest"
       },
       "ProjectRecord": {
         "properties": {

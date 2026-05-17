@@ -1,8 +1,8 @@
 # API 设计草案
 
-版本：v0.28-draft
+版本：v0.29-draft
 日期：2026-05-17  
-状态：P0 API 边界草案——完整上传/文件处理/File Inspection/切片前准备层/切片执行 profile/AI 结构化整理 profile/D-079 structuring summary 子字段/结构化整理检查门/知识切片质量闭环/AI/RAG API + D-080 知识调用 profile / implicit_agent / D-081 Z0a-Z2 持久化边界 / D-082 InvocationProfileSchema / D-083 前端状态与反馈策略 / D-085 Z0a 调用锚点、feedback 与 citation 边界修正 + D-098 页面到现有 API 组映射 + D-105 Citation Detail / Evidence Pack replay 实现边界 + D-106 Settings language 持久化边界 + D-107 Feedback Events / Memory Draft Review Z0b-lite + D-108 Feedback Diagnostics / Event Replay Z0b-lite + D-110 Feedback Diagnostics Export Z0b-lite + D-111 Feedback Diagnostics Advanced Filters / Export History Z0b-lite + D-112 Citation Detail Focus / Evidence Trace Interaction Z0b-lite + D-113 Citation Annotation / Evidence Compare Z0b-lite + D-114 Knowledge Space / Folder-Tag / Metadata Filters Z0b-lite + 安全运维横切层 + 检查门映射单一来源 + 事件枚举单一来源 + P0-Z0a/ProcessingJob/sensitive grant 契约收紧
+状态：P0 API 边界草案——完整上传/文件处理/File Inspection/切片前准备层/切片执行 profile/AI 结构化整理 profile/D-079 structuring summary 子字段/结构化整理检查门/知识切片质量闭环/AI/RAG API + D-080 知识调用 profile / implicit_agent / D-081 Z0a-Z2 持久化边界 / D-082 InvocationProfileSchema / D-083 前端状态与反馈策略 / D-085 Z0a 调用锚点、feedback 与 citation 边界修正 + D-098 页面到现有 API 组映射 + D-105 Citation Detail / Evidence Pack replay 实现边界 + D-106 Settings language 持久化边界 + D-107 Feedback Events / Memory Draft Review Z0b-lite + D-108 Feedback Diagnostics / Event Replay Z0b-lite + D-110 Feedback Diagnostics Export Z0b-lite + D-111 Feedback Diagnostics Advanced Filters / Export History Z0b-lite + D-112 Citation Detail Focus / Evidence Trace Interaction Z0b-lite + D-113 Citation Annotation / Evidence Compare Z0b-lite + D-114 Knowledge Space / Folder-Tag / Metadata Filters Z0b-lite + D-115 Knowledge Unit / Project Export Z0b-lite + 安全运维横切层 + 检查门映射单一来源 + 事件枚举单一来源 + P0-Z0a/ProcessingJob/sensitive grant 契约收紧
 
 ## 1. 文档目的
 
@@ -2031,15 +2031,18 @@ POST /api/exports/knowledge-units
 POST /api/exports/project
 ```
 
-`POST /api/exports/knowledge-units` 导出 KU 为 Markdown / JSON：
+`POST /api/exports/knowledge-units` 导出 KU 为 Markdown / JSON。D-115 代码阶段只返回下载内容 envelope，后端不写用户本地路径：
 
 ```json
 {
   "knowledge_unit_ids": ["ku_id_1", "ku_id_2"],
   "format": "markdown" | "json",
+  "project_id": "default-space",
+  "folder_id": "folder_id",
+  "tag_ids": ["tag_id"],
   "include_chunks": true,
   "include_sources": false,
-  "target_path": "/path/to/export/dir"
+  "include_pending_review": false
 }
 ```
 
@@ -2047,17 +2050,29 @@ POST /api/exports/project
 
 ```json
 {
-  "data": {
-    "export_id": "export_id",
-    "files": [
-      "/path/to/export/dir/ku-001.md",
-      "/path/to/export/dir/ku-002.md"
-    ],
-    "format": "markdown",
-    "count": 2
-  }
+  "export_id": "export_id",
+  "filename": "knowledge-units-20260517T120000.md",
+  "mime_type": "text/markdown; charset=utf-8",
+  "format": "markdown",
+  "record_count": 2,
+  "generated_at": "2026-05-17T12:00:00Z",
+  "filters": {
+    "project_id": "default-space",
+    "folder_id": "folder_id",
+    "tag_ids": ["tag_id"],
+    "knowledge_unit_ids": ["ku_id_1", "ku_id_2"],
+    "include_chunks": true,
+    "include_sources": false,
+    "include_pending_review": false
+  },
+  "content": "---\nid: ku_id_1\n...",
+  "content_base64": null,
+  "redacted": true,
+  "includes_source_text": true
 }
 ```
+
+Markdown 导出使用 YAML frontmatter，包含 KU id/title/type/status/tags/folder/source/chunk citation；JSON 导出包含 `manifest`、`project`、`folders`、`tags`、`knowledge_units`，并按 `include_chunks` / `include_sources` 加入 `chunks` 和 `sources`。
 
 `POST /api/exports/project` 导出整个项目为 .zip（包含 KU、Sources、Chunks、Tags）：
 
@@ -2065,10 +2080,23 @@ POST /api/exports/project
 {
   "project_id": "project_id",
   "format": "zip",
-  "include_pending_review": false,
-  "target_path": "/path/to/export/file.zip"
+  "include_pending_review": false
 }
 ```
+
+响应与 KU 导出使用相同 envelope，但 `format=zip`、`mime_type=application/zip`，正文放在 `content_base64`。ZIP 文件清单固定为：
+
+```text
+manifest.json
+knowledge-units.json
+tags.json
+folders.json
+sources.json
+chunks.json
+README.md
+```
+
+D-115 导出不得包含 local token、SQLite path、完整本地文件路径、app data 路径或原始二进制文件；`source_path` 只能保留 basename 或置空。默认只导出 confirmed KU，`pending_review` 必须显式 `include_pending_review=true` 才能进入导出。
 
 ### 16.6 设置（Settings）
 

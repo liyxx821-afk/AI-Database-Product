@@ -42,6 +42,7 @@ import type {
   FeedbackRequest,
   FileRecord,
   FolderRecord,
+  KnowledgeExportResponse,
   KnowledgeUnitRecord,
   MemoryDraftRecord,
   MemoryDraftRequest,
@@ -61,6 +62,7 @@ import { useRetrievalStore } from "../stores/retrievalStore";
 import { useSettingsStore } from "../stores/settingsStore";
 import { useFeedbackMemoryStore } from "../stores/feedbackMemoryStore";
 import { useOrganizationStore } from "../stores/organizationStore";
+import { useKnowledgeExportStore } from "../stores/exportsStore";
 import { hasBridge } from "../services/apiClient";
 import { listKnowledgeUnits } from "../services/knowledgeApi";
 import type {
@@ -69,6 +71,10 @@ import type {
   FeedbackRankingEffect,
   FeedbackSortOrder
 } from "../services/feedbackMemoryApi";
+import type {
+  KnowledgeExportKind,
+  KnowledgeUnitExportFormat
+} from "../services/exportsApi";
 import { supportedLanguages, translate, type LanguageCode, type MessageKey } from "../services/i18n";
 
 type RouteKey =
@@ -1074,6 +1080,8 @@ function AskPage() {
 function OutputsPage() {
   const t = useT();
   const feedbackMemory = useFeedbackMemoryStore();
+  const organization = useOrganizationStore();
+  const knowledgeExport = useKnowledgeExportStore();
   const [feedbackTypeFilter, setFeedbackTypeFilter] = useState<FeedbackFilterValue>("all");
   const [targetTypeFilter, setTargetTypeFilter] = useState<FeedbackTargetFilterValue>("all");
   const [searchFilter, setSearchFilter] = useState("");
@@ -1085,11 +1093,19 @@ function OutputsPage() {
   const [sortFilter, setSortFilter] = useState<FeedbackSortOrder>("created_desc");
   const [limitFilter, setLimitFilter] = useState(50);
   const [exportFormat, setExportFormat] = useState<FeedbackExportFormat>("json");
+  const [knowledgeExportKind, setKnowledgeExportKind] =
+    useState<KnowledgeExportKind>("knowledge_units");
+  const [knowledgeExportFormat, setKnowledgeExportFormat] =
+    useState<KnowledgeUnitExportFormat>("markdown");
+  const [includeChunks, setIncludeChunks] = useState(false);
+  const [includeSources, setIncludeSources] = useState(false);
+  const [includePendingReview, setIncludePendingReview] = useState(false);
 
   useEffect(() => {
     feedbackMemory.refreshMemories();
     feedbackMemory.refreshFeedbackDiagnostics();
     feedbackMemory.refreshFeedbackExportHistory();
+    organization.refresh();
   }, []);
 
   function diagnosticsFilters(): FeedbackDiagnosticsFilters {
@@ -1114,6 +1130,34 @@ function OutputsPage() {
   async function exportDiagnostics() {
     const exported = await feedbackMemory.exportFeedbackDiagnostics(diagnosticsFilters(), exportFormat);
     if (exported) downloadTextFile(exported.filename, exported.mime_type, exported.content);
+  }
+
+  async function exportKnowledgeAssets() {
+    const projectId = organization.selectedProjectId || "default-space";
+    if (knowledgeExportKind === "project") {
+      const exported = await knowledgeExport.exportProject({
+        project_id: projectId,
+        include_pending_review: includePendingReview,
+        format: "zip"
+      });
+      if (exported?.content_base64) {
+        downloadBase64File(exported.filename, exported.mime_type, exported.content_base64);
+      }
+      return;
+    }
+    const exported = await knowledgeExport.exportKnowledgeUnits({
+      format: knowledgeExportFormat,
+      project_id: projectId,
+      folder_id: organization.selectedFolderId,
+      tag_ids: organization.selectedTagIds,
+      knowledge_unit_ids: [],
+      include_chunks: includeChunks,
+      include_sources: includeSources,
+      include_pending_review: includePendingReview
+    });
+    if (exported?.content) {
+      downloadTextFile(exported.filename, exported.mime_type, exported.content);
+    }
   }
 
   function resetDiagnosticsFilters() {
@@ -1160,6 +1204,35 @@ function OutputsPage() {
         ) : null}
         <MemoryDraftList memories={feedbackMemory.memories} state={feedbackMemory.memoryState} />
       </section>
+      <KnowledgeExportPanel
+        projects={organization.projects}
+        folders={organization.folders}
+        tags={organization.tags}
+        organizationState={organization.state}
+        organizationErrorCode={organization.errorCode}
+        selectedProjectId={organization.selectedProjectId}
+        selectedFolderId={organization.selectedFolderId}
+        selectedTagIds={organization.selectedTagIds}
+        exportKind={knowledgeExportKind}
+        exportFormat={knowledgeExportFormat}
+        includeChunks={includeChunks}
+        includeSources={includeSources}
+        includePendingReview={includePendingReview}
+        exportState={knowledgeExport.state}
+        exportErrorCode={knowledgeExport.errorCode}
+        lastExport={knowledgeExport.lastExport}
+        onSelectProject={organization.setSelectedProject}
+        onSelectFolder={organization.setSelectedFolder}
+        onSelectTagIds={organization.setSelectedTagIds}
+        onResetFilters={organization.resetFilters}
+        onRefreshOrganization={organization.refresh}
+        onExportKindChange={setKnowledgeExportKind}
+        onExportFormatChange={setKnowledgeExportFormat}
+        onIncludeChunksChange={setIncludeChunks}
+        onIncludeSourcesChange={setIncludeSources}
+        onIncludePendingReviewChange={setIncludePendingReview}
+        onExport={exportKnowledgeAssets}
+      />
       <FeedbackDiagnosticsPanel
         events={feedbackMemory.feedbackEvents}
         summary={feedbackMemory.feedbackSummary}
@@ -1229,6 +1302,187 @@ function MemoryDraftList({
         <EmptyState message={state === "degraded" ? t("empty.bridgeUnavailable") : t("memory.noDrafts")} />
       )}
     </div>
+  );
+}
+
+function KnowledgeExportPanel({
+  projects,
+  folders,
+  tags,
+  organizationState,
+  organizationErrorCode,
+  selectedProjectId,
+  selectedFolderId,
+  selectedTagIds,
+  exportKind,
+  exportFormat,
+  includeChunks,
+  includeSources,
+  includePendingReview,
+  exportState,
+  exportErrorCode,
+  lastExport,
+  onSelectProject,
+  onSelectFolder,
+  onSelectTagIds,
+  onResetFilters,
+  onRefreshOrganization,
+  onExportKindChange,
+  onExportFormatChange,
+  onIncludeChunksChange,
+  onIncludeSourcesChange,
+  onIncludePendingReviewChange,
+  onExport
+}: {
+  projects: ProjectRecord[];
+  folders: FolderRecord[];
+  tags: TagRecord[];
+  organizationState: "loading" | "empty" | "degraded" | "recoverable_error" | "done";
+  organizationErrorCode: string | null;
+  selectedProjectId: string;
+  selectedFolderId: string | null;
+  selectedTagIds: string[];
+  exportKind: KnowledgeExportKind;
+  exportFormat: KnowledgeUnitExportFormat;
+  includeChunks: boolean;
+  includeSources: boolean;
+  includePendingReview: boolean;
+  exportState: "loading" | "empty" | "degraded" | "recoverable_error" | "done";
+  exportErrorCode?: string;
+  lastExport?: KnowledgeExportResponse;
+  onSelectProject: (projectId: string) => void;
+  onSelectFolder: (folderId: string | null) => void;
+  onSelectTagIds: (tagIds: string[]) => void;
+  onResetFilters: () => void;
+  onRefreshOrganization: () => Promise<void>;
+  onExportKindChange: (kind: KnowledgeExportKind) => void;
+  onExportFormatChange: (format: KnowledgeUnitExportFormat) => void;
+  onIncludeChunksChange: (value: boolean) => void;
+  onIncludeSourcesChange: (value: boolean) => void;
+  onIncludePendingReviewChange: (value: boolean) => void;
+  onExport: () => Promise<void>;
+}) {
+  const t = useT();
+  return (
+    <section className="page-frame">
+      <div className="section-title-row">
+        <h2>{t("knowledgeExport.title")}</h2>
+        <div className="inline-actions">
+          <span className={`state-chip state-${exportState}`}>{exportState}</span>
+          <button className="icon-command" type="button" onClick={onRefreshOrganization}>
+            <RefreshCw aria-hidden="true" size={16} />
+            <span>{t("action.refresh")}</span>
+          </button>
+          <button
+            className="icon-command"
+            type="button"
+            disabled={exportState === "loading" || organizationState === "loading"}
+            onClick={onExport}
+          >
+            <Download aria-hidden="true" size={16} />
+            <span>{t("knowledgeExport.export")}</span>
+          </button>
+        </div>
+      </div>
+      <p className="section-note">{t("knowledgeExport.body")}</p>
+      <OrganizationFilterControls
+        projects={projects}
+        folders={folders}
+        tags={tags}
+        selectedProjectId={selectedProjectId}
+        selectedFolderId={selectedFolderId}
+        selectedTagIds={selectedTagIds}
+        onSelectProject={onSelectProject}
+        onSelectFolder={onSelectFolder}
+        onSelectTagIds={onSelectTagIds}
+        onReset={onResetFilters}
+      />
+      <div className="settings-row">
+        <label className="memory-label">
+          <span>{t("knowledgeExport.type")}</span>
+          <select
+            className="settings-select"
+            value={exportKind}
+            onChange={(event) => onExportKindChange(event.target.value as KnowledgeExportKind)}
+          >
+            <option value="knowledge_units">{t("knowledgeExport.knowledgeUnits")}</option>
+            <option value="project">{t("knowledgeExport.projectZip")}</option>
+          </select>
+        </label>
+        <label className="memory-label">
+          <span>{t("knowledgeExport.format")}</span>
+          <select
+            className="settings-select"
+            value={exportKind === "project" ? "zip" : exportFormat}
+            disabled={exportKind === "project"}
+            onChange={(event) =>
+              onExportFormatChange(event.target.value as KnowledgeUnitExportFormat)
+            }
+          >
+            <option value="markdown">{t("knowledgeExport.markdown")}</option>
+            <option value="json">{t("knowledgeExport.json")}</option>
+            {exportKind === "project" ? (
+              <option value="zip">{t("knowledgeExport.zip")}</option>
+            ) : null}
+          </select>
+        </label>
+      </div>
+      <div className="settings-row">
+        <label className="tag-checkbox">
+          <input
+            type="checkbox"
+            checked={includeChunks}
+            disabled={exportKind === "project"}
+            onChange={(event) => onIncludeChunksChange(event.target.checked)}
+          />
+          <span>{t("knowledgeExport.includeChunks")}</span>
+        </label>
+        <label className="tag-checkbox">
+          <input
+            type="checkbox"
+            checked={includeSources}
+            disabled={exportKind === "project"}
+            onChange={(event) => onIncludeSourcesChange(event.target.checked)}
+          />
+          <span>{t("knowledgeExport.includeSources")}</span>
+        </label>
+        <label className="tag-checkbox">
+          <input
+            type="checkbox"
+            checked={includePendingReview}
+            onChange={(event) => onIncludePendingReviewChange(event.target.checked)}
+          />
+          <span>{t("knowledgeExport.includePending")}</span>
+        </label>
+      </div>
+      {organizationErrorCode || exportErrorCode ? (
+        <div className="row-note">
+          <AlertCircle aria-hidden="true" size={15} />
+          <span>{organizationErrorCode ?? exportErrorCode}</span>
+        </div>
+      ) : null}
+      {exportState === "degraded" || organizationState === "degraded" ? (
+        <EmptyState message={t("empty.bridgeUnavailable")} />
+      ) : null}
+      {lastExport ? (
+        <div className="panel-grid">
+          <article className="panel">
+            <h3>{t("knowledgeExport.lastExport")}</h3>
+            <p>{lastExport.filename}</p>
+          </article>
+          <article className="panel">
+            <h3>{t("knowledgeExport.records")}</h3>
+            <p>{String(lastExport.record_count)}</p>
+          </article>
+          <article className="panel">
+            <h3>{t("knowledgeExport.redacted")}</h3>
+            <p>{String(lastExport.redacted)}</p>
+          </article>
+        </div>
+      ) : (
+        <EmptyState message={t("knowledgeExport.noExport")} />
+      )}
+    </section>
   );
 }
 
@@ -2839,6 +3093,23 @@ function datetimeLocalToIso(value: string) {
 
 function downloadTextFile(filename: string, mimeType: string, content: string) {
   const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function downloadBase64File(filename: string, mimeType: string, contentBase64: string) {
+  const binary = atob(contentBase64);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  const blob = new Blob([bytes], { type: mimeType });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
