@@ -1,8 +1,8 @@
 # API 设计草案
 
-版本：v0.18-draft  
+版本：v0.23-draft
 日期：2026-05-17  
-状态：P0 API 边界草案——完整上传/文件处理/File Inspection/切片前准备层/切片执行 profile/AI 结构化整理 profile/D-079 structuring summary 子字段/结构化整理检查门/知识切片质量闭环/AI/RAG API + D-080 知识调用 profile / implicit_agent / D-081 Z0a-Z2 持久化边界 / D-082 InvocationProfileSchema / D-083 前端状态与反馈策略 / D-085 Z0a 调用锚点、feedback 与 citation 边界修正 + 安全运维横切层 + 检查门映射单一来源 + 事件枚举单一来源 + P0-Z0a/ProcessingJob/sensitive grant 契约收紧
+状态：P0 API 边界草案——完整上传/文件处理/File Inspection/切片前准备层/切片执行 profile/AI 结构化整理 profile/D-079 structuring summary 子字段/结构化整理检查门/知识切片质量闭环/AI/RAG API + D-080 知识调用 profile / implicit_agent / D-081 Z0a-Z2 持久化边界 / D-082 InvocationProfileSchema / D-083 前端状态与反馈策略 / D-085 Z0a 调用锚点、feedback 与 citation 边界修正 + D-098 页面到现有 API 组映射 + D-105 Citation Detail / Evidence Pack replay 实现边界 + D-106 Settings language 持久化边界 + D-107 Feedback Events / Memory Draft Review Z0b-lite + 安全运维横切层 + 检查门映射单一来源 + 事件枚举单一来源 + P0-Z0a/ProcessingJob/sensitive grant 契约收紧
 
 ## 1. 文档目的
 
@@ -106,6 +106,44 @@ P0 采用开源优先 ProviderRegistry。未配置 parser / OCR / ASR / embeddin
 - 数据库表名使用 snake_case。
 - API path 使用 kebab-case。
 - 响应字段使用 snake_case，方便直接对齐数据库和 Text-to-SQL 视图。
+
+### 3.1 D-098 页面到现有 API 组映射
+
+D-098 不新增 endpoint，只规定 8 个 Renderer 内部页面如何消费既有 API 组。页面组件不得绕过 Main/preload 注入的 typed fetch wrapper，也不得在前端拼接 Evidence/Citation。
+
+| 页面路由 | 页面 | 主要消费 API 组 | 响应必须能表达的页面状态 |
+|---|---|---|---|
+| `/dashboard` | 首页 / 总览 Dashboard | `/api/system/runtime`、`/api/system/status`、`/api/ai-providers/capabilities`、Sources / Retrieval / AIAnswer summary 查询 | 最近导入、知识库概览、文档数量、AI 摘要数量、最近搜索/问答、provider/fallback summary |
+| `/import` | 资料导入 | `/api/uploads`、`/api/files`、`/api/jobs/{id}/events`、`/api/ai-providers/capabilities` | 上传进度、解析状态、格式能力状态、recoverable failure、P1/P2 导入入口 disabled reason |
+| `/library` | 知识库 / 文件管理 | `/api/projects`、`/api/folders`、`/api/tags`、`/api/sources`、`/api/files`、`/api/chunks`、`/api/knowledge-units`、`/api/review-tasks` | 分类树、文档列表、标签/时间/项目筛选、自动分类结果、文件状态 |
+| `/search` | 智能搜索 | `/api/retrieval/preview`、Evidence Pack / Citation 查询、`/api/feedback` | Query Explanation、Evidence Pack、Citation Trace、ranking summary、空结果/证据不足原因 |
+| `/ask` | AI 问答 | Z0a 使用 `/api/retrieval/evidence-only`；Z2 再启用 `/api/rag/answers`、Evidence Pack / Citation 查询、`/api/feedback`、Memory Draft / KU from answer 可选回流 | evidence-only / provider answer、引用来源、相关文档卡片、追问状态、provider/fallback 状态 |
+| `/graph` | 知识图谱 / 关系网络 | `/api/relations`、Tags / Sources / KUs summary、Evidence / Citation summary | confirmed relation / relation suggestion evidence、节点点击回源、无关系 disabled reason |
+| `/outputs` | 生成结果 | `/api/rag/answers`、`/api/memory-drafts`、`/api/exports`、Review / Citation summary | 生成物绑定 Evidence/Citation、pending review、无 evidence 时 disabled reason |
+| `/settings` | 设置 | `/api/auth/status`、`/api/system/runtime`、`/api/system/status`、`/api/settings`、`/api/ai-providers`、`/api/backups`、`/api/exports` | 账号预埋 disabled contract、存储状态、AI 模型/provider 状态、导入导出与备份状态 |
+
+页面响应状态统一为：
+
+```text
+loading
+empty
+degraded
+recoverable_error
+done
+```
+
+API response summary 必须给前端足够信息区分：
+
+- provider unavailable / disabled / fallback；
+- no retrieval result / insufficient evidence；
+- citation binding failed；
+- upload 或 parse 可恢复失败；
+- graph relation 不足；
+- outputs 缺少 evidence；
+- auth disabled in P0；
+- runtime degraded / recovery required。
+
+这些状态必须来自既有 API response、ProcessingJob snapshot、SSE event、Provider capability 或 runtime status，不得由页面临时猜测。
 
 ---
 
@@ -397,6 +435,8 @@ ProcessingJob 状态机固定为 `queued -> processing -> completed`、`queued/p
 ### 5B.5 文件校验与解析
 
 ```text
+GET /api/files
+GET /api/files/{file_id}
 POST /api/files/{file_id}:verify
 POST /api/files/{file_id}:inspect
 GET /api/files/{file_id}/inspection
@@ -409,6 +449,18 @@ GET /api/parse-tasks/{parse_task_id}
 `inspect` 会创建或复用 ProcessingJob，执行真实类型识别、编码检测、安全检查、结构识别和预览生成。
 
 `parse` 会创建或复用 ProcessingJob，并创建 `parse_task`。Parser Router 必须优先消费最新 `FileInspectionReport`：`detected_mime_type`、`file_signature`、`risk_level`、`risk_flags`、结构识别结果和 preview 状态；扩展名只作为弱信号。
+
+D-101 Z0a 实现边界：
+
+- 已实现 `GET /api/files`、`GET /api/files/{file_id}` 和 `POST /api/files/{file_id}:verify`；`verify` 当前会重跑 Z0a inspection summary。
+- `POST /api/uploads/{id}:complete` 已自动创建 `file_id`、完整性检查和 `file_inspection` ProcessingJob。
+- Z0a inspection 只返回扩展名、MIME、文件大小、sha256、header summary、基础 risk summary 和 recoverable 状态；完整 `:inspect`、inspection detail、preview、parse task 和真实 provider adapter 仍后置。
+
+D-102 Z0a 实现边界：
+
+- 已实现 `POST /api/files/{file_id}:parse`、`GET /api/parse-tasks/{id}`、`GET /api/sources`、`GET /api/sources/{source_id}`。
+- Parser Router 当前只支持 text / markdown / json / csv 类文件的 `builtin_text_markdown` adapter。
+- Parse 成功创建 `Source(source_origin=parsed_file)`、`Chunk`、FTS 记录和最小 chunk quality checks；Candidate KU / Review / Embedding 已在 D-103 通过显式 extract API 接入，不由 parse 自动触发。
 
 风险策略：
 
@@ -804,6 +856,13 @@ P0 行为：
 - 继承 folder mirror tag。
 - 创建 review task。
 
+D-103 Z0a 实现边界：
+
+- 已实现 `POST /api/knowledge-units:extract`、`GET /api/knowledge-units`、`GET /api/knowledge-units/{knowledge_unit_id}`。
+- `knowledge-units:extract` 以 parsed Source / Chunk 为输入，生成 `pending_review` Candidate KU、Review Task 和 `mock_fixed_384` fallback embedding；重复 extract 默认复用已有候选。
+- Review confirm 后 KU 才进入 confirmed 检索范围；pending_review 不进入 evidence-only answer。
+- D-103 不实现真实 LLM 抽取、标签合并、关系写入、Memory Draft 或 provider-backed RAG。
+
 ### 7.2 获取 Knowledge Unit
 
 ```text
@@ -950,111 +1009,131 @@ POST /api/retrieval/preview
 
 ```json
 {
-  "project_id": "project_id",
-  "query": "这个项目里已确认的核心判断有哪些？",
-  "filters": {
-    "folder_ids": [],
-    "tag_ids": [],
-      "status": ["confirmed"],
-      "permission_mode": "agent_default",
-      "sensitive_access_grant_id": null
-    },
-  "limit": 10
+  "query": "Evidence Pack Source Chunk",
+  "project_id": "default-space"
 }
 ```
+
+D-104 Z0a 实现口径：
+
+- 只查询 `knowledge_units.status = confirmed`。
+- `pending_review` 候选不得进入 Evidence Pack。
+- 排序使用 token overlap / metadata fallback；真实 reranker、provider-backed vector search 和 Text-to-SQL provider 后置。
+- sqlite-vec 不可用时返回 `provider_status=degraded` 与 `fallback_reason`，但 source/chunk/citation binding 不降级。
+- 无证据时返回 `evidence_pack.status=empty`、`failure_type=no_retrieval_result` 和 no evidence reason，不生成伪答案。
 
 响应：
 
 ```json
 {
-  "data": {
-    "retrieval_log_id": "retrieval_log_id",
-    "evidence_pack_id": "evidence_pack_id",
-    "query_understanding": {
-      "query_understanding_profile": "p0_rule_query_understanding_v1",
-      "intent": "simple_fact",
-      "rewrite_status": "not_needed",
-      "rewritten_query": null,
-      "keywords": ["核心判断", "已确认"],
-      "scope_constraints": {
-        "project_id": "project_id",
-        "permission_mode": "agent_default"
-      },
-      "output_format": "evidence_list",
-      "provider_key": "system_rules",
-      "capability_status": "available",
-      "fallback_reason": null
-    },
-    "strategy_route": {
-      "retrieval_strategy_profile": "p0_route_simple_fact_bm25_v1",
-      "question_type": "simple_fact",
-      "selected_routes": ["metadata_filter", "fts5_bm25"],
-      "fallback_routes": ["hybrid_search"],
-      "route_reason": "query contains explicit project-scoped fact lookup"
-    },
-    "results": [
+  "retrieval_log_id": "retrieval_xxx",
+  "evidence_pack_id": "epack_xxx",
+  "query": "Evidence Pack Source Chunk",
+  "query_explanation": {
+    "query_understanding_profile": "p0_query_understanding_rule_v1",
+    "retrieval_strategy_profile": "p0_confirmed_ku_token_overlap_v1",
+    "ranking_profile": "p0_token_overlap_metadata_fallback_v1",
+    "citation_trace_profile": "p0_citation_trace_source_chunk_v1",
+    "filters": {
+      "project_id": "default-space",
+      "knowledge_unit_status": "confirmed"
+    }
+  },
+  "evidence_pack": {
+    "id": "epack_xxx",
+    "retrieval_log_id": "retrieval_xxx",
+    "status": "ready",
+    "failure_type": "vector_degraded",
+    "summary": "Evidence Pack assembled from confirmed knowledge with vector fallback degraded.",
+    "items": [
       {
-        "knowledge_unit_id": "ku_id",
-        "title": "核心判断",
-        "snippet": "知识内容片段",
-        "source_id": "source_id",
-        "chunk_id": "chunk_id",
-        "score": 0.83,
-        "ranking_profile": {
-          "base_score": 0.62,
-          "hybrid_score": 0.83,
-          "metadata_weight": 0.1,
-          "source_reliability_score": 0.8,
-          "feedback_weight": 0.0,
-          "reranker_status": "fallback",
-          "fallback_reason": "reranker_unavailable"
-        },
-        "citation_trace": {
-          "citation_trace_profile": "p0_chunk_source_trace_v1",
-          "chunk_id": "chunk_id",
-          "source_id": "source_id",
-          "file_id": "file_id",
-          "page_number": 3,
-          "section_title": "核心判断",
-          "text_span": {"start": 128, "end": 260},
-          "citation_confidence": 0.82,
-          "source_reliability_label": "user_confirmed"
-        },
-        "match_reasons": ["tag_filter", "fts5_bm25"]
+        "id": "eitem_xxx",
+        "knowledge_unit_id": "ku_xxx",
+        "chunk_id": "chunk_xxx",
+        "source_id": "source_xxx",
+        "citation_label": "source title · chunk 1",
+        "excerpt": "confirmed evidence excerpt",
+        "rank_score": 1.0
       }
     ],
-    "ranking_summary": {
-      "ranking_profile": "p0_hybrid_score_v1",
-      "score_components": ["hybrid_score", "metadata_weight", "source_reliability_score", "feedback_weight"],
-      "reranker_status": "fallback",
-      "fallback_reason": "reranker_unavailable"
-    },
-    "citation_trace_summary": {
-      "citation_trace_profile": "p0_chunk_source_trace_v1",
-      "traceable_result_count": 1,
-      "missing_trace_count": 0,
-      "preview_used_as_citation": false
-    },
-    "feedback_actions": [
-      "click",
-      "favorite",
-      "useful",
-      "not_useful",
-      "bad_citation",
-      "missing_source"
-    ],
-    "feedback_policy": {
-      "storage_scope": "local_only",
-      "effect_scope": "current_project",
-      "weight_cap": 0.2,
-      "requires_review_for_global_weight": true
-    },
-    "query_explanation": {
-      "filters": {},
-      "retrieval_path": ["metadata_filter", "tag_filter", "fts5_bm25"],
-      "evidence_gaps": []
+    "created_at": "2026-05-17T00:00:00+00:00"
+  },
+  "evidence_item_ids": ["eitem_xxx"],
+  "citation_labels": ["source title · chunk 1"],
+  "citation_trace_summary": "Evidence Pack uses source title · chunk 1",
+  "provider_status": "degraded",
+  "fallback_reason": "sqlite-vec extension unavailable"
+}
+```
+
+### 10.2 获取 Evidence Pack Detail
+
+```text
+GET /api/evidence-packs/{evidence_pack_id}
+```
+
+响应返回持久化 Evidence Pack 与 item-level citation detail；Z0b-lite 不新增 citation 明细表，Citation Trace 仍通过现有 `retrieval_logs`、`evidence_packs`、`evidence_items`、`knowledge_units`、`chunks` 和 `sources` 组装。
+
+D-105 Z0b-lite 实现口径：
+
+- 后端从 `retrieval_logs.filters_json` 还原 `query_explanation`，Renderer 不拼接 query explanation。
+- 后端通过 `evidence_items → knowledge_units / chunks / sources` join 返回可直接渲染的 KU、Chunk、Source 和 citation trace 字段。
+- confirmed KU 的 detail 可返回 item-level KU title/status/type、chunk citation/content excerpt、source title/origin/type 和 rank score。
+- `pending_review` KU 不进入 Evidence Pack，也不出现在 citation detail。
+- 空证据包返回 `status=empty`、`failure_type=no_retrieval_result`、空 `items`、fallback reason 和 no evidence reason。
+- sqlite-vec degraded 时仍必须保留 source/chunk/KU 绑定，且返回 `provider_status=degraded` 与 `fallback_reason`。
+
+响应：
+
+```json
+{
+  "id": "epack_xxx",
+  "retrieval_log_id": "retrieval_xxx",
+  "status": "ready",
+  "failure_type": "vector_degraded",
+  "summary": "Evidence Pack assembled from confirmed knowledge with vector fallback degraded.",
+  "query": "Evidence Pack Source Chunk",
+  "query_explanation": {
+    "query_understanding_profile": "p0_query_understanding_rule_v1",
+    "retrieval_strategy_profile": "p0_confirmed_ku_token_overlap_v1",
+    "ranking_profile": "p0_token_overlap_metadata_fallback_v1",
+    "citation_trace_profile": "p0_citation_trace_source_chunk_v1",
+    "filters": {
+      "knowledge_unit_status": "confirmed"
     }
-  }
+  },
+  "provider_status": "degraded",
+  "fallback_reason": "sqlite-vec extension unavailable",
+  "citation_trace_summary": "Evidence Pack uses source title · chunk 1",
+  "items": [
+    {
+      "id": "eitem_xxx",
+      "knowledge_unit_id": "ku_xxx",
+      "knowledge_unit_title": "Confirmed KU title",
+      "knowledge_unit_status": "confirmed",
+      "knowledge_unit_type": "claim",
+      "chunk_id": "chunk_xxx",
+      "chunk_citation_label": "source title · chunk 1",
+      "chunk_content_excerpt": "confirmed evidence excerpt",
+      "source_id": "source_xxx",
+      "source_title": "source title",
+      "source_origin": "parsed_file",
+      "source_type": "text",
+      "citation_label": "source title · chunk 1",
+      "excerpt": "confirmed evidence excerpt",
+      "rank_score": 1.0,
+      "citation_trace": {
+        "profile": "p0_citation_trace_source_chunk_v1",
+        "knowledge_unit_id": "ku_xxx",
+        "chunk_id": "chunk_xxx",
+        "source_id": "source_xxx",
+        "citation_label": "source title · chunk 1",
+        "source_title": "source title",
+        "source_origin": "parsed_file"
+      }
+    }
+  ],
+  "created_at": "2026-05-17T00:00:00+00:00"
 }
 ```
 
@@ -1359,36 +1438,26 @@ P0 约束：
 POST /api/feedback
 ```
 
-D-085 边界：这个 endpoint 在 P0-Z2 才成为检索反馈持久化接口；Z0a 可以不实现该写接口，或只写 append-only `feedback_events` 作为 UI/诊断事件。无论哪种方式，反馈都不得自动改写 confirmed knowledge、confirmed relation 或 source truth。
+D-107 边界：当前实现只写 append-only `feedback_events` 作为 UI/诊断事件，并返回 `feedback_policy`。它不是 `retrieval_feedback`，不会参与真实 ranking mutation，也不得自动改写 confirmed knowledge、confirmed relation、source truth、Evidence Pack 或 AIAnswer。
 
 请求：
 
 ```json
 {
-  "request_id": "request_id",
-  "evidence_pack_id": "evidence_pack_id",
-  "ai_answer_id": null,
   "feedback_type": "useful",
-  "comment": "这组证据可以作为产品定位材料。",
-  "metadata_json": {
-    "feedback_signal": {
-      "signal_type": "useful",
-      "target_type": "evidence_item",
-      "target_id": "evidence_item_id",
-      "ranking_effect": "positive_weight_suggestion",
-      "mutates_confirmed_knowledge": false
-    },
-    "feedback_policy": {
-      "storage_mode": "local_only",
-      "scope": "current_project",
-      "ranking_effect": "suggestion_only",
-      "mutates_confirmed_knowledge": false
-    }
-  }
+  "evidence_pack_id": "evidence_pack_id",
+  "ai_answer_id": "ai_answer_id",
+  "evidence_item_id": "evidence_item_id",
+  "comment": "这组证据可以作为产品定位材料。"
 }
 ```
 
-允许的调用反馈包括 `click / useful / not_useful / favorite / bad_citation / missing_source / downrank_source`。Z0a 若实现持久化，只能写 `feedback_events` append-only 事件；Z2 才写 `retrieval_feedback` 并关联 Invocation / Evidence / Answer。反馈只用于后续排序建议和诊断；不得自动修改 confirmed Knowledge Unit、confirmed relation 或 source truth。
+约束：
+
+- `feedback_type` 只允许 `click / useful / not_useful / favorite / bad_citation / missing_source / downrank_source`。
+- `evidence_pack_id`、`ai_answer_id`、`evidence_item_id` 至少提供一个，并且必须指向已存在对象。
+- 当前写入 `feedback_events.metadata_json.feedback_signal` 和 `feedback_policy`；Z2 才写 `retrieval_feedback` 并关联 Invocation / Evidence / Answer。
+- 反馈只用于后续排序建议和诊断；不得自动修改 confirmed Knowledge Unit、confirmed relation、source truth、Evidence Pack 或 AIAnswer。
 
 ### 13.2 保存为 Memory Draft
 
@@ -1396,7 +1465,7 @@ D-085 边界：这个 endpoint 在 P0-Z2 才成为检索反馈持久化接口；
 POST /api/memory-drafts
 ```
 
-D-085 边界：这个 endpoint 是 P0-Z2 持久化接口候选，不属于 P0-Z0a blocking API。Z0a 的 RAG 输出可以返回 `save_as_memory_available=false` 或只显示 disabled/pending review 提示，不创建 `memories`。
+D-107 边界：当前实现为 Z0b-lite 回流闭环，只从既有 `ai_answer_id` 创建 `memories.status=pending_review` 和 `review_tasks.target_type=memory`。确认前不进入检索；confirm / ignore 只改变 memory 状态，不创建 confirmed KU。
 
 请求：
 
@@ -1410,11 +1479,13 @@ D-085 边界：这个 endpoint 是 P0-Z2 持久化接口候选，不属于 P0-Z0
 }
 ```
 
-P0-Z2 行为：
+D-107 行为：
 
 - 创建 `memories`，状态为 `pending_review`。
-- 创建 review task。
-- 不直接成为 Confirmed Memory。
+- 创建 `review_tasks.target_type=memory`。
+- `GET /api/memory-drafts` 与 `GET /api/memory-drafts/{id}` 可复盘 draft 状态。
+- Review confirm 后 memory 标记为 `confirmed / user_confirmed=true`；Review ignore 后标记为 `archived`。
+- 不直接成为 Confirmed Memory，也不自动创建 confirmed Knowledge Unit。
 
 ### 13.3 保存为 Candidate Knowledge Unit
 
@@ -1766,33 +1837,29 @@ GET /api/settings
 PATCH /api/settings
 ```
 
-P0 设置项（详见 `docs/desktop-architecture.md` §15.4）：
+D-106 代码阶段只实现语言偏好，默认语言固定为 `zh-CN`，不跟随浏览器语言。设置由后端管理；配置文件不存在时返回默认值，写入时原子更新 app data 下的 `config.json`，不新增 SQLite 表。
+
+响应：
 
 ```json
 {
   "data": {
-    "theme": "system" | "light" | "dark",
-    "language": "zh-CN" | "en-US",
-    "data_dir": "/path/to/data",
-    "auto_backup": {
-      "enabled": true,
-      "frequency": "daily" | "weekly" | "off",
-      "max_retain": 5
-    },
-    "onboarding": {
-      "completed": true,
-      "completed_at": "2026-05-12T15:00:00Z"
-    },
-    "telemetry": {
-      "crash_reports": false,
-      "usage_stats": false
-    },
-    "show_mock_badge": true
+    "language": "zh-CN",
+    "persistence": "config_json",
+    "updated_at": "2026-05-17T12:00:00Z"
   }
 }
 ```
 
-`PATCH /api/settings` 仅接受白名单字段，未知字段返回 `validation_error`。设置变更同步写入用户配置文件（`config.json`），不写 SQLite。
+`PATCH /api/settings` 请求：
+
+```json
+{
+  "language": "en-US"
+}
+```
+
+`PATCH /api/settings` 仅接受白名单字段 `language`，且只允许 `zh-CN / en-US`。未知字段或非法语言返回现有 error envelope 的 `validation_error`；无本地 token 仍按 sidecar local auth 规则拒绝。API Key、Provider 密钥、主题、备份策略、数据目录迁移和遥测开关仍不属于 D-106 实现范围。
 
 ### 16.7 AI Provider 配置
 

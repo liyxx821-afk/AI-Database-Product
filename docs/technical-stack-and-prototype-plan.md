@@ -1,8 +1,8 @@
 # 技术栈与 P0 原型实施计划
 
-版本：v0.23
+版本：v0.27
 日期：2026-05-17  
-状态：已同步——完整 P0 四切片 + P0-Z0a/Z0b 竖切 + ProcessingJob + 切片前准备层 / 结构化整理检查门 + 知识切片质量闭环 + 安全运维横切层 + 技术选型矩阵 + Provider capability 契约收紧 + 切片执行 profile + AI 结构化整理 profile + D-079 存储映射 + D-080 知识调用 / implicit_agent / D-081-D085 调用 schema、反馈策略与前端系统技术矩阵 + D-088 README 对齐后的技术栈优化 + D-090 技术栈执行优化 + D-091 技术栈工程化验收门槛 + D-092 代码骨架前置契约优化 + D-093 桌面运行时硬化 + D-094 P0-Core 桌面工程骨架开工契约
+状态：已同步——完整 P0 四切片 + P0-Z0a/Z0b 竖切 + ProcessingJob + 切片前准备层 / 结构化整理检查门 + 知识切片质量闭环 + 安全运维横切层 + 技术选型矩阵 + Provider capability 契约收紧 + 切片执行 profile + AI 结构化整理 profile + D-079 存储映射 + D-080 知识调用 / implicit_agent / D-081-D085 调用 schema、反馈策略与前端系统技术矩阵 + D-088 README 对齐后的技术栈优化 + D-090 技术栈执行优化 + D-091 技术栈工程化验收门槛 + D-092 代码骨架前置契约优化 + D-093 桌面运行时硬化 + D-094 P0-Core 桌面工程骨架开工契约 + D-095 架构审查实现验收强化 + D-098 Knowledge Workspace 页面信息架构 + D-104 Search / Ask typed API 接入 + D-107 Feedback / Memory typed API 接入
 
 ## 1. 文档目的
 
@@ -136,7 +136,7 @@ local_user / project / folder / tag
 | Embedding 增强 | `bge_m3_local` 优先，`mock_fixed_384` fallback | Z0b/Z1 |
 | Rerank | bge-reranker-v2 optional，缺失回退 hybrid score | Z2 |
 | Provider answer | 本地 / 开源 LLM optional；缺失继续 evidence-only | Z2 |
-| Feedback / Memory | append-only feedback events；Memory Draft 必须进入 Review | Z2 |
+| Feedback / Memory | D-107 已实现 append-only feedback events 与 pending-review Memory Draft；Memory 仍必须进入 Review | Z0b-lite；Z2 再接 `retrieval_feedback` / provider answer |
 
 #### P1/P2 后置栈
 
@@ -673,10 +673,17 @@ uv sync --extra core --extra dev
 pnpm generate:api-types
 pnpm dev:desktop
 pnpm smoke:p0-core
+pnpm smoke:p0-i18n-settings
+pnpm smoke:p0-file
+pnpm smoke:p0-parse
+pnpm smoke:p0-ku
+pnpm smoke:p0-search-ask
+pnpm smoke:p0-citation-detail
+pnpm smoke:p0-feedback-memory
 pnpm smoke:p0-z0a
 ```
 
-`smoke:p0-core` 是桌面运行时骨架验收；`smoke:p0-z0a` 是 text import 到 evidence-only 的业务竖切验收。两者不能混成一个脚本，且必须先过 `smoke:p0-core`。
+`smoke:p0-core` 是桌面运行时骨架验收；`smoke:p0-i18n-settings` 是 settings / config.json language 验收；`smoke:p0-file` 是 upload / integrity / File Inspection Z0a 验收；`smoke:p0-parse` 是 file → Source / Chunk 验收；`smoke:p0-ku` 是 Source / Chunk → Candidate KU / Review / fallback embedding 验收；`smoke:p0-search-ask` 是 confirmed KU → Retrieval Preview / Evidence Pack detail / evidence-only ask 验收；`smoke:p0-citation-detail` 是 Evidence Pack replay / Citation Detail 验收；`smoke:p0-feedback-memory` 是 append-only feedback event 与 Memory Draft review 验收；`smoke:p0-z0a` 是 text import 到 evidence-only 的业务竖切验收。所有 smoke 不能混成一个脚本，且必须按顺序通过。
 
 #### Runtime State 枚举
 
@@ -728,9 +735,113 @@ Renderer 的状态栏、`GET /api/system/runtime`、诊断报告和 Main 进程�
 | Gate | 必须证明 |
 |---|---|
 | `smoke:p0-core` | sidecar 启动、local token 校验、DB 初始化、runtime status、优雅 shutdown |
+| `smoke:p0-file` | upload task、分片接收、sha256 完整性校验、file_id、File Inspection Z0a summary |
+| `smoke:p0-parse` | inspected text file → Parser Router → Source → Chunk → source detail |
+| `smoke:p0-ku` | parsed Source / Chunk → Candidate KU → Review Task → `mock_fixed_384` fallback embedding → confirm → evidence-only |
+| `smoke:p0-search-ask` | confirmed KU → Retrieval Preview → Evidence Pack detail → evidence-only answer；pending_review 不进入证据包 |
+| `smoke:p0-citation-detail` | confirmed KU → Evidence Pack detail replay → KU / Chunk / Source / citation trace 字段完整 |
+| `smoke:p0-feedback-memory` | evidence-only answer → append-only feedback event → pending-review Memory Draft → memory review confirm |
 | `smoke:p0-z0a` | text import → rule chunk → KU review → fallback embedding → evidence-only |
 
-`smoke:p0-core` 是 W1 第一阻塞门槛。只有它通过后，才允许把 P0-Z0a 的 text import / review / evidence-only 链路接进 UI。
+`smoke:p0-core` 是 W1 第一阻塞门槛。D-107 后，P0-File / Parser / KU / Retrieval / Feedback 改动必须继续通过 `smoke:p0-file`、`smoke:p0-parse`、`smoke:p0-ku`、`smoke:p0-search-ask`、`smoke:p0-citation-detail` 和 `smoke:p0-feedback-memory`，再验证 P0-Z0a 的 text import / review / evidence-only 链路。
+
+### 2.8 架构审查实现验收强化（D-095）
+
+D-095 **不替换** D-090～D-094，只把架构审查中识别的「首批代码阶段最易翻车」项压成可验收子条款，避免开发态全绿、打包态或并发态隐性失败。
+
+#### 打包态 CI 与 native 依赖门禁
+
+- 任何依赖 **native 扩展** 或依赖 **PyInstaller / 最小打包路径** 才能在真实用户环境验证的库（含 sqlite-vec、python-magic、PDF/OCR 等 optional 栈），必须留在 `pyproject.toml` 的 optional group 中，**不得**被误标为 P0-Z0a 的 `core` 硬依赖。
+- CI 必须至少保留：**一条 `core-only`（或等价最小依赖）快速 job**；**一条「伪打包 / 最小打包」job**（与 D-092 sidecar 打包验证 spike 衔接），证明 sidecar 在**非** `uvicorn --reload` 开发态下可启动、health 可达、优雅退出。不得仅以开发机 `pnpm dev:desktop` 验收通过即认为分发链路安全。
+- 新增带 native 的依赖时，必须同步更新 **目标平台可加载性说明**（至少 macOS Apple Silicon、Windows x64；若产品承诺其他平台则补齐）。不得在单一开发机上验证通过即默认全平台可用。
+
+#### sqlite-vec 三态与证据链一致性
+
+- sqlite-vec 运行态与 D-091 一致，固定 **`available` / `load_failed` / `disabled`（或等价枚举）** 三态；探测结果必须进入 capability / `VectorStoreService` 状态，并可在 Provider 面板与 Query Explanation 中解释。
+- **降级为 FTS + metadata 混合排行时**，Evidence Pack 与 citation 绑定规则**不得**弱化为「无来源可答」；必须显式标记 `failure_type=vector_degraded`（或等价 capability 字段），与 `docs/error-handling-and-observability.md`、`docs/rag-pipeline.md` 口径一致。
+- 同一查询在向量可用与降级路径下**允许**命中排序不同，但 **citation 必须始终可绑定到 Source / Chunk / text span**；禁止静默切换引用语义或悄悄省略「使用了哪些证据」。
+
+#### SQLite 写入串行与 Worker 纪律
+
+- **单一 writer**：与 D-093 `local_sqlite_worker` + `PRAGMA busy_timeout` 一致；业务层长事务、由 Renderer 触发的同步写路径禁止持锁超过团队约定的 `busy_timeout` 阈值（实现阶段写入具体毫秒数与监控方式）。
+- 批量 embedding 写入、FTS 维护、索引重建必须有 **批大小上限** 与 **退让（yield）** 策略，避免长时间阻塞 sidecar 的其他只读请求或诱发 `database is locked` 级联。
+- FastAPI route **默认**只创建 job 与快照；整文件解析、整批嵌入、全文索引重建**不得**在请求线程内同步跑完（D-093「重任务隔离」；D-095 作为**验收**口径强调）。
+
+#### OpenAPI 与测试金字塔（交叉强化）
+
+- **第一条持久化业务 route** 起即使用 OpenAPI 生成的 TypeScript 类型与统一 error envelope（D-092 / D-093）；禁止「先手写 DTO、后补与 Pydantic 同步」。
+- **Electron + Playwright E2E** 只保留最小条数（例如：启动应用 → 验证 health/runtime → 优雅关闭）；RAG / 检索 / Evidence Pack 的变体以 **Python 合同测试** 与 **Repository 集成测试** 为主（细则见 `docs/testing-strategy.md`）。
+
+#### 诊断与日志隐私
+
+- 诊断包默认脱敏口径与 D-093 最小诊断包一致。
+- 实现阶段须为 Electron Main 与 sidecar 日志配置 **按大小滚动与保留上限**，避免长年累积明文路径、片段化用户内容或拖满用户磁盘。
+
+### 2.9 Knowledge Workspace 页面信息架构（D-098）
+
+D-098 不新增技术栈或运行时代码，只把 Renderer 的页面 IA、内部路由和状态归属固定为后续 S6 Renderer Workspace 的实现契约。
+
+#### 内部路由与默认技术边界
+
+| 路由 | 页面 | P0 技术边界 | 默认状态来源 |
+|---|---|---|---|
+| `/dashboard` | 首页 / 总览 Dashboard | Electron Renderer 内部 route；不做 landing page | `workspaceStore` + runtime/provider summary + retrieval/answer summary |
+| `/import` | 资料导入 | Uppy/tus-style UI 可后续接入；当前契约只要求 typed fetch + SSE job events | `jobStore` + Provider capability + upload/file status |
+| `/library` | 知识库 / 文件管理 | Source/File/Chunk/KU 列表和筛选；不直接读本地文件系统 | `workspaceStore` + `reviewStore` + generated API types |
+| `/search` | 智能搜索 | Retrieval Preview + Evidence Pack；LLM rewrite/reranker optional | `retrievalStore` + `citationStore` |
+| `/ask` | AI 问答 | RAG answer / evidence-only answer；必须显示 citation/provider/fallback | `retrievalStore` + `citationStore` + local conversation state |
+| `/graph` | 知识图谱 / 关系网络 | P0 只展示可解释关系视图；不引入 GraphRAG runtime 或图数据库 | `workspaceStore` + relation evidence summary |
+| `/outputs` | 生成结果 | 生成物为 derived artifact；进入 Review 或导出草稿 | `reviewStore` + `citationStore` + AIAnswer/Memory Draft summary |
+| `/settings` | 设置 | runtime、storage、provider、theme、import/export；Key 写入走 Main/IPC | runtime contract + Provider capability + settings API |
+
+约束：
+
+- 路由是 Renderer 内部 contract，不新增后端 endpoint、migration、OpenAPI 文件或依赖。
+- 所有 API 调用仍通过 Main/preload 注入的 typed fetch wrapper；Renderer 不硬编码 localhost、端口、token 或本地路径。
+- 左侧导航必须能到达 8 个页面；底部 runtime status bar 始终可见。
+- 首屏进入 `/dashboard`，不是营销页，也不是空白 Chat 页。
+
+#### 页面状态与 store 边界
+
+D-098 不新增大而全的 Zustand slice。跨页状态继续复用：
+
+```text
+workspaceStore
+jobStore
+reviewStore
+retrievalStore
+citationStore
+```
+
+页面局部输入、弹窗、折叠面板、临时筛选 UI 可以留在组件内。任何跨页共享状态必须进入既有 slice，并能从 API summary、SSE event 或 runtime contract 恢复。
+
+统一页面状态枚举：
+
+```text
+loading
+empty
+degraded
+recoverable_error
+done
+```
+
+`degraded` 必须携带 `capability_status`、`provider_status` 或 `fallback_reason`；`recoverable_error` 必须给出可操作的 next action，例如重试 job、打开设置、缩小检索范围、返回导入页补充资料或导出诊断。
+
+#### P0/P1/P2 页面矩阵
+
+| 页面能力 | P0-Core | P0-Z0a/Z0b | P1/P2 |
+|---|---|---|---|
+| Shell / Navigation / Status bar | 必须 | 持续可见 | 多窗口 / 快捷键增强 |
+| Dashboard summary | runtime/provider summary | 最近导入、文档数量、最近搜索/问答 | 趋势图、个性化推荐 |
+| Import | 文件选择、空态、能力状态 | 上传进度、解析状态、recoverable failure | 微信/网盘/Obsidian/Notion 导入 |
+| Library | 空态、Source 列表框架 | 分类树、标签/时间/项目筛选、文件状态 | 高级批量管理 |
+| Search | 空态、Query Explanation 框架 | evidence-only search、命中文段、citation trace | reranker / LTR / global search |
+| Ask | 空态、provider/fallback 状态 | evidence-only answer、引用、相关文档卡片、追问 | provider answer、长期对话记忆 |
+| Graph | 可解释空态 / disabled reason | confirmed relation / relation suggestion evidence view | GraphRAG、复杂图交互、图数据库 |
+| Outputs | 可解释空态 / disabled reason | 草稿入口、evidence/citation 绑定提示 | Word/PDF/Markdown 生产级导出 |
+| Settings | runtime/storage/provider status | 本地设置、provider disabled 状态 | 云同步、自动更新、团队设置 |
+
+Import 页面展示 PDF、Word、PPT、音频、视频、图片能力时必须读 `GET /api/ai-providers/capabilities` 或等价 summary；不得把 optional parser/OCR/ASR/video capability 展示为 P0 已完整支持。
 
 ---
 
@@ -1353,6 +1464,8 @@ P0 UI 不做：
 - **Blocking freeze**：未确认则不进入 P0-Core W1 工程骨架。
 - **Non-blocking freeze**：可以用占位或降级方案进入 W1，但正式分发或 P0-File / P0-RAG 可演示前必须确认。
 
+**编号说明**：§11.1–11.5 为 1–30 条；**D-095** 在 §11.6 追加 31–35 条实现验收强化（不替换既有条目）。与 `docs/mvp-scope.md` §10、`docs/data-model.md` §11 的逐条对齐若有差异，以实现阶段进度文档为准。
+
 P0-Core W1 的 blocking freeze 只包括：技术栈、P0-Z0a 竖切 schema、P0 核心 API、permission 枚举、上传 / text_import 输入模型、KU 最小字段、Review Action、common error envelope、通用 job/event API、P0 smoke test、开发期数据目录 / Bundle ID 占位。其余冻结项不得阻塞 Core 开工。
 
 P0-Z0a 竖切冻结口径：
@@ -1417,6 +1530,14 @@ P0-Z0b 补齐账号预埋 schema、分片恢复、source description、citation 
 
 30. 应用品牌与 Bundle ID（详见 `docs/desktop-architecture.md` §14.1）：P0-Core W1 前至少敲定开发期占位名；正式品牌、正式 Bundle ID、正式图标在外部分发前冻结。
 
+### 11.6 架构审查实现验收强化（D-095）
+
+31. **打包态 CI（D-095）**：native / PyInstaller 相关依赖待在 optional group；CI 含 `core-only` 快速 job 与「伪打包 / 最小打包」sidecar job；不得以仅 `uvicorn --reload` 开发态作为 sidecar 唯一验收。
+32. **sqlite-vec 与证据一致性（D-095）**：三态探测与 UI/解释可见；向量降级时 citation 规则不降级，须显式 `vector_degraded`（或等价字段）；禁止无来源可答。
+33. **SQLite 单写者与批写入（D-095）**：重写入经 worker；route 内禁止大块同步写；embedding / FTS 批处理有上限与退让策略。
+34. **OpenAPI 首日（D-095）**：首条业务 API 即 generated TS types + typed fetch + error envelope。
+35. **日志滚动（D-095）**：Main 与 sidecar 日志按大小滚动并设保留上限，与 D-093 脱敏诊断包口径一致。
+
 Blocking freeze 未完成时不建议创建代码工程。Non-blocking freeze 未完成时可以开工，但必须在实现计划中写明占位值、降级路径和替换时机。
 
 ---
@@ -1428,6 +1549,6 @@ Blocking freeze 未完成时不建议创建代码工程。Non-blocking freeze �
 - `docs/text-to-sql.md` 决定 P0 查询契约。
 - `docs/api-design.md` 决定 endpoint 语义。
 - `docs/api-implementation-plan.md` 决定 route-level 分层。
-- 本文档决定技术栈推荐、原型目录、实施切片和验证命令。
+- 本文档决定技术栈推荐、原型目录、实施切片和验证命令；**§2.8 / §11.6（D-095）**将架构审查结论落实为可与 D-090～D-094 并列验收的实现子条款。
 
 后续如果用户要求“开始实现 P0 原型”，应先确认本文档的技术栈建议，然后按 `docs/p0a-execution-plan.md` 的 P0-Core / P0-File / P0-AI / P0-RAG 周计划创建工程。

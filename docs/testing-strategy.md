@@ -1,8 +1,8 @@
 # 测试与评估策略
 
-版本：v0.21
+版本：v0.26
 日期：2026-05-17  
-状态：完整 P0 入库、P0-Z0a/Z0b 竖切、ProcessingJob、File Inspection、切片前准备层、结构化整理检查门、知识切片质量闭环、安全运维横切层、检查门映射单一来源、事件枚举单一来源、切片执行 profile fixture、AI 结构化整理 profile 与 D-079 存储映射 fixture、D-080 知识调用 / implicit_agent / D-081-D085 调用边界、profile schema、反馈策略与前端状态 fixture、向量检索与 RAG 验收策略 + provider fallback fixture + D-090 技术栈执行优化测试口径 + D-091 工程化验收门槛 + D-092 代码骨架前置契约测试口径 + D-093 桌面运行时硬化测试口径 + D-094 P0-Core 工程骨架开工测试口径
+状态：完整 P0 入库、P0-Z0a/Z0b 竖切、ProcessingJob、File Inspection、切片前准备层、结构化整理检查门、知识切片质量闭环、安全运维横切层、检查门映射单一来源、事件枚举单一来源、切片执行 profile fixture、AI 结构化整理 profile 与 D-079 存储映射 fixture、D-080 知识调用 / implicit_agent / D-081-D085 调用边界、profile schema、反馈策略与前端状态 fixture、D-098 Knowledge Workspace 页面契约 fixture、D-105 Citation Detail / Evidence Pack replay smoke、D-106 i18n settings smoke、D-107 feedback / memory smoke、向量检索与 RAG 验收策略 + provider fallback fixture + D-090 技术栈执行优化测试口径 + D-091 工程化验收门槛 + D-092 代码骨架前置契约测试口径 + D-093 桌面运行时硬化测试口径 + D-094 P0-Core 工程骨架开工测试口径
 
 ## 1. 文档目的
 
@@ -142,7 +142,7 @@ D-093 后，首批桌面工程必须补充以下测试：
 
 ### 2.9 D-094 P0-Core 工程骨架开工测试口径
 
-D-094 后，首批代码工程必须先通过 `smoke:p0-core`，再运行或开发 `smoke:p0-z0a`。测试目标从业务闭环前移到桌面运行时骨架：
+D-094 后，首批代码工程必须先通过 `smoke:p0-core`，再运行或开发业务 smoke。D-107 后，阶段顺序固定为 `smoke:p0-core` → `smoke:p0-i18n-settings` → `smoke:p0-file` → `smoke:p0-parse` → `smoke:p0-ku` → `smoke:p0-search-ask` → `smoke:p0-citation-detail` → `smoke:p0-feedback-memory` → `smoke:p0-z0a`：
 
 | 测试项 | 期望 |
 |---|---|
@@ -153,7 +153,7 @@ D-094 后，首批代码工程必须先通过 `smoke:p0-core`，再运行或开�
 | App data dir + SQLite init | 数据库、WAL、日志、backup hook 全部落在 app data dir；SQLite init 包含 WAL、foreign keys、busy timeout、quick check |
 | Shutdown cleanup | 应用退出后 sidecar 和 worker 被清理，不残留后台进程或锁文件 |
 | Status bar mapping | runtime state 和 sidecar / DB / worker / provider / vector 子状态能映射到底部状态栏 |
-| Smoke order | `pnpm smoke:p0-core` 必须先于 `pnpm smoke:p0-z0a` 通过 |
+| Smoke order | `pnpm smoke:p0-core` 必须先于 `pnpm smoke:p0-i18n-settings`，`pnpm smoke:p0-i18n-settings` 必须先于 `pnpm smoke:p0-file`，`pnpm smoke:p0-file` 必须先于 `pnpm smoke:p0-parse`，`pnpm smoke:p0-parse` 必须先于 `pnpm smoke:p0-ku`，`pnpm smoke:p0-ku` 必须先于 `pnpm smoke:p0-search-ask`，`pnpm smoke:p0-search-ask` 必须先于 `pnpm smoke:p0-citation-detail`，`pnpm smoke:p0-citation-detail` 必须先于 `pnpm smoke:p0-feedback-memory`，`pnpm smoke:p0-feedback-memory` 必须先于 `pnpm smoke:p0-z0a` 通过 |
 | Business feature block | `smoke:p0-core` 通过前不得新增 upload parsing UI、RAG UI、真实 Provider 接入、OCR/ASR、图谱或用户聊天入口；初期可用 review checklist 执行，后续再自动化 |
 
 `smoke:p0-core` 最小链路固定为：
@@ -167,6 +167,108 @@ Electron Main boot
 → renderer shell + status bar
 → diagnostics export stub
 → graceful shutdown
+```
+
+### 2.10 D-098 Knowledge Workspace 页面契约测试口径
+
+D-098 后，Renderer 页面测试不是视觉装饰检查，而是验证 8 个主页面能正确消费 runtime、job、provider、retrieval、citation 和 review 状态。
+
+| 页面 | 必测状态 | 关键场景 |
+|---|---|---|
+| `/dashboard` | loading / empty / degraded / done | 首屏进入 dashboard；最近导入为空；provider degraded；最近搜索/问答摘要可见 |
+| `/import` | loading / empty / degraded / recoverable_error / done | 拖拽上传进度、解析失败可恢复、hash 不一致、provider capability 显示 PDF/Word/PPT/音频/视频/图片真实可用性 |
+| `/library` | loading / empty / degraded / recoverable_error / done | 文档列表、分类树、标签/时间/项目筛选、自动分类结果、文件状态和 review pending 状态 |
+| `/search` | loading / empty / degraded / recoverable_error / done | 简单事实、概念解释、时间线、文件定位、复杂综合问题；空结果和证据不足必须显示原因 |
+| `/ask` | loading / empty / degraded / recoverable_error / done | evidence-only answer、provider unavailable、citation 展示、相关文档卡片、追问、反馈按钮 |
+| `/graph` | loading / empty / degraded / done | 无关系时 disabled reason；有 confirmed relation 或 relation suggestion evidence 时可点击回源；不要求 GraphRAG |
+| `/outputs` | loading / empty / degraded / recoverable_error / done | 无 evidence 时禁止生成或导出；会议纪要/学习笔记/项目摘要/汇报提纲必须绑定 citation |
+| `/settings` | loading / empty / degraded / recoverable_error / done | 语言切换默认中文、英文切换、普通浏览器 session fallback、auth disabled、provider disabled、runtime degraded、存储状态、导入导出状态和 Keychain 写入边界 |
+
+页面级不变量：
+
+1. 8 个内部路由 `/dashboard`、`/import`、`/library`、`/search`、`/ask`、`/graph`、`/outputs`、`/settings` 必须在左侧导航可达。
+2. 底部 runtime status bar 在所有页面可见。
+3. 页面 API 调用通过 typed fetch wrapper；不得手写 localhost、token 或后端 DTO。
+4. Import 页面格式能力来自 provider/capability status，不得硬编码“全部支持”。
+5. Search / Ask 必须展示 Query Explanation、Evidence Pack、Citation Trace、provider/fallback 状态和空结果 / 证据不足原因。
+6. Graph 不要求 GraphRAG；Outputs 不自动写 confirmed knowledge。
+7. 微信 / 网盘 / Obsidian / Notion 入口只作为 P1/P2 placeholder，必须显示 disabled reason 或 future label。
+8. 错误引用、缺失来源、有用/无用等反馈只写反馈事件或 pending review，不自动修改 confirmed knowledge。
+
+### 2.11 D-105 Citation Detail / Evidence Pack replay 测试口径
+
+D-105 后，Citation Detail 是 `/search` 和 `/ask` 内嵌面板，不新增主路由。测试目标是证明后端 detail endpoint 足够渲染复盘信息，前端不自行拼接证据链。
+
+| 测试项 | 期望 |
+|---|---|
+| confirmed KU detail | confirmed KU 被检索命中后，`GET /api/evidence-packs/{id}` 返回 KU title/status/type、chunk citation/content excerpt、source title/origin/type、rank score 和 citation trace |
+| pending_review exclusion | `pending_review` KU 不进入 Evidence Pack，也不出现在 citation detail |
+| no evidence replay | 无证据时 detail 返回空 `items`、`failure_type=no_retrieval_result`、fallback reason 和 no evidence reason，不生成伪答案 |
+| vector degraded replay | sqlite-vec degraded 时 detail 仍保留 source/chunk/KU 绑定，并返回 `provider_status=degraded` 与 `fallback_reason` |
+| Search UI replay | `/search` 的 Evidence Items 提供 Open detail，并渲染后端返回的 Citation Detail panel |
+| Ask UI replay | `/ask` 从 answer 的 `evidence_pack_id` 打开同一 detail panel，展示 answer 使用过的 evidence item、citation label 和 source/chunk/KU |
+
+`smoke:p0-citation-detail` 固定链路：
+
+```text
+text import
+→ pending_review preview/detail confirms no_retrieval_result
+→ confirm KU
+→ retrieval preview
+→ evidence pack detail validates KU / Chunk / Source / query explanation / provider fallback
+→ evidence-only answer
+→ answer evidence_pack_id detail replay
+```
+
+### 2.12 D-106 UI i18n / Bilingual Settings 测试口径
+
+D-106 后，语言偏好由后端 `/api/settings` 持久化，Renderer 只负责渲染 typed message keys。测试目标是证明默认中文、英文切换、后端 `config.json` 持久化和普通浏览器 degraded fallback 都可复盘。
+
+| 测试项 | 期望 |
+|---|---|
+| default language | `GET /api/settings` 在无配置文件时返回 `language=zh-CN` |
+| persisted language | `PATCH /api/settings` 保存 `en-US` 后再次 `GET` 返回 `en-US`；切回 `zh-CN` 同理 |
+| validation | 非法语言和未知字段返回 `validation_error`；无 local token 仍返回 sidecar auth error |
+| Renderer i18n | 8 个主路由的导航、标题、按钮、状态、空态和 runtime bar 能随语言切换 |
+| Browser fallback | 普通浏览器无 Electron preload 时显示 bridge degraded，语言切换只保存在 session，不直接读写本地文件 |
+| Data boundary | 用户上传内容、文件名、KU、source excerpt、citation label、API enum/status code 不翻译 |
+
+`smoke:p0-i18n-settings` 固定链路：
+
+```text
+start temporary API
+→ unauthorized GET /api/settings is rejected
+→ GET default zh-CN
+→ PATCH en-US
+→ GET persisted en-US
+→ PATCH zh-CN
+→ invalid language returns validation_error
+```
+
+### 2.13 D-107 Feedback Events / Memory Draft Review 测试口径
+
+D-107 后，feedback 是 append-only local event，Memory Draft 是 pending-review 回流对象。测试目标是证明反馈不污染知识真值，Memory 必须经过 Review 才能确认。
+
+| 测试项 | 期望 |
+|---|---|
+| feedback auth / validation | `POST /api/feedback` 需要 local token，非法 feedback type 或无目标返回 validation error |
+| target binding | `evidence_pack_id`、`ai_answer_id`、`evidence_item_id` 至少一个存在，且必须指向已存在对象 |
+| append-only feedback | feedback 写入 `feedback_events`，不修改 confirmed KU、Source、Evidence Pack 或 AIAnswer |
+| memory draft create | `POST /api/memory-drafts` 需要存在的 `ai_answer_id` 和非空 content，创建 `memories.status=pending_review` |
+| review task | Memory Draft 创建 `review_tasks.target_type=memory`，不直接成为 confirmed memory |
+| memory confirm / ignore | Review confirm 标记 `confirmed / user_confirmed=true`；ignore 标记 `archived`；均不创建 confirmed KU |
+| Renderer integration | `/ask` 可提交反馈和保存 Memory Draft；`/library` 可处理 memory review；`/outputs` 可复盘 draft 状态 |
+
+`smoke:p0-feedback-memory` 固定链路：
+
+```text
+text import
+→ confirm KU
+→ evidence-only answer
+→ submit useful feedback
+→ create Memory Draft from answer
+→ confirm memory review
+→ verify feedback policy and memory confirmed state
 ```
 
 ---

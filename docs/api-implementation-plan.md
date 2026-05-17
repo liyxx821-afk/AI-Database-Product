@@ -1,14 +1,22 @@
 # API Route-Level 实施计划
 
-版本：v0.20-draft
+版本：v0.25-draft
 日期：2026-05-17  
-状态：P0 API 实施映射草案——四切片 + P0-Z0a/Z0b 竖切 + 切片前准备层 / 结构化整理检查门 / 知识切片质量闭环 / 安全运维横切层 / 检查门映射单一来源 / 事件枚举单一来源 / ProcessingJob / sensitive grant / evidence-only / 切片执行 profile / AI 结构化整理 profile / D-079 存储映射契约对齐 / D-080 知识调用 profile 与 implicit_agent / D-081-D085 调用边界、profile schema、Z0a 锚点与前端状态契约对齐 / D-092 OpenAPI 类型生成、trace chain 与 migration 波次命名 / D-093 桌面运行时 API 约束 / D-094 P0-Core 工程骨架 API 顺序
+状态：P0 API 实施映射草案——四切片 + P0-Z0a/Z0b 竖切 + 切片前准备层 / 结构化整理检查门 / 知识切片质量闭环 / 安全运维横切层 / 检查门映射单一来源 / 事件枚举单一来源 / ProcessingJob / sensitive grant / evidence-only / 切片执行 profile / AI 结构化整理 profile / D-079 存储映射契约对齐 / D-080 知识调用 profile 与 implicit_agent / D-081-D085 调用边界、profile schema、Z0a 锚点与前端状态契约对齐 / D-092 OpenAPI 类型生成、trace chain 与 migration 波次命名 / D-093 桌面运行时 API 约束 / D-094 P0-Core 工程骨架 API 顺序 / D-098 页面到 API 组映射 / D-105 Citation Detail replay / D-106 Settings language config 持久化 / D-107 Feedback Events 与 Memory Draft Review
 
 ## 1. 文档目的
 
 `docs/api-design.md` 已定义 P0 API 边界，但它仍是 endpoint 草案。本文档把这些 endpoint 进一步映射为 route、DTO、service、repository、事务边界和实施阶段。
 
 本文档不选择最终技术栈，也不编写代码。它的作用是让后续原型开发可以直接进入工程拆分，而不是重新解释 API 草案。
+
+D-104 已把 Retrieval Preview / Search-Ask Integration Z0a 落地为当前实现边界：`POST /api/retrieval/preview`、`GET /api/evidence-packs/{evidence_pack_id}` 和 `POST /api/retrieval/evidence-only` 共用 confirmed KU → Evidence Pack → Citation Trace 链路，不新增数据库表，不接真实 LLM、reranker、Text-to-SQL provider、GraphRAG、feedback 或 Memory Draft。
+
+D-105 已将 `GET /api/evidence-packs/{evidence_pack_id}` 从摘要复盘扩展为 Citation Detail / Evidence Pack replay：detail service 从 `retrieval_logs.filters_json` 还原 query explanation，并通过 `evidence_items → knowledge_units / chunks / sources` join 返回 KU / Chunk / Source / provider fallback / citation trace 字段；Renderer `/search` 与 `/ask` 只渲染后端 detail，不在前端拼接证据链。
+
+D-106 已新增 `GET /api/settings` 与 `PATCH /api/settings`：SettingsService 只接受 `language=zh-CN | en-US`，默认返回 `zh-CN`，并由后端原子写入 app data 下的 `config.json`；Renderer 只消费 typed settings API，不把语言偏好写入 SQLite、长期 token、Node 文件系统或裸 `localhost`。
+
+D-107 已新增 `POST /api/feedback`、`POST /api/memory-drafts`、`GET /api/memory-drafts` 和 `GET /api/memory-drafts/{id}`：FeedbackService 只写 append-only `feedback_events`，MemoryService 只创建 `memories.status=pending_review` 与 `review_tasks.target_type=memory`；Review confirm / ignore 支持 memory 状态变更，但不创建 confirmed KU，也不启用 `retrieval_feedback`。
 
 目标：
 
@@ -133,6 +141,39 @@ request_id:
 - upload / retrieval / RAG route 不得参与 `smoke:p0-core`；
 - 如果 DB 处于 `migration_running` 或 `recovery_required`，写接口默认不可用，但 runtime endpoint 必须仍可返回状态；
 - `POST /api/system/diagnostics:export` 可以先生成最小脱敏包或 stub，但接口形态必须固定。
+
+### 2.5 D-098：页面到现有 API 组映射
+
+D-098 不新增 route、DTO、migration 或 OpenAPI 文件，只约束 Renderer 页面如何消费既有 route group，以及后端 service response summary 必须能支撑页面状态。
+
+| Renderer route | API / Service owner | 实施说明 |
+|---|---|---|
+| `/dashboard` | `SystemStatusService`、Source / Retrieval / Answer query services | 聚合 runtime/provider summary、最近导入、文档数量、最近搜索/问答和 AI 摘要数量；如果 summary 尚未实现，P0-Core 只显示 runtime 和可解释 empty state |
+| `/import` | `UploadService`、`FileInspectionService`、`ProcessingEventService`、`ProviderCapabilityService` | 上传和解析状态走 ProcessingJob + SSE；格式能力展示来自 provider capability，不在 UI 写死“已支持所有格式” |
+| `/library` | Project/Folder/Tag/Source/Chunk/KU/Review query services | 列表和筛选只消费 API；Renderer 不读本地文件系统，不直接拼接 chunk/source 状态 |
+| `/search` | `RetrievalPreviewService`、`EvidencePackService`、`CitationService`、`FeedbackService` | response 必须返回 query understanding、strategy route、ranking summary、citation trace、evidence gaps 和 feedback actions |
+| `/ask` | `RAGAnswerService`、`EvidencePackService`、`CitationService`、`FeedbackService` | Z0a 固定 evidence-only；Provider answer 只在能力可用时启用，且必须带 citation |
+| `/graph` | `RelationService`、Tag/Source/KU query services、Evidence summary | P0 只读 confirmed relation 或 relation suggestion evidence；GraphRAG 和外部图数据库不进入 route 依赖 |
+| `/outputs` | `RAGAnswerService`、`MemoryService`、`ReviewTaskService`、`ExportService` | 输出物为 derived artifact；无 evidence 时返回 disabled / pending review，不写 confirmed knowledge |
+| `/settings` | `AuthStatusService`、`SystemStatusService`、`SettingsService`、`ProviderCapabilityService`、`BackupService`、`ExportService` | D-106 已接入语言设置；API Key 写入仍走 Electron IPC / Keychain；settings route 拒绝密钥字段、未知字段和非法语言 |
+
+页面状态字段建议统一进入各 response 的 `meta.frontend_state` 或等价 summary：
+
+```yaml
+state: loading | empty | degraded | recoverable_error | done
+reason:
+capability_status:
+fallback_reason:
+next_action:
+trace_id:
+```
+
+实现约束：
+
+- 不为 D-098 生成新的 endpoint；如果某页面缺少 summary，先返回既有对象 + 空态解释。
+- Search / Ask 页面不得依赖前端临时缓存拼 Evidence Pack；Evidence、Citation 和 Query Explanation 均以后端返回为准。
+- Graph / Outputs 数据不足时返回 disabled reason；不得用 mock 图谱或无来源生成物填充 UI。
+- Import 页面所有格式能力均来自 `GET /api/ai-providers/capabilities` 或系统状态摘要。
 
 ---
 
@@ -554,6 +595,8 @@ commit
 | Route | Service | Repository / Module | P0 关键行为 |
 |---|---|---|---|
 | `POST /api/retrieval/preview` | `RetrievalPreviewService.preview` | `QueryUnderstandingService`, `RetrievalStrategyService`, `TextToSqlTemplateService`, `KnowledgeUnitRepository`, `EmbeddingRepository`, `VectorStoreService`, `ProviderCapabilityService`, `RetrievalLogRepository` | 规则 query understanding、strategy route、keyword/vector/hybrid merge、ranking/citation trace 摘要、检索解释、写 retrieval log |
+| `GET /api/evidence-packs/{evidence_pack_id}` | `EvidencePackService.getDetail` | `EvidencePackRepository`, `EvidenceItemRepository`, `KnowledgeUnitRepository`, `ChunkRepository`, `SourceRepository`, `RetrievalLogRepository` | D-105 Z0b-lite 已实现：按 ID 返回 Evidence Pack replay 与 item-level citation detail；detail 包含 KU title/status/type、chunk excerpt、source origin、query explanation、provider fallback 和 citation trace |
+| `POST /api/retrieval/evidence-only` | `EvidenceOnlyAnswerService.answer` | `RetrievalPreviewService`, `AIAnswerRepository` | D-104 Z0a 已实现：复用 retrieval preview / evidence assembly，不调用 LLM；无证据只返回 no evidence reason，不生成伪答案 |
 
 流程：
 
@@ -579,16 +622,20 @@ return results + query_explanation
 P0 输出必须包含：
 
 - `retrieval_log_id`
-- `results`
-- `match_reasons`
+- `evidence_pack_id`
 - `query_explanation`
-- `evidence_gaps`
-- `query_understanding`
-- `strategy_route`
-- `ranking_summary`
+- `evidence_pack`
+- `evidence_item_ids`
+- `citation_labels`
 - `citation_trace_summary`
-- `feedback_policy`
-- `feedback_actions`
+- `provider_status`
+- `fallback_reason`
+
+D-104 后，feedback policy/actions、relation evidence、provider-backed vector ranking 和 Text-to-SQL provider 仍是 Z2 或后续增强，不属于当前实现验收。
+
+D-105 后，`GET /api/evidence-packs/{id}` 是 Search / Ask citation detail 的单一后端入口；不得要求 Renderer 自行 join KU / Chunk / Source，也不得在 detail replay 中写 feedback、Memory Draft 或 confirmed knowledge。
+
+D-106 后，`GET /api/settings` 与 `PATCH /api/settings` 是语言偏好持久化的单一后端入口；Renderer 普通浏览器 fallback 只能保留 session 语言，不得绕过 preload bridge 直接读写 `config.json`。
 
 路由约束：
 
@@ -631,7 +678,7 @@ commit
 - 预览、摘要、知识卡片只能作为辅助视图；Citation Preview 必须回到 Source / Chunk / Knowledge Unit、file/page/paragraph/text span。
 - `implicit_agent` 在 P0 只允许隐式单 Agent：对话上下文、意图理解、只读任务规划、内部检索、RAG 问答和草稿生成；多 Agent、自主执行、外部 API 工具调用和生产级任务编排不落地。
 
-### 5.9 Provider Capability / Worker Events
+### 5.9 Provider Capability / Worker Events / Desktop Settings
 
 | Route | Service | Repository / Module | P0 关键行为 |
 |---|---|---|---|
@@ -640,6 +687,8 @@ commit
 | `GET /api/jobs/{id}` | `JobQueryService.getSnapshot` | `JobRepository`, `ProcessingStatusEventRepository` | 返回当前 ProcessingJob snapshot、last_event_id、可恢复状态和失败原因 |
 | `GET /api/uploads/{id}/events` | `ProcessingEventService.streamUploadEventsAlias` | `UploadRepository`, `ProcessingStatusEventRepository` | 上传页兼容别名；内部解析到 job 后复用 `streamJobEvents` |
 | `GET /api/system/status` | `SystemStatusService.getStatus` | `SystemLogRepository`, `JobRepository`, `ProviderCapabilityService` | 返回日志、异常监控、数据安全、性能成本和稳定性本地汇总 |
+| `GET /api/settings` | `SettingsService.getUserSettings` | `ConfigFileStore` | D-106 已实现：读取 app data `config.json`，不存在时返回 `language=zh-CN`、`persistence=config_json` |
+| `PATCH /api/settings` | `SettingsService.updateUserSettings` | `ConfigFileStore` | D-106 已实现：只允许 `language=zh-CN | en-US`，未知字段或非法语言返回 `validation_error`，写入时原子替换 `config.json` |
 
 实现约束：
 
@@ -657,15 +706,17 @@ commit
 
 | Route | Service | Repository | P0 关键行为 |
 |---|---|---|---|
-| `POST /api/feedback` | `FeedbackService.submit` | `FeedbackEventRepository`, `RetrievalFeedbackRepository`, `EvidencePackRepository` | Z0a 可选写 append-only `feedback_events`；Z2 写 `retrieval_feedback` |
-| `POST /api/memory-drafts` | `MemoryService.createDraft` | `MemoryRepository`, `ReviewTaskRepository`, `AuditLogRepository` | P0-Z2 创建 pending_review memory |
+| `POST /api/feedback` | `FeedbackService.submit` | `FeedbackEventRepository`, `EvidencePackRepository`, `AIAnswerRepository`, `EvidenceItemRepository` | D-107 已实现：校验至少一个 evidence_pack / ai_answer / evidence_item 目标，写 append-only `feedback_events`，返回 `feedback_policy`；不写 `retrieval_feedback` |
+| `POST /api/memory-drafts` | `MemoryService.createDraft` | `MemoryRepository`, `ReviewTaskRepository`, `AuditLogRepository`, `AIAnswerRepository` | D-107 已实现：从既有 `ai_answer_id` 创建 `memories.status=pending_review` 与 `review_tasks.target_type=memory` |
+| `GET /api/memory-drafts` | `MemoryService.listDrafts` | `MemoryRepository`, `ReviewTaskRepository` | D-107 已实现：返回 memory draft / confirmed / archived 摘要，可按 status 过滤 |
+| `GET /api/memory-drafts/{id}` | `MemoryService.getDraft` | `MemoryRepository`, `ReviewTaskRepository` | D-107 已实现：复盘单个 memory draft 与 review task 绑定 |
 
 约束：
 
-- Feedback 在 Z0a 不作为 blocking 写接口；若提前实现，只能保存到 `feedback_events`，并携带 `feedback_policy`。Z2 才允许写 `retrieval_feedback` 并参与 ranking suggestion。
+- Feedback 在 D-107 只保存到 `feedback_events`，并携带 `feedback_policy`。Z2 才允许写 `retrieval_feedback` 并参与 ranking suggestion。
 - `click / useful / not_useful / favorite / bad_citation / missing_source / downrank_source` 只影响后续排序建议、诊断和 UI 提示，不自动改写 confirmed knowledge。
-- Memory Draft 是 P0-Z2 能力，必须进入 Review。
-- Memory confirmed 后才可进入 agent_default。
+- Memory Draft 在 D-107 作为 Z0b-lite 能力提前实现，但仍必须进入 Review。
+- Memory confirmed 后才可在后续阶段进入 agent_default；D-107 不把 Memory 加入 retrieval results。
 
 ---
 
@@ -794,6 +845,20 @@ OpenAPI 应包含 P0-RAG answer / evidence-only fallback 接口；真实 Text-to
 - `source_origin` 不支持时返回 `unsupported_source_origin`。
 - 用户编辑版本不会被 regenerate 静默覆盖。
 
+D-101 已实现的 Z0a 子集：
+
+- 已实现 Upload / File API：`POST /api/uploads`、`PUT /api/uploads/{id}/parts/{part_no}`、`POST /api/uploads/{id}:complete`、`GET /api/uploads/{id}`、`GET /api/files`、`GET /api/files/{file_id}`、`POST /api/files/{file_id}:verify`。
+- 已实现 local_fs 上传存储、分片记录、sha256 完整性校验、`file_id`、File Inspection Z0a summary 和 `file_inspection` ProcessingJob events。
+- 已实现 renderer `/import` 的 Uppy core 自定义低保真上传控件，以及 `/library` 的真实 file list。
+- 未实现 preview、OCR/ASR、真实文件类型 provider 和完整 quarantine policy；这些保持在后续 P0-File/P0-AI 阶段。
+
+D-102 已实现的 Z0a 子集：
+
+- 已实现 `POST /api/files/{file_id}:parse`、`GET /api/parse-tasks/{id}`、`GET /api/sources`、`GET /api/sources/{source_id}`。
+- 已实现内置 Parser Router：text / markdown / json / csv 类文件使用 `builtin_text_markdown` 生成 `Source(source_origin=parsed_file)`、`Chunk`、FTS 记录和最小 `chunk_quality_checks`。
+- 已实现 `parse_tasks`、`parse_warnings`、`file_parse` ProcessingJob events 和 renderer `/library` Source 面板。
+- D-102 不创建 Candidate KU、Review Task 或 Embedding；D-103 已通过显式 Knowledge extraction API 接入这些对象。
+
 ### 9.4 P0-AI：Knowledge Unit Extraction / Review / Embedding
 
 目标：
@@ -803,6 +868,13 @@ OpenAPI 应包含 P0-RAG answer / evidence-only fallback 接口；真实 Text-to
 - 实现 KU 与 Chunk / Tag 关联；
 - 实现 Review Queue 和 Review Action。
 - 实现 Embedding rebuild。
+
+D-103 已实现的 Z0a 子集：
+
+- 已实现 `POST /api/knowledge-units:extract`、`GET /api/knowledge-units`、`GET /api/knowledge-units/{knowledge_unit_id}`。
+- 已实现 parsed Source / Chunk → Candidate KU → Review Task → `mock_fixed_384` fallback embedding。
+- 已实现 renderer `/library` 的 Source Extract 操作和 Review 队列 confirm / ignore。
+- 未实现真实 LLM、标签合并、关系写入、Memory Draft、provider-backed RAG 或完整 embedding rebuild worker。
 
 验收：
 

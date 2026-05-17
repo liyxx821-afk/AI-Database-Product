@@ -1,8 +1,8 @@
-# 数据模型 v0.20-draft
+# 数据模型 v0.22-draft
 
-版本：v0.20-draft
+版本：v0.22-draft
 日期：2026-05-17  
-状态：草案——完整 P0 入库与知识处理平台 + 切片前准备层 / 切片执行 profile / AI 结构化整理 profile / D-079 结构化整理子字段与存储映射 / D-080 知识调用 profile 与隐式 Agent / D-081 调用持久化边界 / D-082 InvocationProfileSchema v1 / D-083 前端状态与反馈策略 / D-085 Z0a 调用锚点、反馈和 citation 边界修正 / D-092 trace chain 与 Evidence Pack 失败态 / 知识切片质量闭环 / 安全运维横切层 / 检查门映射单一来源 / 事件枚举单一来源 / P0-Z0a/Z0b 最小迁移 / ProcessingJob / sensitive grant / evidence-only 契约收紧
+状态：草案——完整 P0 入库与知识处理平台 + 切片前准备层 / 切片执行 profile / AI 结构化整理 profile / D-079 结构化整理子字段与存储映射 / D-080 知识调用 profile 与隐式 Agent / D-081 调用持久化边界 / D-082 InvocationProfileSchema v1 / D-083 前端状态与反馈策略 / D-085 Z0a 调用锚点、反馈和 citation 边界修正 / D-092 trace chain 与 Evidence Pack 失败态 / D-104 Retrieval Preview 复用既有调用对象 / D-107 feedback_events 与 memories Z0b-lite 物理表 / 知识切片质量闭环 / 安全运维横切层 / 检查门映射单一来源 / 事件枚举单一来源 / P0-Z0a/Z0b 最小迁移 / ProcessingJob / sensitive grant / evidence-only 契约收紧
 
 ## 1. 文档目的
 
@@ -140,7 +140,7 @@ mock_fixed_384（provider 缺失或禁用时 fallback）
 
 ### 2.8.2 D-080/D-081/D-082/D-083 知识调用 profile 与前端状态映射
 
-D-080 不新增大表，不改变 P0 SQLite + sqlite-vec + FTS5 主库混合策略。D-081 进一步收紧 P0-Z0a / P0-Z2 的持久化边界：P0-Z0a 只必须持久化 `retrieval_logs`、`evidence_packs`、`evidence_items` 和 `ai_answers(output_type=evidence_only_answer)`；`invocation_requests`、`retrieval_plans`、`memories`、`retrieval_feedback` 是 P0-Z2 对象，或作为提前实现的可选增强，不能拖慢 Z0a blocking migration。D-082 固定 `InvocationProfileSchema v1`；D-083 固定前端状态和反馈策略契约。D-085 进一步规定：Z0a 的 Evidence / Answer 以 `retrieval_log_id` 和 `evidence_pack_id` 作为可实现锚点，`request_id` / `retrieval_plan_id` 在 Z0a 可为空；Z0a 只允许 append-only `feedback_events` 或 response-only feedback summary，不创建 `retrieval_feedback`；Z0a 返回 evidence item / citation trace summary，不返回持久化 `answer_citation_id`。
+D-080 不新增大表，不改变 P0 SQLite + sqlite-vec + FTS5 主库混合策略。D-081 进一步收紧 P0-Z0a / P0-Z2 的持久化边界：P0-Z0a 只必须持久化 `retrieval_logs`、`evidence_packs`、`evidence_items` 和 `ai_answers(output_type=evidence_only_answer)`；`invocation_requests`、`retrieval_plans`、`memories`、`retrieval_feedback` 是 P0-Z2 对象，或作为提前实现的可选增强，不能拖慢 Z0a blocking migration。D-082 固定 `InvocationProfileSchema v1`；D-083 固定前端状态和反馈策略契约。D-085 进一步规定：Z0a 的 Evidence / Answer 以 `retrieval_log_id` 和 `evidence_pack_id` 作为可实现锚点，`request_id` / `retrieval_plan_id` 在 Z0a 可为空；Z0a 只允许 append-only `feedback_events` 或 response-only feedback summary，不创建 `retrieval_feedback`；Z0a 返回 evidence item / citation trace summary，不返回持久化 `answer_citation_id`。D-104 不新增表，`POST /api/retrieval/preview` 与 `POST /api/retrieval/evidence-only` 复用同一 confirmed KU → Evidence Pack → Citation Trace 链路，`GET /api/evidence-packs/{id}` 只读取既有 pack/item 记录。D-107 将 `feedback_events` 和 `memories` 作为 Z0b-lite 物理表提前实现：feedback 仍只 append-only，不写 `retrieval_feedback`；Memory Draft 必须进入 Review，确认前不进入检索。
 
 | D-080 逻辑对象 | P0 写入位置 | 说明 |
 |---|---|---|
@@ -171,7 +171,7 @@ trace_id
 - `processing_jobs` 和 `processing_status_events` 必须可关联到同一 `trace_id`，用于上传、解析、切片、embedding 和 RAG answer 的诊断聚合。
 - `retrieval_logs`、`evidence_packs`、`ai_answers` 建议直接结构化保存 `trace_id`；`request_id` 在 Z0a 可为空或只存在于 response/log summary。
 - Evidence Pack 失败态使用 `evidence_packs.failure_type` 表达：`no_retrieval_result / insufficient_evidence / permission_blocked / citation_binding_failed / vector_degraded`。
-- 除 `vector_degraded` 且证据仍充分的 evidence-only 降级场景外，Evidence Pack 出现不可回答失败态时不得写入 `ai_answers`。
+- 除 `vector_degraded` 且证据仍充分的 evidence-only 降级场景外，Evidence Pack 出现不可回答失败态时不得写入伪答案；D-104 兼容 endpoint 可写入 `ai_answers(output_type=evidence_only_answer)` 保存 no evidence reason，但 `evidence_item_ids_json` 必须为空且不得生成来源外内容。
 
 D-082 profile envelope 是所有调用 profile 的最小外壳：
 
@@ -348,7 +348,7 @@ P0 可以先用配置 manifest 实现 profile registry；如果实现期需要�
 | P0-Core | Z0a/Z0b | users, projects, folders, tags, user_profiles, auth_identities, roles, access_policies, audit_logs, system_logs | Z0a 只要求 `local_user` 和空间/标签骨架；账号预埋、审计和系统日志可在 Z0b 补齐 |
 | P0-File | Z0a/Z0b/Z1 | upload_tasks, upload_parts, files, file_integrity_checks, file_inspection_results, processing_jobs(`ingestion_jobs`), processing_status_events, sources | Z0a 支持直传或 text_import 和 inspection summary；分片恢复、完整 report 和增强恢复进入 Z0b/Z1 |
 | P0-AI | Z0a/Z0b/Z1 | source_descriptions, parse_tasks, parse_warnings, chunks, chunk_quality_checks, quality_events, knowledge_units, knowledge_unit_chunks, knowledge_unit_tags, knowledge_relations, embeddings, review_tasks | Z0a 先做解析、Chunk、KU、Review、Embedding；source description、标签明细、质量事件和关系逐步补齐 |
-| P0-RAG | Z0a/Z0b/Z2 | retrieval_logs, evidence_packs, evidence_items, ai_answers, feedback_events, answer_citations, sensitive_access_grants, invocation_requests, retrieval_plans, memories, retrieval_feedback | Z0a 只做 retrieval log + evidence pack + `evidence_only_answer`；`feedback_events` 在 Z0a 只可作为 append-only UI/诊断事件且不影响真值；citation 明细与敏感授权 Z0b；invocation plan、memory、retrieval_feedback、LLM answer 在 Z2 补齐 |
+| P0-RAG | Z0a/Z0b/Z2 | retrieval_logs, evidence_packs, evidence_items, ai_answers, feedback_events, memories, answer_citations, sensitive_access_grants, invocation_requests, retrieval_plans, retrieval_feedback | Z0a 只做 retrieval log + evidence pack + `evidence_only_answer`；D-107 已提前实现 `feedback_events` append-only 与 pending-review `memories`，两者不影响真值、不进入 retrieval；citation 明细与敏感授权 Z0b；invocation plan、retrieval_feedback、LLM answer 在 Z2 补齐 |
 | P1+ | 后续扩展 | version_snapshots, agents, agent_invocations, agent_memories | 版本回滚、多 Agent、多设备同步和高级反馈治理 |
 
 ### 3.1 P0-Z0a blocking 必建对象
@@ -413,7 +413,7 @@ memories
 retrieval_feedback
 ```
 
-P0-Z0a 验证闭环：Upload / text_import → File → Source → Parse → Chunk → KU → Review → Confirmed → Embedding → Hybrid Retrieval → Evidence Pack → `evidence_only_answer`。Provider 型 `rag_answer`、Feedback 和 Memory Draft 到 P0-Z2 再进入完整闭环。
+P0-Z0a 验证闭环：Upload / text_import → File → Source → Parse → Chunk → KU → Review → Confirmed → Embedding → Hybrid Retrieval → Evidence Pack → `evidence_only_answer`。D-107 已补上 append-only Feedback Event 与 pending-review Memory Draft 回流，但 Provider 型 `rag_answer`、`retrieval_feedback`、invocation plan 和 memory retrieval 仍到 P0-Z2 再进入完整闭环。
 
 ### 3.2 `files` 与 `sources` 分工
 
@@ -967,6 +967,24 @@ P0 预埋权限模型，默认只有 `local_owner`。
 - `blocked` / `quarantined` 文件默认不进入 `parse_tasks`，但原文件和检查报告必须保留。
 - `preview_generation` 失败只影响 UI 预览，不等同于解析失败。
 - Parser Router 必须优先使用最新 `true_type_detection` 和 `security_scan` 结果；扩展名只能作为弱信号。
+
+D-101 实现备注：
+
+- 当前代码阶段已创建 `upload_tasks`、`upload_parts`、`files`、`file_integrity_checks` 和 `file_inspection_results` 的 SQLite Z0a 物理表。
+- D-101 字段按 Z0a 收窄：`upload_tasks` 使用 `expected_size / part_size / expected_sha256 / received_bytes / file_id / job_id`；`files` 使用 `content_type / extension / size_bytes / sha256 / storage_path / status / inspection_status`；`file_inspection_results` 使用单条 summary 记录承载扩展名、MIME、header summary、risk summary 和 recoverable 状态。
+- D-101 不启用完整 provider 维度、preview、EXIF、qpdf、oletools、quarantine 或 Parser Router；这些仍按 Z0b/Z1 扩展。
+
+D-102 实现备注：
+
+- 当前代码阶段已创建 `parse_tasks`、`parse_warnings` 和 `chunk_quality_checks` 的 SQLite Z0a 物理表。
+- D-102 Parser Router 只实现 `builtin_text_markdown`，用于 text / markdown / json / csv 类文件；PDF、Office、OCR、ASR 和 preview provider 仍后置。
+- D-102 成功 parse 后创建 `Source(source_origin=parsed_file)`、`Chunk`、FTS 记录和最小 input/source binding quality checks；D-103 再通过显式 extract API 生成 Candidate KU、Review Task 和 fallback embedding。
+
+D-103 实现备注：
+
+- 当前代码阶段复用 `knowledge_units`、`review_tasks`、`embeddings`，新增 `POST /api/knowledge-units:extract` 作为 Source / Chunk → Candidate KU 的显式转换点。
+- D-103 生成的 KU 默认 `pending_review`，Review confirm 后才变为 `confirmed` 并可被 evidence-only 检索使用。
+- fallback embedding 使用 `mock_fixed_384`，`dimension=384`；真实 embedding provider、sqlite-vec index rebuild worker 和多 profile 管理继续后置。
 
 状态汇总规则：
 
@@ -1649,11 +1667,14 @@ ops_alert
 |---|---|---|
 | id | uuid | Feedback Event ID |
 | user_id | uuid | 用户 |
-| target_type | text | evidence_pack / ai_answer / citation / knowledge_unit |
+| target_type | text | evidence_pack / ai_answer / evidence_item |
 | target_id | uuid | 目标对象 |
-| feedback_type | text | useful / wrong / missing_source / bad_citation / click / favorite / not_useful / downrank_source |
-| notes | text nullable | 说明 |
-| metadata_json | jsonb | D-080 扩展：`feedback_signal`、ranking_effect、frontend_event_source |
+| evidence_pack_id | uuid nullable | Evidence Pack |
+| ai_answer_id | uuid nullable | AIAnswer |
+| evidence_item_id | uuid nullable | Evidence Item |
+| feedback_type | text | click / useful / not_useful / favorite / bad_citation / missing_source / downrank_source |
+| comment | text nullable | 用户说明 |
+| metadata_json | jsonb | D-080/D-107 扩展：`feedback_signal`、`feedback_policy`、ranking_effect、frontend_event_source |
 | created_at | timestamptz | 创建时间 |
 
 #### system_logs
@@ -1705,7 +1726,7 @@ P0 不强制完整数据库加密、ClamAV daemon、Docker Sandbox、企业审�
 
 ## 7. P0 调用对象字段
 
-这些对象属于 P0-RAG 架构对象，用于验证 Evidence Pack、Citation Preview、Query Explanation、RAG answer / evidence-only fallback 和回流边界。P0-Z0a 只需要 `retrieval_logs`、`evidence_packs`、`evidence_items` 和 `ai_answers(output_type=evidence_only_answer)` 跑通；`sensitive_access_grants` 与 citation 明细进入 P0-Z0b；`invocation_requests`、`retrieval_plans`、`memories`、`retrieval_feedback` 进入 P0-Z2。
+这些对象属于 P0-RAG 架构对象，用于验证 Evidence Pack、Citation Preview、Query Explanation、RAG answer / evidence-only fallback 和回流边界。P0-Z0a 只需要 `retrieval_logs`、`evidence_packs`、`evidence_items` 和 `ai_answers(output_type=evidence_only_answer)` 跑通；D-107 已提前实现 append-only `feedback_events` 与 pending-review `memories`；`sensitive_access_grants` 与 citation 明细进入 P0-Z0b；`invocation_requests`、`retrieval_plans`、`retrieval_feedback` 进入 P0-Z2。
 
 ### 7.0 sensitive_access_grants
 
@@ -1822,7 +1843,7 @@ P0-Z0a 约束：
 - `evidence_only_answer` 必须绑定 `evidence_pack_id`，并优先通过 `retrieval_log_id` 串起 query summary、strategy route、ranking summary 和 citation trace summary。
 - `request_id` / `retrieval_plan_id` 在 P0-Z0a 可为空；P0-Z2 启用 `invocation_requests` / `retrieval_plans` 后再由应用层或迁移约束要求非空。
 - `output_type` 只能是 `evidence_only_answer`，内容由 Evidence Pack、Citation label、Query Explanation 和 evidence gaps 模板化生成，不调用 LLM。
-- 若 Evidence Pack 的 `failure_type` 为 `no_retrieval_result / insufficient_evidence / permission_blocked / citation_binding_failed`，不得写入 `ai_answers`；`vector_degraded` 只有在关键词 / metadata / citation 证据仍充分时才允许生成 `evidence_only_answer`。
+- 若 Evidence Pack 的 `failure_type` 为 `no_retrieval_result / insufficient_evidence / permission_blocked / citation_binding_failed`，不得写入伪答案；D-104 兼容 endpoint 可写入仅包含 no evidence reason 的 `evidence_only_answer` 记录。`vector_degraded` 只有在关键词 / metadata / citation 证据仍充分时才允许生成带 evidence items 的 `evidence_only_answer`。
 - `rag_answer` 只在 P0-Z2 或 Provider 可用的增强路径中启用，且必须记录 `provider_key`、`provider_version`、`capability_status` 和 fallback 行为。
 
 ### 7.6 answer_citations
@@ -1872,11 +1893,12 @@ P0-Z0a 约束：
 | metadata_json | jsonb | D-080 / D-085 扩展：`feedback_signal`、`feedback_policy`、ranking_effect、frontend_event_source |
 | created_at | timestamptz | 创建时间 |
 
-D-085 反馈边界：
+D-107 反馈 / Memory 边界：
 
-- `feedback_events`：Z0a 可选 append-only 用户行为 / UI 诊断事件，允许记录 click / favorite / useful / not_useful / bad_citation / missing_source / downrank_source，但只能影响后续排序建议或诊断，不自动改写 confirmed Knowledge Unit、confirmed relation 或 source truth。
+- `feedback_events`：D-107 已实现 append-only 用户行为 / UI 诊断事件，允许记录 click / favorite / useful / not_useful / bad_citation / missing_source / downrank_source，但只能影响后续排序建议或诊断，不自动改写 confirmed Knowledge Unit、confirmed relation、source truth、Evidence Pack 或 AIAnswer。
+- `memories`：D-107 已实现 pending-review Memory Draft；confirm / ignore 只改变 memory 状态，不创建 confirmed KU，也不加入 retrieval results。
 - `retrieval_feedback`：Z2 起的检索反馈持久化对象，必须能关联 Invocation / Evidence / Answer，并携带 `feedback_policy`、作用域、权重上限和是否参与 ranking suggestion。
-- 若 Z0a 不实现 `feedback_events` 表，也可在 `POST /api/rag/answers` 响应中只返回可用 `feedback_actions` 和 response-only `feedback_policy`，前端按钮不创建持久检索反馈。
+- D-107 不新增 `invocation_requests`、`retrieval_plans`、真实 LLM answer、GraphRAG 或 provider-backed RAG。
 
 ---
 

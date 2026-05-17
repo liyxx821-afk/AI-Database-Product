@@ -1,5 +1,361 @@
 # 进度记录
 
+## 2026-05-17（D-107 Feedback Events / Memory Draft Review Z0b-lite）
+
+### 已完成
+
+- 新增 `feedback_events` 与 `memories` 最小表；本阶段不新增 `retrieval_feedback`、`invocation_requests` 或 `retrieval_plans`。
+- 新增 `POST /api/feedback`：支持 `click / useful / not_useful / favorite / bad_citation / missing_source / downrank_source`，要求 `evidence_pack_id`、`ai_answer_id` 或 `evidence_item_id` 至少一个有效目标，写入 append-only 本地反馈事件并返回 `feedback_policy`。
+- 新增 `POST /api/memory-drafts`、`GET /api/memory-drafts`、`GET /api/memory-drafts/{id}`：从既有 `ai_answer_id` 创建 `memories.status=pending_review` 和 `review_tasks.target_type=memory`。
+- Review confirm / ignore 已支持 memory 类型任务：confirm 标记 `confirmed / user_confirmed=1`，ignore 标记 `archived`；现有 KU review 逻辑保持不变。
+- Renderer `/ask` 增加有用、无用、收藏、错误引用、缺失来源反馈按钮，反馈提交成功只显示 append-only 状态，不改答案或证据。
+- Renderer `/ask` 增加 Memory Draft 保存面板，默认填入 answer 文本，可编辑内容并选择 memory type。
+- Renderer `/library` Review 队列支持 memory 任务显示、confirm 和 ignore；`/outputs` 显示 Memory Draft 摘要和 pending / confirmed / archived 状态。
+- 新增 `apps/renderer/src/stores/feedbackMemoryStore.ts` 与 `apps/renderer/src/services/feedbackMemoryApi.ts`，Renderer 继续只通过 preload bridge、typed fetch wrapper 和 generated API types 访问后端。
+- 新增中英双语 i18n 文案，覆盖 feedback、Memory Draft、Outputs 摘要和相关按钮；用户输入、answer 内容、source excerpt、citation label 和 API enum/status code 不翻译。
+- 新增 `scripts/smoke-p0-feedback-memory.mjs` 与 `pnpm smoke:p0-feedback-memory`；完整 smoke 顺序更新为 `smoke:p0-core` → `smoke:p0-i18n-settings` → `smoke:p0-file` → `smoke:p0-parse` → `smoke:p0-ku` → `smoke:p0-search-ask` → `smoke:p0-citation-detail` → `smoke:p0-feedback-memory` → `smoke:p0-z0a`。
+
+### 验收
+
+- `pnpm generate:api-types` 通过，已更新 `packages/api-types/src/openapi.json` 与 `packages/api-types/src/generated.ts`。
+- `pnpm typecheck` 通过。
+- `pnpm api:ruff` 通过。
+- `pnpm api:test` 通过，8 个 API 测试通过。
+- 完整 smoke 顺序通过：
+  `pnpm smoke:p0-core`、`pnpm smoke:p0-i18n-settings`、`pnpm smoke:p0-file`、`pnpm smoke:p0-parse`、`pnpm smoke:p0-ku`、`pnpm smoke:p0-search-ask`、`pnpm smoke:p0-citation-detail`、`pnpm smoke:p0-feedback-memory`、`pnpm smoke:p0-z0a`。
+- `pnpm --filter @knowledgebase-dev/renderer build` 通过。
+- `pnpm --filter @knowledgebase-dev/desktop-preload build` 通过。
+- `pnpm --filter @knowledgebase-dev/desktop-main build` 通过。
+- `git diff --check` 通过。
+- 本地 renderer 已重启到 `http://127.0.0.1:5173/`；`/ask`、`/library`、`/outputs` 路由 HTTP smoke 返回 200。
+- in-app browser 检查通过：`/ask` 默认中文显示反馈按钮与 Memory Draft 保存面板，普通浏览器无 Electron preload 时显示 bridge degraded；`/library` Review 区可见；`/outputs` Memory Draft 摘要可见；在 `/settings` 切换英文后，SPA 内 `/ask` 与 `/outputs` 的反馈、保存和草稿文案变为英文；最终已切回中文并停在 `/ask`。
+
+### 备注
+
+- D-107 仍不接真实 LLM、provider-backed RAG、`retrieval_feedback`、Text-to-SQL provider、GraphRAG、反馈驱动排序写回或自动长期记忆。
+- Confirmed Memory 只为未来 retrieval use 预留；D-107 不把 Memory 加入检索结果。
+- 普通浏览器无 Electron preload 时，feedback 和 Memory Draft 入口显示 degraded，真实持久化以 Electron bridge / API smoke 为准。
+- 下一阶段可继续推进 feedback 诊断视图、Citation detail 深层交互、pseudo-packaged sidecar 或 Electron GUI smoke。
+
+## 2026-05-17（D-106 UI i18n / Bilingual Settings Z0b-lite）
+
+### 已完成
+
+- 新增 Settings API：`GET /api/settings` 与 `PATCH /api/settings`，默认返回 `language=zh-CN`，只允许 `zh-CN / en-US`，并保持现有 local token auth 与 error envelope。
+- 新增后端 settings service：配置文件不存在时返回默认中文；写入时原子更新 app data 下的 `config.json`；本阶段不新增 SQLite 表或 migration。
+- 扩展 OpenAPI / generated TS types，新增 `SettingsResponse` 与 `SettingsPatchRequest`。
+- Renderer 新增轻量 i18n 层：typed message keys、`translate` / `t(key)`，不引入重型库。
+- Renderer 新增 settings store：Electron bridge 可用时通过 typed fetch wrapper 读取/保存 `/api/settings`；普通浏览器无 bridge 时使用 session fallback 并显示 degraded。
+- `/settings` 增加中英切换控件；八页低保真工作台的导航、标题、按钮、状态、空态、runtime bar、Import / Library / Search / Ask / Citation Detail / Graph / Outputs / Settings 核心 UI 文案已覆盖中英双语。
+- 用户数据、文件名、KU 内容、source excerpt、citation label、API enum/status code 保持原文，不做自动翻译。
+- 新增 `scripts/smoke-p0-i18n-settings.mjs` 与 `pnpm smoke:p0-i18n-settings`；完整 smoke 顺序更新为 `smoke:p0-core` → `smoke:p0-i18n-settings` → `smoke:p0-file` → `smoke:p0-parse` → `smoke:p0-ku` → `smoke:p0-search-ask` → `smoke:p0-citation-detail` → `smoke:p0-z0a`。
+
+### 验收
+
+- `pnpm generate:api-types` 通过，已更新 `packages/api-types/src/openapi.json` 与 `packages/api-types/src/generated.ts`。
+- `pnpm typecheck` 通过。
+- `pnpm api:ruff` 通过。
+- `pnpm api:test` 通过，7 个 API 测试通过。
+- `pnpm smoke:p0-core` 通过，输出 `SMOKE_P0_CORE_OK`。
+- `pnpm smoke:p0-i18n-settings` 通过，输出 `SMOKE_P0_I18N_SETTINGS_OK`。
+- `pnpm smoke:p0-file` 通过，输出 `SMOKE_P0_FILE_OK`。
+- `pnpm smoke:p0-parse` 通过，输出 `SMOKE_P0_PARSE_OK`。
+- `pnpm smoke:p0-ku` 通过，输出 `SMOKE_P0_KU_OK`。
+- `pnpm smoke:p0-search-ask` 通过，输出 `SMOKE_P0_SEARCH_ASK_OK`。
+- `pnpm smoke:p0-citation-detail` 通过，输出 `SMOKE_P0_CITATION_DETAIL_OK`。
+- `pnpm smoke:p0-z0a` 通过，输出 `SMOKE_P0_Z0A_OK`。
+- `pnpm --filter @knowledgebase-dev/renderer build` 通过。
+- `pnpm --filter @knowledgebase-dev/desktop-preload build` 通过。
+- `pnpm --filter @knowledgebase-dev/desktop-main build` 通过。
+- `git diff --check` 通过。
+- 本地 renderer 已重启到 `http://127.0.0.1:5173/`；`/settings`、`/dashboard`、`/search`、`/ask` 路由 HTTP smoke 返回 200。
+- in-app browser 检查通过：`/settings` 默认中文；切换英文后 SPA 内导航 `/dashboard`、`/search`、`/ask`、`/library` 的标题 / 按钮 / 状态文案变为英文；普通浏览器无 Electron preload 时显示 bridge degraded 且只临时保存；最终已切回中文并停在 `/ask`。
+
+### 备注
+
+- D-106 仍不接真实 LLM、feedback、Memory Draft、Text-to-SQL provider、GraphRAG、设计稿级 UI 优化或新主路由。
+- D-106 的设置持久化只覆盖 `language`；Provider 密钥、主题、数据目录迁移、备份策略和遥测设置保持后置。
+- 下一阶段可继续推进 feedback / Memory Draft、Citation detail 深层交互或 pseudo-packaged sidecar / Electron GUI smoke。
+
+## 2026-05-17（D-105 Citation Detail / Evidence Pack Replay Z0b-lite）
+
+### 已完成
+
+- 扩展 `GET /api/evidence-packs/{evidence_pack_id}` response：后端直接返回可渲染的 Citation Detail，包括 Evidence Item、KU title/status/type、Chunk citation/content excerpt、Source title/origin/type、rank score、provider/fallback、query explanation summary 和 citation trace。
+- Evidence Pack detail 从 `retrieval_logs.filters_json` 还原 query explanation，并通过 `evidence_items → knowledge_units / chunks / sources` join 组装复盘信息；Renderer 不拼接证据链。
+- 保持 `POST /api/retrieval/preview` 与 `POST /api/retrieval/evidence-only` 兼容；evidence-only answer 继续复用同一 evidence assembly 逻辑。
+- Renderer `/search` 的 Evidence Items 增加 Open detail 操作，读取 `GET /api/evidence-packs/{id}` 并显示 Citation Detail 面板。
+- Renderer `/ask` 可从 answer 的 `evidence_pack_id` 打开同一 detail 面板，展示 answer 使用的 evidence item、citation label、source、chunk 和 KU。
+- 空证据包继续显示 `failure_type=no_retrieval_result`、fallback reason 和 no evidence reason；sqlite-vec degraded 时仍保留 source/chunk/KU 绑定。
+- 新增 `scripts/smoke-p0-citation-detail.mjs` 与 `pnpm smoke:p0-citation-detail`；阶段顺序更新为 `smoke:p0-core` → `smoke:p0-file` → `smoke:p0-parse` → `smoke:p0-ku` → `smoke:p0-search-ask` → `smoke:p0-citation-detail` → `smoke:p0-z0a`。
+
+### 验收
+
+- `pnpm generate:api-types` 通过，已更新 `packages/api-types/src/openapi.json` 与 `packages/api-types/src/generated.ts`。
+- `pnpm api:ruff` 通过。
+- `pnpm api:test` 通过，6 个 API 测试通过。
+- `pnpm typecheck` 通过。
+- `pnpm smoke:p0-core` 通过，输出 `SMOKE_P0_CORE_OK`。
+- `pnpm smoke:p0-file` 通过，输出 `SMOKE_P0_FILE_OK`。
+- `pnpm smoke:p0-parse` 通过，输出 `SMOKE_P0_PARSE_OK`。
+- `pnpm smoke:p0-ku` 通过，输出 `SMOKE_P0_KU_OK`。
+- `pnpm smoke:p0-search-ask` 通过，输出 `SMOKE_P0_SEARCH_ASK_OK`。
+- `pnpm smoke:p0-citation-detail` 通过，输出 `SMOKE_P0_CITATION_DETAIL_OK`。
+- `pnpm smoke:p0-z0a` 通过，输出 `SMOKE_P0_Z0A_OK`。
+- `pnpm --filter @knowledgebase-dev/renderer build` 通过。
+- `pnpm --filter @knowledgebase-dev/desktop-preload build` 通过。
+- `pnpm --filter @knowledgebase-dev/desktop-main build` 通过。
+- `git diff --check` 通过。
+- 本地 renderer 已重启到 `http://127.0.0.1:5173/`；`/library`、`/search`、`/ask` 浏览器检查通过。普通浏览器无 Electron preload，bridge degraded 为预期状态。
+
+### 备注
+
+- D-105 不新增数据库表；只复用 `retrieval_logs`、`evidence_packs`、`evidence_items`、`knowledge_units`、`chunks` 和 `sources`。
+- D-105 仍不接真实 LLM、feedback、Memory Draft、Text-to-SQL provider、GraphRAG、关系推理、sensitive evidence 授权或 provider-backed answer。
+- 下一阶段可继续推进 feedback / Memory Draft、Citation detail 深层交互或 pseudo-packaged sidecar / Electron GUI smoke。
+
+## 2026-05-17（D-104 Retrieval Preview / Search-Ask Integration Z0a）
+
+### 已完成
+
+- 新增 Retrieval Preview API：`POST /api/retrieval/preview`，返回 Query Explanation、Evidence Pack summary、Evidence Items、Citation Trace、provider/fallback 状态。
+- 新增 Evidence Pack detail API：`GET /api/evidence-packs/{evidence_pack_id}`，可按 ID 复盘 item-level evidence。
+- `POST /api/retrieval/evidence-only` 改为复用 Retrieval Preview / Evidence Pack 组装逻辑，继续保持既有 evidence-only response。
+- 检索范围收紧为 `knowledge_units.status = confirmed`；`pending_review` 候选不会进入 Evidence Pack。
+- 无证据时返回 `failure_type=no_retrieval_result` 和 no evidence reason，不生成伪答案；sqlite-vec 不可用时继续返回 `provider_status=degraded` 与 `fallback_reason`，source/chunk/citation binding 不降级。
+- Renderer `/search` 增加真实 query input、Search action、Query Explanation、Evidence Pack、Evidence Items、Citation Trace、empty/degraded/recoverable_error/done 状态。
+- Renderer `/ask` 增加 evidence-only answer 输入与结果区，展示 answer、citation labels、evidence item ids、provider/fallback 状态。
+- 新增 `scripts/smoke-p0-search-ask.mjs` 与 `pnpm smoke:p0-search-ask`；阶段顺序更新为 `smoke:p0-core` → `smoke:p0-file` → `smoke:p0-parse` → `smoke:p0-ku` → `smoke:p0-search-ask` → `smoke:p0-z0a`。
+
+### 验收
+
+- `pnpm generate:api-types` 通过，已更新 `packages/api-types/src/openapi.json` 与 `packages/api-types/src/generated.ts`。
+- `pnpm api:ruff` 通过。
+- `pnpm api:test` 通过，6 个 API 测试通过。
+- `pnpm typecheck` 通过。
+- `pnpm smoke:p0-core` 通过，输出 `SMOKE_P0_CORE_OK`。
+- `pnpm smoke:p0-file` 通过，输出 `SMOKE_P0_FILE_OK`。
+- `pnpm smoke:p0-parse` 通过，输出 `SMOKE_P0_PARSE_OK`。
+- `pnpm smoke:p0-ku` 通过，输出 `SMOKE_P0_KU_OK`。
+- `pnpm smoke:p0-search-ask` 通过，输出 `SMOKE_P0_SEARCH_ASK_OK`。
+- `pnpm smoke:p0-z0a` 通过，输出 `SMOKE_P0_Z0A_OK`。
+- `pnpm --filter @knowledgebase-dev/renderer build` 通过。
+- `pnpm --filter @knowledgebase-dev/desktop-preload build` 通过。
+- `pnpm --filter @knowledgebase-dev/desktop-main build` 通过。
+- `git diff --check` 通过。
+- 本地 renderer 已重启到 `http://127.0.0.1:5173/`；`/library`、`/search`、`/ask` 浏览器检查通过。普通浏览器无 Electron preload，bridge degraded 为预期状态。
+
+### 备注
+
+- D-104 不新增数据库表；复用 `retrieval_logs`、`evidence_packs`、`evidence_items`、`ai_answers` 和现有 JSON 字段。
+- D-104 仍不接真实 LLM、embedding provider、reranker、Text-to-SQL provider、GraphRAG、sensitive evidence 授权、feedback 或 Memory Draft。
+- 下一阶段可继续推进 Citation detail UI、feedback / Memory Draft 或 pseudo-packaged sidecar / Electron GUI smoke。
+
+## 2026-05-17（D-103 Candidate KU / Review / fallback embedding Z0a）
+
+### 已完成
+
+- 新增 Knowledge Unit extraction API：`POST /api/knowledge-units:extract`、`GET /api/knowledge-units`、`GET /api/knowledge-units/{id}`。
+- parsed Source / Chunk 可生成 `pending_review` Candidate KU、Review Task 和 `mock_fixed_384` fallback embedding；重复 extract 默认复用已有候选，避免重复污染。
+- fallback embedding 统一为 384 维 deterministic mock vector；text import 与 parsed source extraction 共用同一 fallback helper。
+- Review confirm 后 KU 才进入 confirmed 检索范围；evidence-only answer 仍只读取 confirmed KU，不会用 pending_review 候选生成答案。
+- Renderer `/library` 增加 Source Extract 操作和真实 Review 队列，可确认或忽略候选 KU；普通浏览器下继续显示 Electron bridge degraded。
+- 新增 `scripts/smoke-p0-ku.mjs` 与 `pnpm smoke:p0-ku`；阶段顺序更新为 `smoke:p0-core` → `smoke:p0-file` → `smoke:p0-parse` → `smoke:p0-ku` → `smoke:p0-z0a`。
+
+### 验收
+
+- `pnpm generate:api-types` 通过，已更新 `packages/api-types/src/openapi.json` 与 `packages/api-types/src/generated.ts`。
+- `pnpm api:ruff` 通过。
+- `pnpm api:test` 通过，6 个 API 测试通过。
+- `pnpm typecheck` 通过。
+- `pnpm smoke:p0-core` 通过，输出 `SMOKE_P0_CORE_OK`。
+- `pnpm smoke:p0-file` 通过，输出 `SMOKE_P0_FILE_OK`。
+- `pnpm smoke:p0-parse` 通过，输出 `SMOKE_P0_PARSE_OK`。
+- `pnpm smoke:p0-ku` 通过，输出 `SMOKE_P0_KU_OK`。
+- `pnpm smoke:p0-z0a` 通过，输出 `SMOKE_P0_Z0A_OK`。
+- `pnpm --filter @knowledgebase-dev/renderer build` 通过。
+- `pnpm --filter @knowledgebase-dev/desktop-preload build && pnpm --filter @knowledgebase-dev/desktop-main build` 通过。
+- `git diff --check` 通过。
+- 本地 renderer 已重启到 `http://127.0.0.1:5173/library`，`/library` 和 `/import` 浏览器低保真检查通过；普通浏览器下 Electron bridge degraded 为预期状态。
+
+### 备注
+
+- D-103 仍不引入真实 LLM、真实 embedding provider、自动标签合并、关系写入、Memory Draft、provider-backed RAG、OCR/ASR 或复杂 parser。
+- 下一阶段应把 `/search`、`/ask` 从低保真 fixture 接到真实 confirmed KU / Evidence Pack 查询结果，继续保持 no evidence no answer。
+
+## 2026-05-17（D-102 Parser Router / Source / Chunk Z0a）
+
+### 已完成
+
+- 新增 Parser Router Z0a：已完成 inspection 的 text / markdown / json / csv 文件可通过 `POST /api/files/{file_id}:parse` 显式解析。
+- 新增 P0-Parse 数据对象：`parse_tasks`、`parse_warnings`、`chunk_quality_checks`；解析过程写入 `file_parse` ProcessingJob 和 `parse_started / parser_selected / source_created / chunks_created / parse_completed` events。
+- 新增 Source / Chunk API：`GET /api/parse-tasks/{id}`、`GET /api/sources`、`GET /api/sources/{source_id}`。
+- 解析成功后创建 `Source(source_origin=parsed_file)`、`Chunk`、FTS 记录和最小 chunk quality checks；不会自动创建 Candidate KU、Review Task 或 Embedding。
+- 不支持 parser 的文件返回 `unsupported_parser`；blocked 文件返回 `file_blocked_by_risk_policy`，文件记录和 inspection report 保留。
+- Renderer `/library` 增加 Parse 操作和 Sources 面板，可查看已解析 source 与 chunk 数。
+- 新增 `scripts/smoke-p0-parse.mjs` 与 `pnpm smoke:p0-parse`；阶段顺序更新为 `smoke:p0-core` → `smoke:p0-file` → `smoke:p0-parse` → `smoke:p0-z0a`。
+
+### 验收
+
+- `pnpm generate:api-types` 通过，已更新 `packages/api-types/src/openapi.json` 与 `packages/api-types/src/generated.ts`。
+- `pnpm api:ruff` 通过。
+- `pnpm api:test` 通过，6 个 API 测试通过。
+- `pnpm smoke:p0-core` 通过，输出 `SMOKE_P0_CORE_OK`。
+- `pnpm smoke:p0-file` 通过，输出 `SMOKE_P0_FILE_OK`。
+- `pnpm smoke:p0-parse` 通过，输出 `SMOKE_P0_PARSE_OK`。
+- `pnpm smoke:p0-z0a` 通过，输出 `SMOKE_P0_Z0A_OK`。
+- `pnpm typecheck` 通过。
+- `pnpm --filter @knowledgebase-dev/renderer build` 通过。
+- `pnpm --filter @knowledgebase-dev/desktop-preload build && pnpm --filter @knowledgebase-dev/desktop-main build` 通过。
+- `git diff --check` 通过。
+
+### 备注
+
+- D-102 仍是 Source / Chunk 阶段，不把 parsed source 直接转为 confirmed knowledge。
+- PDF、Office、图片、音频、视频、OCR/ASR、preview asset 和真实 parser provider 仍保持后置。
+- 下一阶段应进入 Candidate KU / Review / fallback embedding，把 parsed Source/Chunk 接入知识确认链路。
+
+## 2026-05-17（D-101 P0-File 上传与 File Inspection Z0a）
+
+### 已完成
+
+- 新增 P0-File 本地上传链路：`upload_tasks`、`upload_parts`、`files`、`file_integrity_checks`、`file_inspection_results` 表，文件先写入 app data 的 `tmp/uploads/`，complete 后移动到 `sources/`。
+- 新增 Upload / File API：`POST /api/uploads`、`PUT /api/uploads/{id}/parts/{part_no}`、`POST /api/uploads/{id}:complete`、`GET /api/uploads/{id}`、`GET /api/files`、`GET /api/files/{file_id}`、`POST /api/files/{file_id}:verify`。
+- 新增 File Inspection Z0a：记录扩展名、MIME、文件大小、sha256、文件头摘要、基础 risk summary、recoverable 状态和 `file_inspection` ProcessingJob events。
+- Renderer `/import` 接入 Uppy core + 自定义黑白灰低保真上传控件，支持选择、拖放、分片上传、失败重试入口；`/library` 显示真实 file list 和 inspection 状态；`/dashboard` 显示 upload/file 计数。
+- 新增 `scripts/smoke-p0-file.mjs` 与 `pnpm smoke:p0-file`，固定阶段顺序为 `smoke:p0-core` → `smoke:p0-file` → `smoke:p0-z0a`。
+
+### 验收
+
+- `pnpm generate:api-types` 通过，已更新 `packages/api-types/src/openapi.json` 与 `packages/api-types/src/generated.ts`。
+- `pnpm api:ruff` 通过。
+- `pnpm api:test` 通过，4 个 API 测试通过。
+- `pnpm smoke:p0-file` 通过，输出 `SMOKE_P0_FILE_OK`。
+- 前端已通过 `pnpm --filter @knowledgebase-dev/api-types build && pnpm --filter @knowledgebase-dev/renderer typecheck`。
+- `pnpm smoke:p0-core` 通过，输出 `SMOKE_P0_CORE_OK`。
+- `pnpm smoke:p0-z0a` 通过，输出 `SMOKE_P0_Z0A_OK`。
+- `pnpm typecheck` 通过。
+- `pnpm --filter @knowledgebase-dev/renderer build` 通过。
+- `pnpm --filter @knowledgebase-dev/desktop-preload build && pnpm --filter @knowledgebase-dev/desktop-main build` 通过。
+- `git diff --check` 通过。
+- 本地 renderer 预览已重启，`/dashboard`、`/import`、`/library` 路由 HTTP smoke 通过；浏览器预览无 Electron preload，上传真实链路以 API smoke 为准。
+
+### 备注
+
+- D-101 不自动把上传文件转成 Source / Chunk / KU；Parser Router 和 Source/Chunk 是下一阶段。
+- Z0a inspection 只做 header summary 与基础风险分类；libmagic、qpdf、oletools、EXIF、preview asset、OCR/ASR 仍保持后置。
+- 上传协议实现为 tus-style 分片语义，不承诺完整 tus server 兼容。
+
+## 2026-05-17（D-100 P0 代码阶段首轮实现）
+
+### 已完成
+
+- 新增 monorepo 工程骨架：`apps/desktop-main`、`apps/desktop-preload`、`apps/renderer`、`apps/api`、`packages/runtime-contracts`、`packages/api-types`、`packages/shared-config` 和 `scripts`。
+- 创建根配置：`package.json`、`pnpm-workspace.yaml`、`tsconfig.base.json`、`pyproject.toml`；Python 依赖按 `core / dev / file / ai / ocr / asr` 分组，当前只启用 core/dev。
+- 建立 FastAPI sidecar：`/api/health`、`/api/auth/status`、`/api/system/runtime`、`/api/system/status`、`/api/system/diagnostics:export`、`/api/workspace/summary`、text import、job snapshot / SSE replay、review confirm / ignore、evidence-only retrieval。
+- 建立 SQLite 本地数据层：local user、project、Source、Chunk、Knowledge Unit、Review Task、ProcessingJob、processing status events、embedding fallback、RetrievalLog、Evidence Pack、Evidence Item、AIAnswer、audit/system log 和 FTS5 表。
+- 建立 Electron Main / Preload：Main 管理 sidecar 生命周期、端口、本地 token 和数据目录；preload 只暴露 `getRuntimeConfig / getRuntimeStatus / onRuntimeStatusChange / openFileDialog / exportDiagnostics`。
+- 建立 Renderer 八页黑白灰低保真 shell：`/dashboard`、`/import`、`/library`、`/search`、`/ask`、`/graph`、`/outputs`、`/settings`，首屏为 `/dashboard`，底部 runtime status bar 始终可见。
+- 建立 OpenAPI 导出与 generated TS types：`scripts/export-openapi.py`、`scripts/generate-api-types.mjs`、`packages/api-types/src/generated.ts`。
+- 建立 smoke 与验证脚本：`smoke:p0-core` 验证 sidecar / local token / SQLite / runtime / diagnostics；`smoke:p0-z0a` 验证 text import → review → evidence-only answer。
+
+### 验收
+
+- `pnpm install` 通过；生成 `pnpm-lock.yaml`。
+- `pnpm generate:api-types` 通过。
+- `pnpm typecheck` 通过。
+- `pnpm api:ruff` 通过。
+- `pnpm api:test` 通过，2 个 API 测试通过。
+- `pnpm smoke:p0-core` 通过，输出 `SMOKE_P0_CORE_OK`。
+- `pnpm smoke:p0-z0a` 通过，输出 `SMOKE_P0_Z0A_OK`。
+- `pnpm --filter @knowledgebase-dev/renderer build` 通过。
+- `pnpm --filter @knowledgebase-dev/desktop-preload build` 通过。
+- `pnpm --filter @knowledgebase-dev/desktop-main build` 通过。
+- `git diff --check` 通过。
+
+### 备注
+
+- 本轮按单线 Phase 0 → Phase 4 执行，先落 P0-Core，再跑通 Z0a，最后补低保真八页 UI。
+- 本机没有全局 `uv` 命令；已保留 `pyproject.toml` 依赖分组，并用 `.venv` + pip 的 `scripts/ensure-python-env.mjs` 作为本地验证 fallback。
+- pnpm 安装时提示 Electron / esbuild build scripts 被忽略；当前已完成 TypeScript build 与 API smoke，未在本轮启动真实 GUI 窗口或执行打包态 Electron smoke。
+
+## 2026-05-17（D-099 前后端交付边界与分布式开发计划强化）
+
+### 已完成
+
+- `docs/distributed-development-plan.md` 升级为 v0.4：在 D-098 八页 Knowledge Workspace 和 S6 页面所有权基础上，补充前后端交付边界。
+- 明确 Electron Main、Preload bridge、Renderer Frontend、typed API client、FastAPI sidecar、local_sqlite_worker、SQLite/sqlite-vec 的职责边界和禁止事项。
+- 新增 D-099 前后端交付模板、S1/S6 handoff 要求、UI contract fixture 规则、G8 Frontend / Backend Boundary Gate、前后端边界漂移风险和 preload 过宽风险。
+- `docs/development-plan.md` 升级为 v0.53，决策表新增 D-099；`docs/project-background-brief.md` 升级为 v0.11；README 已同步新版本索引和 Done 记录。
+
+### 验收
+
+- 本轮仍为文档-only：未新增运行时代码、migration、OpenAPI 文件、endpoint 或依赖。
+- D-099 不改变 P0 技术栈：仍为 Electron + React + Vite + TypeScript、FastAPI sidecar、SQLite + sqlite-vec、FTS5、本地优先、Provider 可选降级和 evidence-first。
+- 优化后的计划明确 Renderer 不直接访问 Node、文件系统、SQLite、长期 token 或裸 `localhost`；前端只消费 preload bridge、typed fetch wrapper 和 generated API types。
+
+## 2026-05-17（D-098 前端页面信息架构与工作台契约收敛）
+
+### 已完成
+
+- `docs/product-architecture.md` 升级为 v0.15：固定 Knowledge Workspace 八个内部路由 `/dashboard`、`/import`、`/library`、`/search`、`/ask`、`/graph`、`/outputs`、`/settings`，明确每页职责、后端域映射、P0 分期和 evidence-first 约束。
+- `docs/knowledge-invocation-system-design-plan.md` 升级为 v0.11：补齐 Search / Ask / Graph / Outputs 的调用边界、query explanation、Evidence Pack、Citation Trace、provider/fallback 状态和统一页面状态。
+- `docs/technical-stack-and-prototype-plan.md` 升级为 v0.25，`docs/desktop-architecture.md` 升级为 v0.7：新增 D-098 页面 IA、桌面 shell 内部路由、左侧导航、runtime status bar、typed fetch/preload 不变规则和 store 边界。
+- `docs/api-design.md` 升级为 v0.19-draft，`docs/api-implementation-plan.md` 升级为 v0.21-draft：不新增 endpoint，只增加页面到现有 API 组 / service owner 的映射和页面响应状态要求。
+- `docs/testing-strategy.md` 升级为 v0.22，`docs/distributed-development-plan.md` 升级为 v0.3：补齐八页页面契约测试、S6 Renderer 页面所有权、Graph/Outputs P0 占位边界和 P0 不承诺微信 / 网盘 / Obsidian / Notion 可用能力。
+- `README.md`、`docs/development-plan.md` 和 `docs/project-background-brief.md` 已同步 D-098 决策记录与版本索引。
+
+### 验收
+
+- 本轮仍为文档-only：未新增运行时代码、migration、OpenAPI 文件、endpoint 或依赖。
+- 页面契约明确：首屏是 `/dashboard`，Ask/Search 必须展示 Query Explanation、Evidence Pack、Citation Trace 和 provider/fallback 状态；Graph/Outputs 数据不足时展示可解释空状态或 disabled reason。
+- D-098 不改变 P0 技术栈：Electron + React + Vite + TypeScript、FastAPI sidecar、SQLite + sqlite-vec、FTS5、本地优先、Provider 可选降级和 evidence-first。
+
+## 2026-05-17（D-097 分布式开发计划优化）
+
+### 已完成
+
+- `docs/distributed-development-plan.md` 升级为 v0.2：在 D-096 的 S0-S7 工作流拆分基础上，补充二次技术栈 / 架构审查结论。
+- 新增 runtime contract lock、api contract lock、data write lock、evidence contract lock 四类共享契约锁，明确 owner、覆盖内容和变更规则。
+- 新增集成节奏、失败态优先实现顺序、关键路径 / 并行窗口、最小集成分支策略、PR 准入标准、PR 退出标准和冲突处理顺序。
+- 新增文档所有权补充、G6 Integration Gate、G7 Decision Drift Gate、风险登记与处理策略、文档优化检查清单。
+- `docs/development-plan.md` 升级为 v0.51，决策表新增 D-097；`docs/project-background-brief.md` 升级为 v0.9；README 已同步新版本索引和 Done 记录。
+
+### 验收
+
+- 本轮仍为文档-only：未新增运行时代码、migration、OpenAPI 文件、endpoint 或依赖。
+- D-097 不改变 P0 技术栈选择，不把 P0 桌面软件改成分布式运行时。
+- 优化后的计划把“谁能改共享契约、什么时候开放业务分支、PR 合并前必须验证什么、冲突时按什么顺序处理”写成可执行规则。
+
+## 2026-05-17（D-096 分布式开发计划）
+
+### 已完成
+
+- 新增 `docs/distributed-development-plan.md` v0.1：基于当前技术栈与架构设计审查，明确 P0 继续沿用 Electron + React + Vite + TypeScript、FastAPI sidecar、SQLite + sqlite-vec、local_sqlite_worker、SSE、ProviderRegistry 和 OpenAPI/generated types 的本地桌面栈。
+- 将下一阶段代码实现拆成 S0 Runtime Desktop Core、S1 API Contract and Type System、S2 Data and Migration Core、S3 Worker and Job Events、S4 Ingestion and Knowledge Build、S5 Retrieval and Evidence、S6 Renderer Workspace、S7 Verification and Release。
+- 补充分布式开发依赖图、Phase 0-4 阶段计划、分支 / PR 计划、文件所有权矩阵、G0-G5 验收门槛和 P0 不做的分布式运行时能力。
+- `docs/development-plan.md` 升级为 v0.50，决策表新增 D-096；`docs/project-background-brief.md` 升级为 v0.8；README 已同步新文档索引和 Done 记录。
+
+### 验收
+
+- 本轮仍为文档-only：未新增运行时代码、migration、OpenAPI 文件、endpoint 或依赖。
+- D-096 不改变 D-090 到 D-095 冻结的桌面技术栈和开工顺序；“分布式开发”仅指多人 / 多工作流 / 多 Agent 的协作分布。
+- 新文档已把 `smoke:p0-core`、`smoke:p0-z0a`、OpenAPI/generated types、SQLite 单写者、打包态 sidecar 和 evidence/citation 一致性纳入分工验收。
+
+## 2026-05-17（D-095 架构审查实现验收强化）
+
+### 已完成
+
+- `docs/technical-stack-and-prototype-plan.md` 升级为 v0.24，新增 §2.8 与 §11.6 **D-095**：打包态 CI / native 依赖门禁、sqlite-vec 三态与证据链一致性、SQLite 单写者与 worker 批写入纪律、OpenAPI 首日与测试金字塔交叉强化、日志滚动与隐私。
+- `docs/development-plan.md` 升级为 v0.49，决策表新增 D-095；「当前阶段状态」已同步本条。
+- `README.md`、`docs/project-background-brief.md`（v0.7）已同步技术栈文档 v0.24 与 D-095 开工约束引用。
+
+### 验收
+
+- 本轮仍为文档-only：未新增运行时代码、migration、OpenAPI 文件、endpoint 或依赖。
+- D-095 不改变 Electron + React + Vite + TypeScript、FastAPI sidecar、SQLite + sqlite-vec、local_sqlite_worker、SSE、ProviderRegistry 与 evidence-only fallback 的技术栈选择。
+- D-095 将架构审查结论落为可与 D-090～D-094 并列验收的实现子条款，降低「开发态通过、打包态或并发态失败」风险。
+
 ## 2026-05-17（D-094 P0-Core 桌面工程骨架开工契约）
 
 ### 已完成

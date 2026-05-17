@@ -1,8 +1,8 @@
 # 项目背景说明书
 
-版本：v0.6
+版本：v0.13
 日期：2026-05-17  
-状态：供后续 Agent 快速接手使用的项目背景入口；已同步 D-090 技术栈执行优化口径、D-091 工程化验收门槛、D-092 代码骨架前置契约、D-093 桌面运行时硬化与 D-094 P0-Core 桌面工程骨架开工契约；不替代 `README.md`、`docs/product-architecture.md`、`docs/data-model.md` 或 `docs/p0a-execution-plan.md`
+状态：供后续 Agent 快速接手使用的项目背景入口；已同步 D-090 技术栈执行优化口径、D-091 工程化验收门槛、D-092 代码骨架前置契约、D-093 桌面运行时硬化、D-094 P0-Core 工程骨架开工契约、D-095 架构审查实现验收强化、D-096/D-097 分布式开发计划、D-098 前端页面信息架构、D-099 前后端交付边界、D-100 P0 代码阶段首轮实现与 D-104 Search / Ask 真实接入；不替代 `README.md`、`docs/product-architecture.md`、`docs/data-model.md` 或 `docs/p0a-execution-plan.md`
 
 ## 1. 本说明书的用途
 
@@ -14,7 +14,7 @@
 - 后续实现时应该优先读取哪些文档；
 - 哪些旧口径已经过期，不能再作为实现依据。
 
-本仓库当前仍是**产品与架构文档仓库**，尚未进入运行时代码实现阶段。任何后续 Agent 在创建工程代码、migration、OpenAPI 或运行时模块前，应先阅读本说明书、`README.md`、`docs/development-plan.md`、`docs/progress.md` 和对应领域主文档。
+本仓库当前已进入 **P0 Retrieval Preview / Search-Ask Integration Z0a 代码阶段**。D-100 已创建 monorepo、Electron Main / preload、React renderer、FastAPI sidecar、SQLite、OpenAPI/generated TS types、P0-Z0a text import / review / evidence-only smoke 和八页黑白灰低保真 Knowledge Workspace；D-104 已把 confirmed KU 接入 `/search`、`/ask`、Retrieval Preview、Evidence Pack detail 和 `smoke:p0-search-ask`。任何后续 Agent 在扩展 Citation detail、feedback / Memory Draft、provider-backed RAG 或 UI 设计稿前，应先阅读本说明书、`README.md`、`docs/development-plan.md`、`docs/progress.md` 和对应领域主文档。
 
 ## 2. 一句话定位
 
@@ -142,17 +142,18 @@ AI 个人知识资产系统
 
 ### 6.1 前端体验层
 
-负责桌面工作台体验，包括：
+负责桌面 Knowledge Workspace 体验。D-098 已固定 8 个内部路由：
 
-- AI 工作台首页；
-- 项目选择；
-- 上传资料；
-- 文件管理；
-- 知识库；
-- 对话 / RAG；
-- 引用与查询解释；
-- 数据可视化入口；
-- 设置页。
+| 路由 | 页面 | 主要职责 |
+|---|---|---|
+| `/dashboard` | 首页 / 总览 | 最近导入、知识库概览、文档数量、AI 摘要数量、最近搜索 / 问答、快捷入口 |
+| `/import` | 资料导入 | 拖拽上传、本地文件夹导入、格式能力状态、上传进度、解析状态；微信 / 网盘 / Obsidian / Notion 仅为 P1/P2 占位 |
+| `/library` | 知识库 / 文件管理 | 分类树、文档列表、标签 / 时间 / 项目筛选、自动分类结果、文件状态 |
+| `/search` | 智能搜索 | 自然语言搜索、结果排序、命中文段、来源文件、标签筛选、跨文档结果 |
+| `/ask` | AI 问答 | evidence-only / provider answer、引用来源、相关文档卡片、追问和生成入口 |
+| `/graph` | 知识图谱 | 文档 / 标签 / 项目 / 人物 / 会议节点和可解释关系视图；P0 不做纯装饰图 |
+| `/outputs` | 生成结果 | 会议纪要、学习笔记、项目摘要、汇报提纲、导出入口；生成物必须绑定 Evidence/Citation |
+| `/settings` | 设置 | 账号、存储、AI 模型、外观主题、导入导出、runtime/provider 状态 |
 
 P0 默认 Electron + React + Vite + TypeScript，配合 SSE、Toast、Error Boundary、Loading Skeleton、React Context 或 Zustand。
 
@@ -480,9 +481,16 @@ P0 只做账号预埋和 disabled behavior。
 3. `docs/data-model.md`
 4. `docs/p0a-execution-plan.md`
 
+### 11.7 做分布式 / 分工开发计划
+
+1. `docs/distributed-development-plan.md`
+2. `docs/p0a-execution-plan.md`
+3. `docs/technical-stack-and-prototype-plan.md`
+4. `docs/testing-strategy.md`
+
 ## 12. 后续实现的第一条工程路线
 
-当前推荐下一步不是继续扩文档，而是先进入 P0-Core 桌面工程骨架，通过 `smoke:p0-core` 后再进入 P0-Z0a 业务竖切：
+当前 P0-Core、P0-File、P0-Parse 与 P0-Z0a 最小 smoke 已通过。后续扩展应继续按 gate 顺序推进，并在不破坏 runtime / API / data / evidence contract 的前提下进入 Candidate KU / Review / Embedding：
 
 ```text
 Electron + React + Vite + TypeScript shell
@@ -493,9 +501,17 @@ Electron + React + Vite + TypeScript shell
 → renderer shell + runtime status bar
 → OpenAPI export / generated TS types
 → smoke:p0-core
+→ upload task / file receiving / integrity
+→ File Inspection Z0a
+→ smoke:p0-file
+→ Parser Router / Source / Chunk
+→ smoke:p0-parse
+→ Candidate KU / Review / fallback embedding
+→ smoke:p0-ku
+→ Retrieval Preview / Evidence Pack detail / Search-Ask
+→ smoke:p0-search-ask
 → local_user / project / text-import
-→ File Inspection stub
-→ parse / chunk / KU review
+→ Candidate KU / review
 → embedding job with fallback profile
 → retrieval log
 → Evidence Pack
@@ -504,7 +520,7 @@ Electron + React + Vite + TypeScript shell
 ```
 
 首批 migration 应按 `docs/data-model.md` v0.20-draft 冻结，不要把 Z0b / Z1 / Z2 对象全部拉进第一批 blocking 实现；D-092 的 `trace_id` 与 Evidence Pack `failure_type` 进入首批可追踪字段。
-D-094 额外要求 `smoke:p0-core` 先于 `smoke:p0-z0a`，并在 runtime 骨架通过前禁止 upload parsing UI、RAG UI、真实 Provider 接入、OCR/ASR、图谱和面向用户的 Chat。
+D-094 额外要求 `smoke:p0-core` 先于 `smoke:p0-z0a`，并在 runtime 骨架通过前禁止 upload parsing UI、RAG UI、真实 Provider 接入、OCR/ASR、图谱和面向用户的 Chat。D-096 进一步要求并行开发时先固定 S0 Runtime、S1 API Contract、S2 Data and Migration 与 S7 Verification 的共享契约，再进入 S4/S5/S6 业务竖切。D-097 将并行开发规则细化为 runtime / API / data / evidence 四类契约锁、PR 准入 / 退出标准、集成节奏、冲突预案和风险登记。D-098 进一步要求 Renderer 先建立八页 route shell，首屏进入 `/dashboard`，`/graph` 和 `/outputs` 在 P0 作为可解释入口或 disabled placeholder，不能生成无来源图谱或无 Evidence 的输出。D-099 进一步要求 Renderer 只能通过 preload bridge、typed fetch wrapper 和 generated API types 消费后端能力，不能直接访问 Node、文件系统、SQLite、长期 token 或裸 `localhost`。D-100 已把这些要求落成首轮代码骨架；D-101 新增 `pnpm smoke:p0-file`；D-102 新增 `pnpm smoke:p0-parse`；D-103 新增 `pnpm smoke:p0-ku`；D-104 新增 `pnpm smoke:p0-search-ask`，后续扩展必须保留 `pnpm smoke:p0-core`、`pnpm smoke:p0-file`、`pnpm smoke:p0-parse`、`pnpm smoke:p0-ku`、`pnpm smoke:p0-search-ask` 与 `pnpm smoke:p0-z0a` 作为回归基线。
 
 ## 13. 常见误区和过期口径
 
@@ -564,12 +580,13 @@ P0-Z0a 必须在 LLM 缺失时仍能完成：
 
 ## 15. 当前最重要的实现前检查点
 
-进入代码阶段前，至少确认：
+继续扩展代码阶段前，至少确认：
 
 - `docs/data-model.md` v0.20-draft 的 P0-Z0a migration 对象、trace chain 和 Evidence Pack 失败态已冻结；
-- `docs/api-design.md` v0.18-draft 的 Z0a / Z2 endpoint 边界没有扩大；
-- `docs/api-implementation-plan.md` v0.20-draft 的 service / repository / transaction 边界、OpenAPI 类型生成、trace chain、migration 波次命名、桌面运行时 API 约束和 P0-Core API skeleton 顺序清楚；
-- `docs/technical-stack-and-prototype-plan.md` v0.23 的 D-091 工程化验收门槛、D-092 代码骨架前置契约、D-093 桌面运行时硬化与 D-094 P0-Core 工程骨架开工契约已进入开工约束；
-- `docs/testing-strategy.md` v0.21 的 Z0a fixture、D-090 技术栈执行优化测试口径、D-091 工程化 gate、D-092 前置契约测试、D-093 桌面运行时硬化测试和 D-094 `smoke:p0-core` 测试已能转成合同测试；
-- `docs/p0a-execution-plan.md` v0.21 的 W1 / W2 任务、依赖分组、Zustand 状态、typed fetch、sidecar lifecycle、sqlite-vec capability probe、Provider manifest / lazy-load、OpenAPI 类型生成、trace chain、migration 波次命名、local session token、SQLite 数据保护、worker heartbeat、runtime status bar、`runtime_state`、preload API surface、`smoke:p0-core` 和 File Inspection 分层可被拆成实际工程任务；
+- `docs/api-design.md` v0.20-draft 的 Z0a / Z2 endpoint 边界没有扩大，D-104 只把 Retrieval Preview / Evidence Pack detail / evidence-only 接到真实 confirmed KU 链路；
+- `docs/api-implementation-plan.md` v0.22-draft 的 service / repository / transaction 边界、OpenAPI 类型生成、trace chain、migration 波次命名、桌面运行时 API 约束、P0-Core API skeleton 顺序、D-098 页面 service owner 映射和 D-104 Retrieval Preview 实现边界清楚；
+- `docs/technical-stack-and-prototype-plan.md` v0.26 的 D-091 工程化验收门槛、D-092 代码骨架前置契约、D-093 桌面运行时硬化、D-094 P0-Core 工程骨架开工契约、D-095 架构审查实现验收强化、D-098 Knowledge Workspace 页面 IA 和 D-104 Search / Ask typed API 接入已进入开工约束；
+- `docs/distributed-development-plan.md` v0.4 的 S0-S7 工作流、共享契约锁、依赖图、文件所有权矩阵、S6 八页页面所有权、前后端交付边界、PR 准入 / 退出标准、冲突预案、风险登记和 G0-G8 验收门槛已经作为多人 / 多 Agent / 多分支协作边界；
+- `docs/testing-strategy.md` v0.23 的 Z0a fixture、D-090 技术栈执行优化测试口径、D-091 工程化 gate、D-092 前置契约测试、D-093 桌面运行时硬化测试、D-094 `smoke:p0-core` 测试、D-098 页面契约测试和 D-104 Search / Ask smoke 已能转成合同测试；
+- `docs/p0a-execution-plan.md` v0.21 的 W1 / W2 任务、依赖分组、Zustand 状态、typed fetch、sidecar lifecycle、sqlite-vec capability probe、Provider manifest / lazy-load、OpenAPI 类型生成、trace chain、migration 波次命名、local session token、SQLite 数据保护、worker heartbeat、runtime status bar、`runtime_state`、preload API surface、`smoke:p0-core`、`smoke:p0-file`、`smoke:p0-parse`、`smoke:p0-ku`、`smoke:p0-search-ask` 和 File Inspection / Parser Router / Review / Retrieval 分层可被拆成实际工程任务；
 - README、开发计划和进度记录与真实实现保持一致。

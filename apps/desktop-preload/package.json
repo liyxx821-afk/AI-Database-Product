@@ -1,0 +1,16 @@
+{
+  "name": "@knowledgebase-dev/desktop-preload",
+  "version": "0.1.0-alpha",
+  "private": true,
+  "type": "commonjs",
+  "main": "dist/preload.cjs",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "electron": "^39.2.6",
+    "typescript": "^5.9.3"
+  }
+}

@@ -1,0 +1,1 @@
+"""KnowledgeBaseDev FastAPI sidecar package."""

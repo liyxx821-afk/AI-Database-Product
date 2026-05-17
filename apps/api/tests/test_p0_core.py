@@ -1,0 +1,625 @@
+from __future__ import annotations
+
+import hashlib
+
+from app.db.sqlite import db
+from app.main import create_app
+from fastapi.testclient import TestClient
+
+
+def test_health_and_auth_status(monkeypatch, tmp_path):
+    monkeypatch.setenv("KB_APP_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("KB_LOCAL_TOKEN", "test-token")
+    with TestClient(create_app()) as client:
+        health = client.get("/api/health")
+        assert health.status_code == 200
+        assert health.json()["ok"] is True
+
+        unauthorized = client.get("/api/auth/status")
+        assert unauthorized.status_code == 401
+        assert unauthorized.json()["error"]["code"] == "sidecar_auth_failed"
+
+        auth = client.get("/api/auth/status", headers={"x-kb-local-token": "test-token"})
+        assert auth.status_code == 200
+        assert auth.json()["auth_enabled"] is False
+
+
+def test_settings_language_persistence_and_validation(monkeypatch, tmp_path):
+    monkeypatch.setenv("KB_APP_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("KB_LOCAL_TOKEN", "test-token")
+    headers = {"x-kb-local-token": "test-token"}
+    with TestClient(create_app()) as client:
+        unauthorized = client.get("/api/settings")
+        assert unauthorized.status_code == 401
+        assert unauthorized.json()["error"]["code"] == "sidecar_auth_failed"
+
+        defaults = client.get("/api/settings", headers=headers)
+        assert defaults.status_code == 200
+        assert defaults.json()["language"] == "zh-CN"
+        assert defaults.json()["persistence"] == "config_json"
+
+        english = client.patch("/api/settings", headers=headers, json={"language": "en-US"})
+        assert english.status_code == 200
+        assert english.json()["language"] == "en-US"
+
+        persisted = client.get("/api/settings", headers=headers)
+        assert persisted.status_code == 200
+        assert persisted.json()["language"] == "en-US"
+
+        chinese = client.patch("/api/settings", headers=headers, json={"language": "zh-CN"})
+        assert chinese.status_code == 200
+        assert chinese.json()["language"] == "zh-CN"
+
+        invalid = client.patch("/api/settings", headers=headers, json={"language": "fr-FR"})
+        assert invalid.status_code == 422
+        assert invalid.json()["error"]["code"] == "validation_error"
+
+        unknown = client.patch(
+            "/api/settings",
+            headers=headers,
+            json={"language": "zh-CN", "theme": "dark"},
+        )
+        assert unknown.status_code == 422
+        assert unknown.json()["error"]["code"] == "validation_error"
+
+
+def test_z0a_text_import_review_and_evidence(monkeypatch, tmp_path):
+    monkeypatch.setenv("KB_APP_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("KB_LOCAL_TOKEN", "test-token")
+    headers = {"x-kb-local-token": "test-token"}
+    with TestClient(create_app()) as client:
+        imported = client.post(
+            "/api/text-imports",
+            headers=headers,
+            json={
+                "title": "Evidence test",
+                "content": (
+                    "Evidence Pack 引用 Source 和 Chunk。"
+                    "Knowledge Unit 需要 Review 后才能调用。"
+                ),
+            },
+        )
+        assert imported.status_code == 200
+        body = imported.json()
+        assert body["review_task_ids"]
+
+        pending_preview = client.post(
+            "/api/retrieval/preview",
+            headers=headers,
+            json={"query": "Evidence Pack Source Chunk"},
+        )
+        assert pending_preview.status_code == 200
+        pending_preview_body = pending_preview.json()
+        assert pending_preview_body["evidence_pack"]["status"] == "empty"
+        assert pending_preview_body["evidence_pack"]["failure_type"] == "no_retrieval_result"
+        assert pending_preview_body["evidence_item_ids"] == []
+
+        confirmed = client.post(
+            f"/api/review-tasks/{body['review_task_ids'][0]}:confirm",
+            headers=headers,
+        )
+        assert confirmed.status_code == 200
+
+        preview = client.post(
+            "/api/retrieval/preview",
+            headers=headers,
+            json={"query": "Evidence Pack Source Chunk"},
+        )
+        assert preview.status_code == 200
+        preview_body = preview.json()
+        assert preview_body["evidence_pack"]["status"] == "ready"
+        assert preview_body["evidence_pack"]["items"]
+        assert preview_body["query_explanation"]["retrieval_strategy_profile"] == (
+            "p0_confirmed_ku_token_overlap_v1"
+        )
+        assert preview_body["provider_status"] == "degraded"
+        assert preview_body["fallback_reason"]
+
+        pack = client.get(
+            f"/api/evidence-packs/{preview_body['evidence_pack_id']}",
+            headers=headers,
+        )
+        assert pack.status_code == 200
+        pack_body = pack.json()
+        assert [item["id"] for item in pack_body["items"]] == preview_body["evidence_item_ids"]
+        assert pack_body["query"] == "Evidence Pack Source Chunk"
+        assert pack_body["query_explanation"]["retrieval_strategy_profile"] == (
+            "p0_confirmed_ku_token_overlap_v1"
+        )
+        assert pack_body["provider_status"] == "degraded"
+        assert pack_body["fallback_reason"]
+        detail_item = pack_body["items"][0]
+        assert detail_item["knowledge_unit_title"] == "Evidence test"
+        assert detail_item["knowledge_unit_status"] == "confirmed"
+        assert detail_item["knowledge_unit_type"] == "claim"
+        assert "Evidence Pack" in detail_item["chunk_content_excerpt"]
+        assert detail_item["source_title"] == "Evidence test"
+        assert detail_item["source_origin"] == "text_import"
+        assert detail_item["citation_trace"]["profile"] == "p0_citation_trace_source_chunk_v1"
+
+        answer = client.post(
+            "/api/retrieval/evidence-only",
+            headers=headers,
+            json={"query": "Evidence Pack Source Chunk"},
+        )
+        assert answer.status_code == 200
+        answer_body = answer.json()
+        assert answer_body["output_type"] == "evidence_only_answer"
+        assert answer_body["evidence_item_ids"]
+        assert answer_body["citation_labels"]
+
+        no_evidence = client.post(
+            "/api/retrieval/evidence-only",
+            headers=headers,
+            json={"query": "zzzz-not-present"},
+        )
+        assert no_evidence.status_code == 200
+        no_evidence_body = no_evidence.json()
+        assert no_evidence_body["evidence_item_ids"] == []
+        assert "不会在无证据时生成伪答案" in no_evidence_body["answer"]
+        no_evidence_pack = client.get(
+            f"/api/evidence-packs/{no_evidence_body['evidence_pack_id']}",
+            headers=headers,
+        )
+        assert no_evidence_pack.status_code == 200
+        no_evidence_pack_body = no_evidence_pack.json()
+        assert no_evidence_pack_body["status"] == "empty"
+        assert no_evidence_pack_body["failure_type"] == "no_retrieval_result"
+        assert no_evidence_pack_body["items"] == []
+
+
+def test_feedback_events_and_memory_draft_review(monkeypatch, tmp_path):
+    monkeypatch.setenv("KB_APP_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("KB_LOCAL_TOKEN", "test-token")
+    headers = {"x-kb-local-token": "test-token"}
+    with TestClient(create_app()) as client:
+        unauthorized = client.post("/api/feedback", json={"feedback_type": "useful"})
+        assert unauthorized.status_code == 401
+        assert unauthorized.json()["error"]["code"] == "sidecar_auth_failed"
+
+        imported = client.post(
+            "/api/text-imports",
+            headers=headers,
+            json={
+                "title": "Feedback memory source",
+                "content": "Feedback events and Memory Draft must stay pending review.",
+            },
+        )
+        assert imported.status_code == 200
+        imported_body = imported.json()
+        assert imported_body["review_task_ids"]
+        assert imported_body["candidate_knowledge_unit_ids"]
+
+        confirmed = client.post(
+            f"/api/review-tasks/{imported_body['review_task_ids'][0]}:confirm",
+            headers=headers,
+        )
+        assert confirmed.status_code == 200
+
+        answer = client.post(
+            "/api/retrieval/evidence-only",
+            headers=headers,
+            json={"query": "Feedback Memory Draft"},
+        )
+        assert answer.status_code == 200
+        answer_body = answer.json()
+        assert answer_body["answer_id"]
+        assert answer_body["evidence_pack_id"]
+        assert answer_body["evidence_item_ids"]
+
+        missing_target = client.post(
+            "/api/feedback",
+            headers=headers,
+            json={"feedback_type": "useful"},
+        )
+        assert missing_target.status_code == 422
+        assert missing_target.json()["error"]["code"] == "validation_error"
+
+        invalid_feedback = client.post(
+            "/api/feedback",
+            headers=headers,
+            json={"feedback_type": "wrong", "ai_answer_id": answer_body["answer_id"]},
+        )
+        assert invalid_feedback.status_code == 422
+        assert invalid_feedback.json()["error"]["code"] == "validation_error"
+
+        feedback = client.post(
+            "/api/feedback",
+            headers=headers,
+            json={
+                "feedback_type": "useful",
+                "evidence_pack_id": answer_body["evidence_pack_id"],
+                "ai_answer_id": answer_body["answer_id"],
+                "evidence_item_id": answer_body["evidence_item_ids"][0],
+                "comment": "This answer is useful.",
+            },
+        )
+        assert feedback.status_code == 200
+        feedback_body = feedback.json()
+        assert feedback_body["feedback_type"] == "useful"
+        assert feedback_body["target_type"] == "evidence_item"
+        assert feedback_body["feedback_policy"]["mutates_confirmed_knowledge"] is False
+
+        with db() as conn:
+            event_count = conn.execute("SELECT COUNT(*) FROM feedback_events").fetchone()[0]
+            ku_status = conn.execute(
+                "SELECT status FROM knowledge_units WHERE id = ?",
+                (imported_body["candidate_knowledge_unit_ids"][0],),
+            ).fetchone()[0]
+        assert event_count == 1
+        assert ku_status == "confirmed"
+
+        missing_answer = client.post(
+            "/api/memory-drafts",
+            headers=headers,
+            json={
+                "source_answer_id": "answer_missing",
+                "content": "Should fail",
+                "memory_type": "decision",
+            },
+        )
+        assert missing_answer.status_code == 404
+        assert missing_answer.json()["error"]["code"] == "ai_answer_not_found"
+
+        empty_memory = client.post(
+            "/api/memory-drafts",
+            headers=headers,
+            json={
+                "source_answer_id": answer_body["answer_id"],
+                "content": "",
+                "memory_type": "decision",
+            },
+        )
+        assert empty_memory.status_code == 422
+        assert empty_memory.json()["error"]["code"] == "validation_error"
+
+        memory = client.post(
+            "/api/memory-drafts",
+            headers=headers,
+            json={
+                "source_answer_id": answer_body["answer_id"],
+                "content": "Feedback Memory Draft should enter review first.",
+                "memory_type": "decision",
+            },
+        )
+        assert memory.status_code == 200
+        memory_body = memory.json()
+        assert memory_body["status"] == "pending_review"
+        assert memory_body["user_confirmed"] is False
+        assert memory_body["review_task_id"]
+
+        reviews = client.get("/api/review-tasks", headers=headers)
+        assert reviews.status_code == 200
+        memory_review = next(
+            task for task in reviews.json() if task["target_id"] == memory_body["id"]
+        )
+        assert memory_review["target_type"] == "memory"
+
+        confirmed_memory = client.post(
+            f"/api/review-tasks/{memory_body['review_task_id']}:confirm",
+            headers=headers,
+        )
+        assert confirmed_memory.status_code == 200
+        memory_detail = client.get(f"/api/memory-drafts/{memory_body['id']}", headers=headers)
+        assert memory_detail.status_code == 200
+        assert memory_detail.json()["status"] == "confirmed"
+        assert memory_detail.json()["user_confirmed"] is True
+
+        second_memory = client.post(
+            "/api/memory-drafts",
+            headers=headers,
+            json={
+                "source_answer_id": answer_body["answer_id"],
+                "content": "This second draft will be ignored.",
+                "memory_type": "conclusion",
+            },
+        )
+        assert second_memory.status_code == 200
+        ignored_memory = client.post(
+            f"/api/review-tasks/{second_memory.json()['review_task_id']}:ignore",
+            headers=headers,
+        )
+        assert ignored_memory.status_code == 200
+        second_detail = client.get(
+            f"/api/memory-drafts/{second_memory.json()['id']}",
+            headers=headers,
+        )
+        assert second_detail.status_code == 200
+        assert second_detail.json()["status"] == "archived"
+
+        with db() as conn:
+            ku_count = conn.execute("SELECT COUNT(*) FROM knowledge_units").fetchone()[0]
+            memory_count = conn.execute("SELECT COUNT(*) FROM memories").fetchone()[0]
+        assert ku_count == 1
+        assert memory_count == 2
+
+
+def test_p0_file_upload_complete_and_inspection(monkeypatch, tmp_path):
+    monkeypatch.setenv("KB_APP_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("KB_LOCAL_TOKEN", "test-token")
+    headers = {"x-kb-local-token": "test-token"}
+    content = b"KnowledgeBaseDev upload smoke fixture."
+    expected_hash = hashlib.sha256(content).hexdigest()
+
+    with TestClient(create_app()) as client:
+        created = client.post(
+            "/api/uploads",
+            headers=headers,
+            json={
+                "filename": "fixture.txt",
+                "size_bytes": len(content),
+                "content_type": "text/plain",
+                "sha256": expected_hash,
+                "part_size": 12,
+            },
+        )
+        assert created.status_code == 200
+        upload = created.json()
+        assert upload["status"] == "created"
+        assert upload["part_count"] == 4
+
+        for index, offset in enumerate(range(0, len(content), 12), start=1):
+            part = client.put(
+                f"/api/uploads/{upload['id']}/parts/{index}",
+                headers={**headers, "content-type": "application/octet-stream"},
+                content=content[offset : offset + 12],
+            )
+            assert part.status_code == 200
+
+        completed = client.post(f"/api/uploads/{upload['id']}:complete", headers=headers)
+        assert completed.status_code == 200
+        complete_body = completed.json()
+        assert complete_body["status"] == "completed"
+        assert complete_body["file_id"]
+        assert complete_body["integrity_check"]["status"] == "passed"
+        assert complete_body["inspection"]["risk_level"] == "low"
+        assert complete_body["inspection"]["header_summary"]
+
+        files = client.get("/api/files", headers=headers)
+        assert files.status_code == 200
+        assert files.json()[0]["id"] == complete_body["file_id"]
+
+        verified = client.post(f"/api/files/{complete_body['file_id']}:verify", headers=headers)
+        assert verified.status_code == 200
+        assert verified.json()["inspection_status"] == "completed"
+
+
+def test_p0_file_upload_missing_part_and_hash_mismatch_are_recoverable(monkeypatch, tmp_path):
+    monkeypatch.setenv("KB_APP_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("KB_LOCAL_TOKEN", "test-token")
+    headers = {"x-kb-local-token": "test-token"}
+    content = b"two chunks"
+
+    with TestClient(create_app()) as client:
+        missing_upload = client.post(
+            "/api/uploads",
+            headers=headers,
+            json={"filename": "missing.md", "size_bytes": len(content), "part_size": 4},
+        ).json()
+        client.put(
+            f"/api/uploads/{missing_upload['id']}/parts/1",
+            headers={**headers, "content-type": "application/octet-stream"},
+            content=content[:4],
+        )
+        missing = client.post(f"/api/uploads/{missing_upload['id']}:complete", headers=headers)
+        assert missing.status_code == 409
+        assert missing.json()["error"]["code"] == "upload_part_missing"
+
+        snapshot = client.get(f"/api/uploads/{missing_upload['id']}", headers=headers)
+        assert snapshot.status_code == 200
+        assert snapshot.json()["status"] == "recoverable_error"
+        assert snapshot.json()["error_code"] == "upload_part_missing"
+
+        mismatch_upload = client.post(
+            "/api/uploads",
+            headers=headers,
+            json={
+                "filename": "mismatch.md",
+                "size_bytes": len(content),
+                "sha256": "0" * 64,
+                "part_size": 32,
+            },
+        ).json()
+        client.put(
+            f"/api/uploads/{mismatch_upload['id']}/parts/1",
+            headers={**headers, "content-type": "application/octet-stream"},
+            content=content,
+        )
+        mismatch = client.post(f"/api/uploads/{mismatch_upload['id']}:complete", headers=headers)
+        assert mismatch.status_code == 409
+        assert mismatch.json()["error"]["code"] == "hash_mismatch"
+
+        mismatch_snapshot = client.get(f"/api/uploads/{mismatch_upload['id']}", headers=headers)
+        assert mismatch_snapshot.status_code == 200
+        assert mismatch_snapshot.json()["status"] == "recoverable_error"
+        assert mismatch_snapshot.json()["integrity_check"]["status"] == "failed"
+
+
+def test_p0_parse_text_file_creates_source_and_chunks(monkeypatch, tmp_path):
+    monkeypatch.setenv("KB_APP_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("KB_LOCAL_TOKEN", "test-token")
+    headers = {"x-kb-local-token": "test-token"}
+    content = b"# File parser\n\nParser Router creates Source and Chunk from inspected text."
+    expected_hash = hashlib.sha256(content).hexdigest()
+
+    with TestClient(create_app()) as client:
+        upload = client.post(
+            "/api/uploads",
+            headers=headers,
+            json={
+                "filename": "parser.md",
+                "size_bytes": len(content),
+                "content_type": "text/markdown",
+                "sha256": expected_hash,
+                "part_size": 1024,
+            },
+        ).json()
+        client.put(
+            f"/api/uploads/{upload['id']}/parts/1",
+            headers={**headers, "content-type": "application/octet-stream"},
+            content=content,
+        )
+        completed = client.post(f"/api/uploads/{upload['id']}:complete", headers=headers).json()
+
+        parsed = client.post(f"/api/files/{completed['file_id']}:parse", headers=headers)
+        assert parsed.status_code == 200
+        parsed_body = parsed.json()
+        assert parsed_body["status"] == "completed"
+        assert parsed_body["source_id"]
+        assert parsed_body["chunk_ids"]
+        assert parsed_body["source"]["source_origin"] == "parsed_file"
+
+        task = client.get(f"/api/parse-tasks/{parsed_body['id']}", headers=headers)
+        assert task.status_code == 200
+        assert task.json()["source_id"] == parsed_body["source_id"]
+
+        sources = client.get("/api/sources", headers=headers)
+        assert sources.status_code == 200
+        assert sources.json()[0]["id"] == parsed_body["source_id"]
+
+        source = client.get(f"/api/sources/{parsed_body['source_id']}", headers=headers)
+        assert source.status_code == 200
+        assert source.json()["chunks"][0]["citation_label"].startswith("parser.md")
+
+        extracted = client.post(
+            "/api/knowledge-units:extract",
+            headers=headers,
+            json={"source_id": parsed_body["source_id"]},
+        )
+        assert extracted.status_code == 200
+        extracted_body = extracted.json()
+        assert extracted_body["status"] == "completed"
+        assert extracted_body["candidate_knowledge_unit_ids"]
+        assert extracted_body["review_task_ids"]
+        assert extracted_body["embedding_ids"]
+        assert extracted_body["fallback_reason"] == "provider_capability_unavailable"
+
+        reused = client.post(
+            "/api/knowledge-units:extract",
+            headers=headers,
+            json={"source_id": parsed_body["source_id"]},
+        )
+        assert reused.status_code == 200
+        assert reused.json()["status"] == "reused"
+        assert reused.json()["candidate_knowledge_unit_ids"] == extracted_body[
+            "candidate_knowledge_unit_ids"
+        ]
+
+        ku = client.get(
+            f"/api/knowledge-units/{extracted_body['candidate_knowledge_unit_ids'][0]}",
+            headers=headers,
+        )
+        assert ku.status_code == 200
+        ku_body = ku.json()
+        assert ku_body["status"] == "pending_review"
+        assert ku_body["embeddings"][0]["embedding_profile"] == "mock_fixed_384"
+        assert ku_body["embeddings"][0]["dimension"] == 384
+
+        review_queue = client.get("/api/review-tasks", headers=headers)
+        assert review_queue.status_code == 200
+        assert review_queue.json()[0]["target_id"] in extracted_body["candidate_knowledge_unit_ids"]
+
+        pending_preview = client.post(
+            "/api/retrieval/preview",
+            headers=headers,
+            json={"query": "Parser Router Source Chunk"},
+        )
+        assert pending_preview.status_code == 200
+        assert pending_preview.json()["evidence_pack"]["failure_type"] == "no_retrieval_result"
+
+        confirmed = client.post(
+            f"/api/review-tasks/{extracted_body['review_task_ids'][0]}:confirm",
+            headers=headers,
+        )
+        assert confirmed.status_code == 200
+
+        preview = client.post(
+            "/api/retrieval/preview",
+            headers=headers,
+            json={"query": "Parser Router Source Chunk"},
+        )
+        assert preview.status_code == 200
+        preview_body = preview.json()
+        assert preview_body["evidence_pack"]["items"]
+        pack = client.get(
+            f"/api/evidence-packs/{preview_body['evidence_pack_id']}",
+            headers=headers,
+        )
+        assert pack.status_code == 200
+        pack_item = pack.json()["items"][0]
+        assert pack_item["knowledge_unit_status"] == "confirmed"
+        assert pack_item["source_origin"] == "parsed_file"
+
+        answer = client.post(
+            "/api/retrieval/evidence-only",
+            headers=headers,
+            json={"query": "Parser Router Source Chunk"},
+        )
+        assert answer.status_code == 200
+        assert answer.json()["evidence_item_ids"]
+
+        summary = client.get("/api/workspace/summary", headers=headers)
+        assert summary.status_code == 200
+        assert summary.json()["source_count"] == 1
+        assert summary.json()["chunk_count"] >= 1
+        assert summary.json()["knowledge_unit_count"] >= 1
+
+
+def test_p0_parse_unsupported_and_blocked_files_are_recoverable(monkeypatch, tmp_path):
+    monkeypatch.setenv("KB_APP_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("KB_LOCAL_TOKEN", "test-token")
+    headers = {"x-kb-local-token": "test-token"}
+
+    with TestClient(create_app()) as client:
+        pdf_content = b"%PDF-1.7\nnot implemented in z0a"
+        pdf_hash = hashlib.sha256(pdf_content).hexdigest()
+        pdf_upload = client.post(
+            "/api/uploads",
+            headers=headers,
+            json={
+                "filename": "unsupported.pdf",
+                "size_bytes": len(pdf_content),
+                "content_type": "application/pdf",
+                "sha256": pdf_hash,
+                "part_size": 1024,
+            },
+        ).json()
+        client.put(
+            f"/api/uploads/{pdf_upload['id']}/parts/1",
+            headers={**headers, "content-type": "application/octet-stream"},
+            content=pdf_content,
+        )
+        pdf_completed = client.post(
+            f"/api/uploads/{pdf_upload['id']}:complete",
+            headers=headers,
+        ).json()
+        unsupported = client.post(f"/api/files/{pdf_completed['file_id']}:parse", headers=headers)
+        assert unsupported.status_code == 409
+        assert unsupported.json()["error"]["code"] == "unsupported_parser"
+
+        script_content = b"#!/bin/sh\necho blocked"
+        script_hash = hashlib.sha256(script_content).hexdigest()
+        script_upload = client.post(
+            "/api/uploads",
+            headers=headers,
+            json={
+                "filename": "blocked.sh",
+                "size_bytes": len(script_content),
+                "content_type": "text/x-shellscript",
+                "sha256": script_hash,
+                "part_size": 1024,
+            },
+        ).json()
+        client.put(
+            f"/api/uploads/{script_upload['id']}/parts/1",
+            headers={**headers, "content-type": "application/octet-stream"},
+            content=script_content,
+        )
+        script_completed = client.post(
+            f"/api/uploads/{script_upload['id']}:complete",
+            headers=headers,
+        ).json()
+        assert script_completed["inspection"]["risk_level"] == "blocked"
+        blocked = client.post(f"/api/files/{script_completed['file_id']}:parse", headers=headers)
+        assert blocked.status_code == 409
+        assert blocked.json()["error"]["code"] == "file_blocked_by_risk_policy"

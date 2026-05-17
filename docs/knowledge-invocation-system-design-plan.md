@@ -1,8 +1,8 @@
 # 知识调用系统架构设计计划
 
-版本：v0.10  
+版本：v0.11
 日期：2026-05-17  
-状态：已同步 D-080，并按 D-081/D-082/D-083 收紧 P0-Z0a/Z2 持久化边界、InvocationProfileSchema v1、feedback_policy 与 FrontendStateContract
+状态：已同步 D-080，并按 D-081/D-082/D-083 收紧 P0-Z0a/Z2 持久化边界、InvocationProfileSchema v1、feedback_policy、FrontendStateContract 与 D-098 Search/Ask/Graph/Outputs 页面调用边界
 
 ## 1. 文档目的
 
@@ -933,6 +933,35 @@ P0 不实现多 Agent、自主工具执行、外部 API 调用、跨应用操作
 | 接口请求 | fetch/Axios API client + SSE | Toast、Error Boundary、Auth Guard |
 
 前端展示不得把 evidence-only answer 包装成真实 LLM 回答；必须显示 provider/fallback 状态和 citation/evidence 来源。
+
+### 8.6 D-098 知识调用页面契约
+
+D-098 不新增调用 endpoint，只把知识调用域在前端的页面职责固定到 `/search`、`/ask`、`/graph` 和 `/outputs` 四类调用视图中。
+
+| 页面 | 必须展示 | 后端对象 / 响应摘要 | 降级与禁止事项 |
+|---|---|---|---|
+| `/search` 智能搜索 | 自然语言搜索框、Query Explanation、strategy route、ranking summary、命中文段、来源文件、标签筛选、跨文档结果 | `query_understanding_profile`、`retrieval_strategy_profile`、`ranking_profile`、`citation_trace_profile`、Evidence Pack | LLM query rewrite / reranker 缺失时回退规则路由和 hybrid score；空结果必须说明 `no_retrieval_result` 或 `insufficient_evidence` |
+| `/ask` AI 问答 | 用户提问、evidence-only / provider answer、引用来源、相关文档卡片、追问、生成摘要/报告入口 | `ai_answers.output_type`、Evidence Pack、Citation Trace、provider_status、feedback_actions | P0-Z0a 默认 evidence-only；Provider answer 必须带 citation；不得把无证据回答包装为知识库回答 |
+| `/graph` 知识图谱 | 文档/标签/项目/人物/会议节点、关系强弱、节点点击回源、空关系说明 | confirmed relation、relation suggestion evidence、Tag/Folder/MOC summary、Citation Trace | P0 不运行 GraphRAG，不依赖外部图数据库；关系不足时展示可解释空态，而不是生成装饰性图谱 |
+| `/outputs` 生成结果 | 会议纪要、学习笔记、项目摘要、汇报提纲、导出入口、引用来源 | AIAnswer draft、Memory Draft、Review payload、Evidence/Citation summary | 输出物是 derived artifact，必须进入 Review 或导出草稿；不得直接写 confirmed KU / relation / memory |
+
+`/dashboard`、`/import`、`/library`、`/settings` 也会读取知识调用摘要，但不能在页面内重新拼接证据：
+
+- `/dashboard` 只显示最近搜索、最近问答、AI 摘要数量和 provider/fallback 摘要。
+- `/library` 可以展示某个 Source / Chunk / KU 的最近引用和检索命中，但 citation 仍以后端 Evidence/Citation response 为准。
+- `/settings` 显示 LLM、embedding、rerank、GraphRAG、WebSocket 等能力状态；GraphRAG / WebSocket unavailable 不能阻塞 P0 搜索和问答。
+
+调用页状态统一遵循：
+
+```text
+loading
+empty
+degraded
+recoverable_error
+done
+```
+
+其中 `degraded` 必须携带 `capability_status`、`fallback_reason` 或 `provider_status`；`recoverable_error` 必须提供可恢复动作，例如重试任务、缩小检索范围、安装/启用 provider、返回导入页补充证据或打开设置页。
 
 ---
 

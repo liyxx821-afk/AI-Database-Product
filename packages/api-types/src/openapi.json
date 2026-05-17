@@ -1,0 +1,3648 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "KnowledgeBaseDev API",
+    "version": "0.1.0-alpha"
+  },
+  "paths": {
+    "/api/health": {
+      "get": {
+        "summary": "Health",
+        "operationId": "health_api_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/system/runtime": {
+      "get": {
+        "summary": "System Runtime",
+        "operationId": "system_runtime_api_system_runtime_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RuntimeResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/system/status": {
+      "get": {
+        "summary": "System Status",
+        "operationId": "system_status_api_system_status_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemStatusResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/system/diagnostics:export": {
+      "post": {
+        "summary": "Export Diagnostics",
+        "operationId": "export_diagnostics_api_system_diagnostics_export_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiagnosticsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workspace/summary": {
+      "get": {
+        "summary": "Workspace Summary",
+        "operationId": "workspace_summary_api_workspace_summary_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceSummaryResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/status": {
+      "get": {
+        "summary": "Auth Status",
+        "operationId": "auth_status_api_auth_status_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthStatusResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/settings": {
+      "get": {
+        "summary": "Get Settings Route",
+        "operationId": "get_settings_route_api_settings_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettingsResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "summary": "Patch Settings Route",
+        "operationId": "patch_settings_route_api_settings_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SettingsPatchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettingsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/uploads": {
+      "post": {
+        "summary": "Create Upload",
+        "operationId": "create_upload_api_uploads_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UploadCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadSnapshot"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/uploads/{upload_id}/parts/{part_no}": {
+      "put": {
+        "summary": "Upload Part",
+        "operationId": "upload_part_api_uploads__upload_id__parts__part_no__put",
+        "parameters": [
+          {
+            "name": "upload_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Upload Id"
+            }
+          },
+          {
+            "name": "part_no",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Part No"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadPartResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/uploads/{upload_id}:complete": {
+      "post": {
+        "summary": "Finish Upload",
+        "operationId": "finish_upload_api_uploads__upload_id__complete_post",
+        "parameters": [
+          {
+            "name": "upload_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Upload Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadSnapshot"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/uploads/{upload_id}": {
+      "get": {
+        "summary": "Get Upload",
+        "operationId": "get_upload_api_uploads__upload_id__get",
+        "parameters": [
+          {
+            "name": "upload_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Upload Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadSnapshot"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/files": {
+      "get": {
+        "summary": "Get Files",
+        "operationId": "get_files_api_files_get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "default-space",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/FileRecord"
+                  },
+                  "title": "Response Get Files Api Files Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/files/{file_id}": {
+      "get": {
+        "summary": "Get File",
+        "operationId": "get_file_api_files__file_id__get",
+        "parameters": [
+          {
+            "name": "file_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "File Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileRecord"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/files/{file_id}:verify": {
+      "post": {
+        "summary": "Verify Stored File",
+        "operationId": "verify_stored_file_api_files__file_id__verify_post",
+        "parameters": [
+          {
+            "name": "file_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "File Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileRecord"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/files/{file_id}:parse": {
+      "post": {
+        "summary": "Parse Stored File",
+        "operationId": "parse_stored_file_api_files__file_id__parse_post",
+        "parameters": [
+          {
+            "name": "file_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "File Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ParseTaskRecord"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/parse-tasks/{parse_task_id}": {
+      "get": {
+        "summary": "Get Parse Task Snapshot",
+        "operationId": "get_parse_task_snapshot_api_parse_tasks__parse_task_id__get",
+        "parameters": [
+          {
+            "name": "parse_task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Parse Task Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ParseTaskRecord"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sources": {
+      "get": {
+        "summary": "Get Sources",
+        "operationId": "get_sources_api_sources_get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "default-space",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SourceRecord"
+                  },
+                  "title": "Response Get Sources Api Sources Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sources/{source_id}": {
+      "get": {
+        "summary": "Get Source Detail",
+        "operationId": "get_source_detail_api_sources__source_id__get",
+        "parameters": [
+          {
+            "name": "source_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Source Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/knowledge-units:extract": {
+      "post": {
+        "summary": "Extract Knowledge Units",
+        "operationId": "extract_knowledge_units_api_knowledge_units_extract_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KnowledgeExtractRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgeExtractResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/knowledge-units": {
+      "get": {
+        "summary": "Get Knowledge Units",
+        "operationId": "get_knowledge_units_api_knowledge_units_get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "default-space",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/KnowledgeUnitRecord"
+                  },
+                  "title": "Response Get Knowledge Units Api Knowledge Units Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/knowledge-units/{knowledge_unit_id}": {
+      "get": {
+        "summary": "Get Knowledge Unit Detail",
+        "operationId": "get_knowledge_unit_detail_api_knowledge_units__knowledge_unit_id__get",
+        "parameters": [
+          {
+            "name": "knowledge_unit_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Knowledge Unit Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgeUnitDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/feedback": {
+      "post": {
+        "summary": "Submit Feedback Route",
+        "operationId": "submit_feedback_route_api_feedback_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FeedbackRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeedbackResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/memory-drafts": {
+      "post": {
+        "summary": "Create Memory Draft Route",
+        "operationId": "create_memory_draft_route_api_memory_drafts_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MemoryDraftRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryDraftRecord"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "summary": "List Memory Drafts Route",
+        "operationId": "list_memory_drafts_route_api_memory_drafts_get",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MemoryDraftRecord"
+                  },
+                  "title": "Response List Memory Drafts Route Api Memory Drafts Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/memory-drafts/{memory_id}": {
+      "get": {
+        "summary": "Get Memory Draft Route",
+        "operationId": "get_memory_draft_route_api_memory_drafts__memory_id__get",
+        "parameters": [
+          {
+            "name": "memory_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Memory Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryDraftRecord"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/text-imports": {
+      "post": {
+        "summary": "Create Text Import",
+        "operationId": "create_text_import_api_text_imports_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TextImportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TextImportResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/jobs/{job_id}": {
+      "get": {
+        "summary": "Get Job",
+        "operationId": "get_job_api_jobs__job_id__get",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobSnapshot"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/jobs/{job_id}/events:stream": {
+      "get": {
+        "summary": "Stream Job Events",
+        "operationId": "stream_job_events_api_jobs__job_id__events_stream_get",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/review-tasks": {
+      "get": {
+        "summary": "List Review Tasks",
+        "operationId": "list_review_tasks_api_review_tasks_get",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "pending_review",
+              "title": "Status"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ReviewTask"
+                  },
+                  "title": "Response List Review Tasks Api Review Tasks Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/review-tasks/{task_id}:confirm": {
+      "post": {
+        "summary": "Confirm Review Task",
+        "operationId": "confirm_review_task_api_review_tasks__task_id__confirm_post",
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Task Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewActionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/review-tasks/{task_id}:ignore": {
+      "post": {
+        "summary": "Ignore Review Task",
+        "operationId": "ignore_review_task_api_review_tasks__task_id__ignore_post",
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Task Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewActionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/retrieval/evidence-only": {
+      "post": {
+        "summary": "Evidence Only",
+        "operationId": "evidence_only_api_retrieval_evidence_only_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EvidenceOnlyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvidenceOnlyResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/retrieval/preview": {
+      "post": {
+        "summary": "Retrieval Preview",
+        "operationId": "retrieval_preview_api_retrieval_preview_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RetrievalPreviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetrievalPreviewResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/evidence-packs/{evidence_pack_id}": {
+      "get": {
+        "summary": "Evidence Pack Detail",
+        "operationId": "evidence_pack_detail_api_evidence_packs__evidence_pack_id__get",
+        "parameters": [
+          {
+            "name": "evidence_pack_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Evidence Pack Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvidencePackDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AuthStatusResponse": {
+        "properties": {
+          "auth_enabled": {
+            "type": "boolean",
+            "title": "Auth Enabled"
+          },
+          "disabled_reason": {
+            "type": "string",
+            "title": "Disabled Reason"
+          },
+          "local_user": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Local User"
+          }
+        },
+        "type": "object",
+        "required": [
+          "auth_enabled",
+          "disabled_reason",
+          "local_user"
+        ],
+        "title": "AuthStatusResponse"
+      },
+      "ChunkRecord": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "source_id": {
+            "type": "string",
+            "title": "Source Id"
+          },
+          "project_id": {
+            "type": "string",
+            "title": "Project Id"
+          },
+          "content": {
+            "type": "string",
+            "title": "Content"
+          },
+          "chunk_index": {
+            "type": "integer",
+            "title": "Chunk Index"
+          },
+          "citation_label": {
+            "type": "string",
+            "title": "Citation Label"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Metadata"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "source_id",
+          "project_id",
+          "content",
+          "chunk_index",
+          "citation_label",
+          "metadata",
+          "created_at"
+        ],
+        "title": "ChunkRecord"
+      },
+      "DiagnosticsResponse": {
+        "properties": {
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "redacted": {
+            "type": "boolean",
+            "title": "Redacted"
+          },
+          "includes_source_text": {
+            "type": "boolean",
+            "title": "Includes Source Text"
+          },
+          "summary": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Summary"
+          }
+        },
+        "type": "object",
+        "required": [
+          "created_at",
+          "redacted",
+          "includes_source_text",
+          "summary"
+        ],
+        "title": "DiagnosticsResponse"
+      },
+      "EmbeddingRecord": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "owner_type": {
+            "type": "string",
+            "title": "Owner Type"
+          },
+          "owner_id": {
+            "type": "string",
+            "title": "Owner Id"
+          },
+          "embedding_profile": {
+            "type": "string",
+            "title": "Embedding Profile"
+          },
+          "dimension": {
+            "type": "integer",
+            "title": "Dimension"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "owner_type",
+          "owner_id",
+          "embedding_profile",
+          "dimension",
+          "status",
+          "created_at"
+        ],
+        "title": "EmbeddingRecord"
+      },
+      "EvidenceItemRecord": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "evidence_pack_id": {
+            "type": "string",
+            "title": "Evidence Pack Id"
+          },
+          "knowledge_unit_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Knowledge Unit Id"
+          },
+          "chunk_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chunk Id"
+          },
+          "source_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Id"
+          },
+          "citation_label": {
+            "type": "string",
+            "title": "Citation Label"
+          },
+          "excerpt": {
+            "type": "string",
+            "title": "Excerpt"
+          },
+          "rank_score": {
+            "type": "number",
+            "title": "Rank Score"
+          },
+          "knowledge_unit_title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Knowledge Unit Title"
+          },
+          "knowledge_unit_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Knowledge Unit Status"
+          },
+          "knowledge_unit_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Knowledge Unit Type"
+          },
+          "chunk_citation_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chunk Citation Label"
+          },
+          "chunk_content_excerpt": {
+            "type": "string",
+            "title": "Chunk Content Excerpt",
+            "default": ""
+          },
+          "source_title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Title"
+          },
+          "source_origin": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Origin"
+          },
+          "source_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Type"
+          },
+          "citation_trace": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Citation Trace"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "evidence_pack_id",
+          "knowledge_unit_id",
+          "chunk_id",
+          "source_id",
+          "citation_label",
+          "excerpt",
+          "rank_score",
+          "created_at"
+        ],
+        "title": "EvidenceItemRecord"
+      },
+      "EvidenceOnlyRequest": {
+        "properties": {
+          "query": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Query"
+          },
+          "project_id": {
+            "type": "string",
+            "title": "Project Id",
+            "default": "default-space"
+          }
+        },
+        "type": "object",
+        "required": [
+          "query"
+        ],
+        "title": "EvidenceOnlyRequest"
+      },
+      "EvidenceOnlyResponse": {
+        "properties": {
+          "retrieval_log_id": {
+            "type": "string",
+            "title": "Retrieval Log Id"
+          },
+          "evidence_pack_id": {
+            "type": "string",
+            "title": "Evidence Pack Id"
+          },
+          "answer_id": {
+            "type": "string",
+            "title": "Answer Id"
+          },
+          "output_type": {
+            "type": "string",
+            "title": "Output Type"
+          },
+          "answer": {
+            "type": "string",
+            "title": "Answer"
+          },
+          "evidence_item_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Evidence Item Ids"
+          },
+          "citation_labels": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Citation Labels"
+          },
+          "citation_trace_summary": {
+            "type": "string",
+            "title": "Citation Trace Summary"
+          },
+          "provider_status": {
+            "type": "string",
+            "title": "Provider Status"
+          },
+          "fallback_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fallback Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "retrieval_log_id",
+          "evidence_pack_id",
+          "answer_id",
+          "output_type",
+          "answer",
+          "evidence_item_ids",
+          "citation_labels",
+          "citation_trace_summary",
+          "provider_status",
+          "fallback_reason"
+        ],
+        "title": "EvidenceOnlyResponse"
+      },
+      "EvidencePackDetail": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "retrieval_log_id": {
+            "type": "string",
+            "title": "Retrieval Log Id"
+          },
+          "query": {
+            "type": "string",
+            "title": "Query"
+          },
+          "query_explanation": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Query Explanation"
+          },
+          "provider_status": {
+            "type": "string",
+            "title": "Provider Status"
+          },
+          "fallback_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fallback Reason"
+          },
+          "citation_trace_summary": {
+            "type": "string",
+            "title": "Citation Trace Summary"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "failure_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failure Type"
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/EvidenceItemRecord"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "retrieval_log_id",
+          "query",
+          "query_explanation",
+          "provider_status",
+          "fallback_reason",
+          "citation_trace_summary",
+          "status",
+          "failure_type",
+          "summary",
+          "items",
+          "created_at"
+        ],
+        "title": "EvidencePackDetail"
+      },
+      "FeedbackRequest": {
+        "properties": {
+          "feedback_type": {
+            "type": "string",
+            "enum": [
+              "click",
+              "useful",
+              "not_useful",
+              "favorite",
+              "bad_citation",
+              "missing_source",
+              "downrank_source"
+            ],
+            "title": "Feedback Type"
+          },
+          "evidence_pack_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence Pack Id"
+          },
+          "ai_answer_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ai Answer Id"
+          },
+          "evidence_item_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence Item Id"
+          },
+          "comment": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Comment"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "feedback_type"
+        ],
+        "title": "FeedbackRequest"
+      },
+      "FeedbackResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "feedback_type": {
+            "type": "string",
+            "enum": [
+              "click",
+              "useful",
+              "not_useful",
+              "favorite",
+              "bad_citation",
+              "missing_source",
+              "downrank_source"
+            ],
+            "title": "Feedback Type"
+          },
+          "target_type": {
+            "type": "string",
+            "title": "Target Type"
+          },
+          "target_id": {
+            "type": "string",
+            "title": "Target Id"
+          },
+          "evidence_pack_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence Pack Id"
+          },
+          "ai_answer_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ai Answer Id"
+          },
+          "evidence_item_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence Item Id"
+          },
+          "feedback_policy": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Feedback Policy"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "feedback_type",
+          "target_type",
+          "target_id",
+          "evidence_pack_id",
+          "ai_answer_id",
+          "evidence_item_id",
+          "feedback_policy",
+          "created_at"
+        ],
+        "title": "FeedbackResponse"
+      },
+      "FileInspectionSummary": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "file_id": {
+            "type": "string",
+            "title": "File Id"
+          },
+          "job_id": {
+            "type": "string",
+            "title": "Job Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "extension": {
+            "type": "string",
+            "title": "Extension"
+          },
+          "mime_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mime Type"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "title": "Size Bytes"
+          },
+          "sha256": {
+            "type": "string",
+            "title": "Sha256"
+          },
+          "header_summary": {
+            "type": "string",
+            "title": "Header Summary"
+          },
+          "risk_level": {
+            "type": "string",
+            "title": "Risk Level"
+          },
+          "risk_summary": {
+            "type": "string",
+            "title": "Risk Summary"
+          },
+          "recoverable": {
+            "type": "boolean",
+            "title": "Recoverable"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "file_id",
+          "job_id",
+          "status",
+          "extension",
+          "mime_type",
+          "size_bytes",
+          "sha256",
+          "header_summary",
+          "risk_level",
+          "risk_summary",
+          "recoverable",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "FileInspectionSummary"
+      },
+      "FileIntegrityCheck": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "upload_id": {
+            "type": "string",
+            "title": "Upload Id"
+          },
+          "file_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File Id"
+          },
+          "expected_sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Sha256"
+          },
+          "actual_sha256": {
+            "type": "string",
+            "title": "Actual Sha256"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "upload_id",
+          "file_id",
+          "expected_sha256",
+          "actual_sha256",
+          "status",
+          "message",
+          "created_at"
+        ],
+        "title": "FileIntegrityCheck"
+      },
+      "FileRecord": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "project_id": {
+            "type": "string",
+            "title": "Project Id"
+          },
+          "original_filename": {
+            "type": "string",
+            "title": "Original Filename"
+          },
+          "content_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content Type"
+          },
+          "extension": {
+            "type": "string",
+            "title": "Extension"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "title": "Size Bytes"
+          },
+          "sha256": {
+            "type": "string",
+            "title": "Sha256"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "inspection_status": {
+            "type": "string",
+            "title": "Inspection Status"
+          },
+          "inspection": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FileInspectionSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "project_id",
+          "original_filename",
+          "content_type",
+          "extension",
+          "size_bytes",
+          "sha256",
+          "status",
+          "inspection_status",
+          "inspection",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "FileRecord"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "HealthResponse": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok"
+          },
+          "app_name": {
+            "type": "string",
+            "title": "App Name"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "request_id": {
+            "type": "string",
+            "title": "Request Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ok",
+          "app_name",
+          "version",
+          "request_id"
+        ],
+        "title": "HealthResponse"
+      },
+      "JobEvent": {
+        "properties": {
+          "event_seq": {
+            "type": "integer",
+            "title": "Event Seq"
+          },
+          "event_type": {
+            "type": "string",
+            "title": "Event Type"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Payload"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "event_seq",
+          "event_type",
+          "message",
+          "payload",
+          "created_at"
+        ],
+        "title": "JobEvent"
+      },
+      "JobSnapshot": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "job_type": {
+            "type": "string",
+            "title": "Job Type"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "trace_id": {
+            "type": "string",
+            "title": "Trace Id"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Payload"
+          },
+          "result": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Result"
+          },
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/JobEvent"
+            },
+            "type": "array",
+            "title": "Events"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "job_type",
+          "status",
+          "trace_id",
+          "payload",
+          "result",
+          "events"
+        ],
+        "title": "JobSnapshot"
+      },
+      "KnowledgeExtractRequest": {
+        "properties": {
+          "source_id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Source Id"
+          },
+          "project_id": {
+            "type": "string",
+            "title": "Project Id",
+            "default": "default-space"
+          },
+          "force": {
+            "type": "boolean",
+            "title": "Force",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "source_id"
+        ],
+        "title": "KnowledgeExtractRequest"
+      },
+      "KnowledgeExtractResponse": {
+        "properties": {
+          "job_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Id"
+          },
+          "source_id": {
+            "type": "string",
+            "title": "Source Id"
+          },
+          "candidate_knowledge_unit_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Candidate Knowledge Unit Ids"
+          },
+          "review_task_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Review Task Ids"
+          },
+          "embedding_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Embedding Ids"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "reused": {
+            "type": "boolean",
+            "title": "Reused"
+          },
+          "fallback_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fallback Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "job_id",
+          "source_id",
+          "candidate_knowledge_unit_ids",
+          "review_task_ids",
+          "embedding_ids",
+          "status",
+          "reused",
+          "fallback_reason"
+        ],
+        "title": "KnowledgeExtractResponse"
+      },
+      "KnowledgeUnitDetail": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "source_id": {
+            "type": "string",
+            "title": "Source Id"
+          },
+          "chunk_id": {
+            "type": "string",
+            "title": "Chunk Id"
+          },
+          "project_id": {
+            "type": "string",
+            "title": "Project Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "content": {
+            "type": "string",
+            "title": "Content"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "user_verified": {
+            "type": "boolean",
+            "title": "User Verified"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Metadata"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "title": "Updated At"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SourceRecord"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "chunk": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ChunkRecord"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "embeddings": {
+            "items": {
+              "$ref": "#/components/schemas/EmbeddingRecord"
+            },
+            "type": "array",
+            "title": "Embeddings"
+          },
+          "review_task": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Review Task"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "source_id",
+          "chunk_id",
+          "project_id",
+          "title",
+          "type",
+          "content",
+          "status",
+          "user_verified",
+          "metadata",
+          "created_at",
+          "updated_at",
+          "source",
+          "chunk",
+          "embeddings",
+          "review_task"
+        ],
+        "title": "KnowledgeUnitDetail"
+      },
+      "KnowledgeUnitRecord": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "source_id": {
+            "type": "string",
+            "title": "Source Id"
+          },
+          "chunk_id": {
+            "type": "string",
+            "title": "Chunk Id"
+          },
+          "project_id": {
+            "type": "string",
+            "title": "Project Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "content": {
+            "type": "string",
+            "title": "Content"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "user_verified": {
+            "type": "boolean",
+            "title": "User Verified"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Metadata"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "source_id",
+          "chunk_id",
+          "project_id",
+          "title",
+          "type",
+          "content",
+          "status",
+          "user_verified",
+          "metadata",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "KnowledgeUnitRecord"
+      },
+      "MemoryDraftRecord": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "project_id": {
+            "type": "string",
+            "title": "Project Id"
+          },
+          "source_answer_id": {
+            "type": "string",
+            "title": "Source Answer Id"
+          },
+          "content": {
+            "type": "string",
+            "title": "Content"
+          },
+          "memory_type": {
+            "type": "string",
+            "enum": [
+              "preference",
+              "decision",
+              "style",
+              "conclusion",
+              "reusable_context"
+            ],
+            "title": "Memory Type"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "permission": {
+            "type": "string",
+            "title": "Permission"
+          },
+          "user_confirmed": {
+            "type": "boolean",
+            "title": "User Confirmed"
+          },
+          "review_task_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Review Task Id"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "project_id",
+          "source_answer_id",
+          "content",
+          "memory_type",
+          "status",
+          "permission",
+          "user_confirmed",
+          "review_task_id",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "MemoryDraftRecord"
+      },
+      "MemoryDraftRequest": {
+        "properties": {
+          "source_answer_id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Source Answer Id"
+          },
+          "content": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Content"
+          },
+          "memory_type": {
+            "type": "string",
+            "enum": [
+              "preference",
+              "decision",
+              "style",
+              "conclusion",
+              "reusable_context"
+            ],
+            "title": "Memory Type"
+          },
+          "permission": {
+            "type": "string",
+            "title": "Permission",
+            "default": "normal"
+          },
+          "project_id": {
+            "type": "string",
+            "title": "Project Id",
+            "default": "default-space"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "source_answer_id",
+          "content",
+          "memory_type"
+        ],
+        "title": "MemoryDraftRequest"
+      },
+      "ParseTaskRecord": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "file_id": {
+            "type": "string",
+            "title": "File Id"
+          },
+          "source_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Id"
+          },
+          "job_id": {
+            "type": "string",
+            "title": "Job Id"
+          },
+          "parser_key": {
+            "type": "string",
+            "title": "Parser Key"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "capability_status": {
+            "type": "string",
+            "title": "Capability Status"
+          },
+          "fallback_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fallback Reason"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SourceRecord"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "chunk_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Chunk Ids"
+          },
+          "warnings": {
+            "items": {
+              "$ref": "#/components/schemas/ParseWarningRecord"
+            },
+            "type": "array",
+            "title": "Warnings"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "file_id",
+          "source_id",
+          "job_id",
+          "parser_key",
+          "status",
+          "capability_status",
+          "fallback_reason",
+          "error_code",
+          "source",
+          "chunk_ids",
+          "warnings",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "ParseTaskRecord"
+      },
+      "ParseWarningRecord": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "parse_task_id": {
+            "type": "string",
+            "title": "Parse Task Id"
+          },
+          "warning_type": {
+            "type": "string",
+            "title": "Warning Type"
+          },
+          "severity": {
+            "type": "string",
+            "title": "Severity"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "source_location": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Location"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "parse_task_id",
+          "warning_type",
+          "severity",
+          "message",
+          "source_location",
+          "created_at"
+        ],
+        "title": "ParseWarningRecord"
+      },
+      "RetrievalPreviewRequest": {
+        "properties": {
+          "query": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Query"
+          },
+          "project_id": {
+            "type": "string",
+            "title": "Project Id",
+            "default": "default-space"
+          }
+        },
+        "type": "object",
+        "required": [
+          "query"
+        ],
+        "title": "RetrievalPreviewRequest"
+      },
+      "RetrievalPreviewResponse": {
+        "properties": {
+          "retrieval_log_id": {
+            "type": "string",
+            "title": "Retrieval Log Id"
+          },
+          "evidence_pack_id": {
+            "type": "string",
+            "title": "Evidence Pack Id"
+          },
+          "query": {
+            "type": "string",
+            "title": "Query"
+          },
+          "query_explanation": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Query Explanation"
+          },
+          "evidence_pack": {
+            "$ref": "#/components/schemas/EvidencePackDetail"
+          },
+          "evidence_item_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Evidence Item Ids"
+          },
+          "citation_labels": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Citation Labels"
+          },
+          "citation_trace_summary": {
+            "type": "string",
+            "title": "Citation Trace Summary"
+          },
+          "provider_status": {
+            "type": "string",
+            "title": "Provider Status"
+          },
+          "fallback_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fallback Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "retrieval_log_id",
+          "evidence_pack_id",
+          "query",
+          "query_explanation",
+          "evidence_pack",
+          "evidence_item_ids",
+          "citation_labels",
+          "citation_trace_summary",
+          "provider_status",
+          "fallback_reason"
+        ],
+        "title": "RetrievalPreviewResponse"
+      },
+      "ReviewActionResponse": {
+        "properties": {
+          "review_task_id": {
+            "type": "string",
+            "title": "Review Task Id"
+          },
+          "target_id": {
+            "type": "string",
+            "title": "Target Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "review_task_id",
+          "target_id",
+          "status"
+        ],
+        "title": "ReviewActionResponse"
+      },
+      "ReviewTask": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "target_type": {
+            "type": "string",
+            "title": "Target Type"
+          },
+          "target_id": {
+            "type": "string",
+            "title": "Target Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Payload"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "target_type",
+          "target_id",
+          "status",
+          "payload"
+        ],
+        "title": "ReviewTask"
+      },
+      "RuntimeResponse": {
+        "properties": {
+          "runtime_state": {
+            "type": "string",
+            "title": "Runtime State"
+          },
+          "status_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status Reason"
+          },
+          "sidecar": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Sidecar"
+          },
+          "database": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Database"
+          },
+          "worker": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Worker"
+          },
+          "vector": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Vector"
+          }
+        },
+        "type": "object",
+        "required": [
+          "runtime_state",
+          "status_reason",
+          "sidecar",
+          "database",
+          "worker",
+          "vector"
+        ],
+        "title": "RuntimeResponse"
+      },
+      "SettingsPatchRequest": {
+        "properties": {
+          "language": {
+            "type": "string",
+            "enum": [
+              "zh-CN",
+              "en-US"
+            ],
+            "title": "Language"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "language"
+        ],
+        "title": "SettingsPatchRequest"
+      },
+      "SettingsResponse": {
+        "properties": {
+          "language": {
+            "type": "string",
+            "enum": [
+              "zh-CN",
+              "en-US"
+            ],
+            "title": "Language"
+          },
+          "persistence": {
+            "type": "string",
+            "title": "Persistence"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "language",
+          "persistence",
+          "updated_at"
+        ],
+        "title": "SettingsResponse"
+      },
+      "SourceDetail": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "project_id": {
+            "type": "string",
+            "title": "Project Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "source_type": {
+            "type": "string",
+            "title": "Source Type"
+          },
+          "source_origin": {
+            "type": "string",
+            "title": "Source Origin"
+          },
+          "content_hash": {
+            "type": "string",
+            "title": "Content Hash"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Metadata"
+          },
+          "chunk_count": {
+            "type": "integer",
+            "title": "Chunk Count"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "chunks": {
+            "items": {
+              "$ref": "#/components/schemas/ChunkRecord"
+            },
+            "type": "array",
+            "title": "Chunks"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "project_id",
+          "title",
+          "source_type",
+          "source_origin",
+          "content_hash",
+          "metadata",
+          "chunk_count",
+          "created_at",
+          "chunks"
+        ],
+        "title": "SourceDetail"
+      },
+      "SourceRecord": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "project_id": {
+            "type": "string",
+            "title": "Project Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "source_type": {
+            "type": "string",
+            "title": "Source Type"
+          },
+          "source_origin": {
+            "type": "string",
+            "title": "Source Origin"
+          },
+          "content_hash": {
+            "type": "string",
+            "title": "Content Hash"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Metadata"
+          },
+          "chunk_count": {
+            "type": "integer",
+            "title": "Chunk Count"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "project_id",
+          "title",
+          "source_type",
+          "source_origin",
+          "content_hash",
+          "metadata",
+          "chunk_count",
+          "created_at"
+        ],
+        "title": "SourceRecord"
+      },
+      "SystemStatusResponse": {
+        "properties": {
+          "app": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "App"
+          },
+          "database": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Database"
+          },
+          "provider": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Provider"
+          },
+          "vector": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Vector"
+          }
+        },
+        "type": "object",
+        "required": [
+          "app",
+          "database",
+          "provider",
+          "vector"
+        ],
+        "title": "SystemStatusResponse"
+      },
+      "TextImportRequest": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Title"
+          },
+          "content": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Content"
+          },
+          "project_id": {
+            "type": "string",
+            "title": "Project Id",
+            "default": "default-space"
+          }
+        },
+        "type": "object",
+        "required": [
+          "title",
+          "content"
+        ],
+        "title": "TextImportRequest"
+      },
+      "TextImportResponse": {
+        "properties": {
+          "job_id": {
+            "type": "string",
+            "title": "Job Id"
+          },
+          "source_id": {
+            "type": "string",
+            "title": "Source Id"
+          },
+          "chunk_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Chunk Ids"
+          },
+          "candidate_knowledge_unit_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Candidate Knowledge Unit Ids"
+          },
+          "review_task_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Review Task Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "job_id",
+          "source_id",
+          "chunk_ids",
+          "candidate_knowledge_unit_ids",
+          "review_task_ids"
+        ],
+        "title": "TextImportResponse"
+      },
+      "UploadCreateRequest": {
+        "properties": {
+          "filename": {
+            "type": "string",
+            "maxLength": 240,
+            "minLength": 1,
+            "title": "Filename"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Size Bytes"
+          },
+          "content_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content Type"
+          },
+          "sha256": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64,
+                "minLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sha256"
+          },
+          "part_size": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Part Size"
+          },
+          "project_id": {
+            "type": "string",
+            "title": "Project Id",
+            "default": "default-space"
+          }
+        },
+        "type": "object",
+        "required": [
+          "filename",
+          "size_bytes"
+        ],
+        "title": "UploadCreateRequest"
+      },
+      "UploadPartResponse": {
+        "properties": {
+          "upload_id": {
+            "type": "string",
+            "title": "Upload Id"
+          },
+          "part_no": {
+            "type": "integer",
+            "title": "Part No"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "title": "Size Bytes"
+          },
+          "sha256": {
+            "type": "string",
+            "title": "Sha256"
+          },
+          "received_bytes": {
+            "type": "integer",
+            "title": "Received Bytes"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "upload_id",
+          "part_no",
+          "size_bytes",
+          "sha256",
+          "received_bytes",
+          "status"
+        ],
+        "title": "UploadPartResponse"
+      },
+      "UploadPartSummary": {
+        "properties": {
+          "part_no": {
+            "type": "integer",
+            "title": "Part No"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "title": "Size Bytes"
+          },
+          "sha256": {
+            "type": "string",
+            "title": "Sha256"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "part_no",
+          "size_bytes",
+          "sha256",
+          "created_at"
+        ],
+        "title": "UploadPartSummary"
+      },
+      "UploadSnapshot": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "project_id": {
+            "type": "string",
+            "title": "Project Id"
+          },
+          "original_filename": {
+            "type": "string",
+            "title": "Original Filename"
+          },
+          "content_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content Type"
+          },
+          "expected_size": {
+            "type": "integer",
+            "title": "Expected Size"
+          },
+          "part_size": {
+            "type": "integer",
+            "title": "Part Size"
+          },
+          "part_count": {
+            "type": "integer",
+            "title": "Part Count"
+          },
+          "expected_sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Sha256"
+          },
+          "received_bytes": {
+            "type": "integer",
+            "title": "Received Bytes"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "file_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File Id"
+          },
+          "job_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Id"
+          },
+          "recoverable": {
+            "type": "boolean",
+            "title": "Recoverable"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "parts": {
+            "items": {
+              "$ref": "#/components/schemas/UploadPartSummary"
+            },
+            "type": "array",
+            "title": "Parts"
+          },
+          "integrity_check": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FileIntegrityCheck"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "inspection": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FileInspectionSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "project_id",
+          "original_filename",
+          "content_type",
+          "expected_size",
+          "part_size",
+          "part_count",
+          "expected_sha256",
+          "received_bytes",
+          "status",
+          "file_id",
+          "job_id",
+          "recoverable",
+          "error_code",
+          "parts",
+          "integrity_check",
+          "inspection",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "UploadSnapshot"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      },
+      "WorkspaceSummaryResponse": {
+        "properties": {
+          "project_count": {
+            "type": "integer",
+            "title": "Project Count"
+          },
+          "upload_count": {
+            "type": "integer",
+            "title": "Upload Count"
+          },
+          "file_count": {
+            "type": "integer",
+            "title": "File Count"
+          },
+          "pending_file_count": {
+            "type": "integer",
+            "title": "Pending File Count"
+          },
+          "source_count": {
+            "type": "integer",
+            "title": "Source Count"
+          },
+          "chunk_count": {
+            "type": "integer",
+            "title": "Chunk Count"
+          },
+          "knowledge_unit_count": {
+            "type": "integer",
+            "title": "Knowledge Unit Count"
+          },
+          "pending_review_count": {
+            "type": "integer",
+            "title": "Pending Review Count"
+          },
+          "evidence_pack_count": {
+            "type": "integer",
+            "title": "Evidence Pack Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "project_count",
+          "upload_count",
+          "file_count",
+          "pending_file_count",
+          "source_count",
+          "chunk_count",
+          "knowledge_unit_count",
+          "pending_review_count",
+          "evidence_pack_count"
+        ],
+        "title": "WorkspaceSummaryResponse"
+      }
+    }
+  }
+}

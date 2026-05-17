@@ -1,8 +1,8 @@
 # 桌面应用架构
 
-版本：v0.6
+版本：v0.8
 日期：2026-05-17
-状态：已同步完整 P0 入库、文件处理、开源优先 AI、P0-RAG 桌面边界、D-092 sidecar 打包验证 spike、D-093 桌面运行时硬化与 D-094 P0-Core 工程骨架开工契约
+状态：已同步完整 P0 入库、文件处理、开源优先 AI、P0-RAG 桌面边界、D-092 sidecar 打包验证 spike、D-093 桌面运行时硬化、D-094 P0-Core 工程骨架开工契约与 D-098 Knowledge Workspace 页面 IA / 桌面 shell 导航契约
 
 ## 1. 文档目的
 
@@ -379,6 +379,43 @@ exportDiagnostics()
 - `onRuntimeStatusChange()` 只传递 runtime state 与子系统摘要，不传用户原文或本地私密路径；
 - `openFileDialog()` 由 Main 代理，Renderer 只获得用户确认后的文件句柄/路径摘要；
 - `exportDiagnostics()` 只触发脱敏诊断包生成，不能把数据库文件、API Key 或完整私密路径交给 Renderer。
+
+### 5.5 D-098 桌面 Shell 与内部路由
+
+D-098 固定 Knowledge Workspace 的桌面 shell：应用首屏进入 `/dashboard`，左侧导航到 8 个主页面，底部 runtime status bar 在所有页面保持可见。该路由只属于 Renderer 内部状态，不新增 sidecar endpoint。
+
+```text
+Electron Main ready/degraded
+→ Renderer shell mounted
+→ left navigation
+   ├── /dashboard
+   ├── /import
+   ├── /library
+   ├── /search
+   ├── /ask
+   ├── /graph
+   ├── /outputs
+   └── /settings
+→ bottom runtime status bar always visible
+```
+
+| 页面 | Shell 要求 | Runtime / API 要求 |
+|---|---|---|
+| `/dashboard` | 默认首屏；展示最近导入、知识概览、最近检索/问答摘要 | 只能消费 runtime、provider、source/retrieval/answer summary |
+| `/import` | 支持拖拽区、文件选择、进度和解析状态；P1/P2 导入入口必须标注 disabled reason | 文件选择走 Main/IPC；上传/解析状态走 typed fetch + SSE |
+| `/library` | 文件/知识库管理页；展示分类树、文档列表和筛选状态 | 不直接读文件系统；只消费 Source/File/KU/Review API |
+| `/search` | 智能搜索页；展示 Query Explanation、Evidence Pack、Citation Trace | 不在 UI 拼 evidence；只展示 API 返回的 retrieval/citation summary |
+| `/ask` | 问答页；必须区别 evidence-only 与 provider answer | Provider/fallback 状态来自 response；无证据时显示不可答原因 |
+| `/graph` | 可解释关系视图；数据不足显示空态 | P0 不要求 GraphRAG、图数据库或纯装饰图 |
+| `/outputs` | 生成结果入口；草稿和导出都必须显示 evidence/citation 绑定 | 无 evidence 时禁用生成/导出或进入 pending review |
+| `/settings` | 账号、存储、AI 模型、外观、导入导出、runtime/provider 状态 | API Key 写入走 Main/Keychain；settings API 不传密钥 |
+
+约束：
+
+- Renderer 不得在 `ready` 或带解释的 `degraded` 前启用业务写操作。
+- 页面级 loading、empty、degraded、recoverable_error、done 状态必须可从 runtime status、job snapshot、provider capability 或 API response summary 还原。
+- `/graph` 与 `/outputs` 在 P0 数据不足时必须展示 disabled reason；不得生成无来源内容或无证据关系。
+- 微信、网盘、Obsidian、Notion 导入入口可以作为占位，但必须标记为 P1/P2，不得在 P0 文案中承诺已可用。
 
 ---
 
@@ -1076,7 +1113,7 @@ Onboarding 之后的设置页面应包含：
 
 | 分组 | 设置项 | P0 | P1 |
 |---|---|---|---|
-| 通用 | 语言（中文 / 英文） | P1 | - |
+| 通用 | 语言（中文 / 英文） | P0 | D-106 已实现为 `zh-CN / en-US`，默认中文 |
 | 通用 | 深色模式（跟随系统 / 浅色 / 深色） | P0 | - |
 | 通用 | 启动行为（启动时打开上次项目） | P0 | - |
 | 数据 | 数据目录位置 | P0 | - |
@@ -1091,6 +1128,8 @@ Onboarding 之后的设置页面应包含：
 | 关于 | 应用版本 + 数据库 schema 版本 | P0 | - |
 | 关于 | 检查更新 | - | P1 |
 | 关于 | 开源许可 / 隐私政策 | P0 | - |
+
+D-106 后，语言偏好通过 `GET /api/settings` 与 `PATCH /api/settings` 读写，由 FastAPI sidecar 原子更新 app data 下的 `config.json`，不进入 SQLite migration。Renderer 在 Electron 环境下只通过 preload bridge + typed fetch wrapper 调用设置 API；普通浏览器无 bridge 时只允许 session fallback，并展示 degraded 状态。
 
 ### 15.5 帮助系统
 

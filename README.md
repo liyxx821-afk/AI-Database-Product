@@ -24,7 +24,7 @@
 
 ```text
 AI 个人知识资产系统
-├── 前端体验层（Knowledge Workspace：建库工作台 / 调用工作台 / 知识组织面板 / 系统管理）
+├── 前端体验层（Knowledge Workspace：/dashboard /import /library /search /ask /graph /outputs /settings）
 ├── 知识构建域（写入：Source → Chunk → KU → Review → Confirmed）
 ├── 知识组织层（跨域：标签 / 分类 / 关系 / MOC / 知识库优化）
 ├── 知识调用域（只读：Intent → Retrieval → Evidence → Citation → Feedback）
@@ -33,7 +33,7 @@ AI 个人知识资产系统
 └── 横切支撑层（治理：Auth / 权限 / 版本记录 / 日志 / 安全 / 性能成本）
 ```
 
-当前阶段仍是产品与架构设计阶段，P0 已收敛为 P0-Core / P0-File / P0-AI / P0-RAG 四条实现切片；知识库调用、隐式单 Agent 与前端交互契约已进入 P0-RAG 文档边界，但本仓库尚未进入运行时代码实现。
+当前阶段已从文档与架构设计进入 **P0 Feedback Events / Memory Draft Review Z0b-lite 代码阶段**。D-100 已创建 Electron + React + Vite + TypeScript、FastAPI sidecar、SQLite、OpenAPI/generated types、runtime contracts、P0-Z0a text import / review / evidence-only smoke 和八页黑白灰低保真 Knowledge Workspace 壳层；D-101 已补齐文件上传、分片接收、完整性校验、File Inspection Z0a、真实 file list 和 `smoke:p0-file`；D-102 已补齐 Parser Router Z0a、Source / Chunk 创建、parse task、source API 和 `smoke:p0-parse`；D-103 已把 parsed Source / Chunk 接入 Candidate KU、Review Queue、384 维 fallback embedding 和 `smoke:p0-ku`；D-104 已把 confirmed KU 接入 Retrieval Preview、Evidence Pack detail、Search / Ask 真实查询状态和 `smoke:p0-search-ask`；D-105 已把 Evidence Pack detail 扩展为可复盘 Citation Detail，并在 `/search`、`/ask` 内嵌 detail replay 面板和 `smoke:p0-citation-detail`；D-106 已把八页工作台 UI 文案改为默认中文、可切换英文，并通过 `/api/settings` 将语言偏好持久化到 app data 的 `config.json`；D-107 已新增 append-only feedback events、pending-review Memory Draft、memory review confirm/ignore、`/ask` 反馈与保存入口、`/outputs` 草稿摘要和 `smoke:p0-feedback-memory`。
 
 ## 当前文档
 
@@ -47,6 +47,7 @@ docs/
 ├── architecture-design-plan.md
 ├── data-model.md
 ├── desktop-architecture.md
+├── distributed-development-plan.md
 ├── development-plan.md
 ├── error-handling-and-observability.md
 ├── git-management.md
@@ -61,28 +62,39 @@ docs/
 ├── technical-stack-and-prototype-plan.md
 ├── testing-strategy.md
 └── text-to-sql.md
+apps/
+├── api
+├── desktop-main
+├── desktop-preload
+└── renderer
+packages/
+├── api-types
+├── runtime-contracts
+└── shared-config
+scripts/
 ```
 
 文档说明：
 
 - [AGENTS.md](./AGENTS.md)：项目长期开发准则、产品定位、技术原则和 Codex 工作规则。
-- [docs/project-background-brief.md](./docs/project-background-brief.md)：项目背景说明书 v0.6，面向后续 Agent 的快速接手入口，概括项目为什么存在、目标用户、当前架构、冻结技术选择、P0-Z0a/Z0b/Z1/Z2 边界、常见误区、推荐阅读顺序、D-090 技术栈执行优化、D-091 工程化验收门槛、D-092 代码骨架前置契约、D-093 桌面运行时硬化和 D-094 P0-Core 工程骨架开工契约后的实现前检查点。
+- [docs/project-background-brief.md](./docs/project-background-brief.md)：项目背景说明书 v0.13，面向后续 Agent 的快速接手入口，概括项目为什么存在、目标用户、当前架构、冻结技术选择、P0-Z0a/Z0b/Z1/Z2 边界、常见误区、推荐阅读顺序、D-090 技术栈执行优化、D-091 工程化验收门槛、D-092 代码骨架前置契约、D-093 桌面运行时硬化、D-094 P0-Core 工程骨架开工契约、D-095 架构审查实现验收强化、D-096/D-097 分布式开发计划、D-098 前端页面信息架构、D-099 前后端交付边界与 D-104 Search / Ask 真实接入后的实现前检查点。
 - [docs/architecture-design-plan.md](./docs/architecture-design-plan.md)：知识库构建系统架构设计计划 v1.3，只覆盖材料入库、知识单元生成、确认、索引和可追溯，不代表完整产品总架构；已补齐知识切片质量闭环与 AI 结构化整理 profile。
-- [docs/product-architecture.md](./docs/product-architecture.md)：产品总架构 v0.14，说明完整 P0 如何由 P0-Core / P0-File / P0-AI / P0-RAG 四切片落地，并纳入 File Inspection、知识切片质量闭环、AI 结构化整理 profile、知识调用 profile、D-081-D085 调用边界、隐式单 Agent、前端交互契约、安全运维横切层与 P0-Z0a/Z0b 竖切。
-- [docs/data-model.md](./docs/data-model.md)：数据模型 v0.20-draft，定义账号预埋、上传、文件、File Inspection、解析、切片前准备层、检查门映射、知识切片质量、切片执行 profile、AI 结构化整理 profile、D-079 结构化整理子字段与存储映射、D-080 调用 profile 元数据、D-081/D-082/D-083/D-085 调用边界与 profile schema、D-092 trace chain 与 Evidence Pack 失败态、安全运维事件、事件枚举单一来源、知识单元、向量、RAG answer、用户记录对象、Provider capability/fallback 元数据和 P0-Z0a/Z0b/Z1/Z2 迁移波次。
+- [docs/product-architecture.md](./docs/product-architecture.md)：产品总架构 v0.15，说明完整 P0 如何由 P0-Core / P0-File / P0-AI / P0-RAG 四切片落地，并纳入 File Inspection、知识切片质量闭环、AI 结构化整理 profile、知识调用 profile、D-081-D085 调用边界、隐式单 Agent、D-098 八页 Knowledge Workspace 页面契约、安全运维横切层与 P0-Z0a/Z0b 竖切。
+- [docs/data-model.md](./docs/data-model.md)：数据模型 v0.21-draft，定义账号预埋、上传、文件、File Inspection、解析、切片前准备层、检查门映射、知识切片质量、切片执行 profile、AI 结构化整理 profile、D-079 结构化整理子字段与存储映射、D-080 调用 profile 元数据、D-081/D-082/D-083/D-085 调用边界与 profile schema、D-092 trace chain 与 Evidence Pack 失败态、D-104 Retrieval Preview 复用既有 `retrieval_logs` / `evidence_packs` / `evidence_items` / `ai_answers` 边界、安全运维事件、事件枚举单一来源、知识单元、向量、RAG answer、用户记录对象、Provider capability/fallback 元数据和 P0-Z0a/Z0b/Z1/Z2 迁移波次。
 - [docs/mvp-scope.md](./docs/mvp-scope.md)：MVP 范围说明 v0.13，锁定完整 P0 入库、File Inspection、知识切片质量闭环、AI 结构化整理 profile、知识库调用 profile、D-081-D085 调用持久化 / profile / feedback_policy 边界、前端状态契约与安全运维横切层范围、验收标准、P0-Z0a/Z0b 实现竖切和降级边界。
-- [docs/api-design.md](./docs/api-design.md)：P0 API 设计草案 v0.18，定义 Auth preembed、Upload、File Inspection、ProcessingJob Events、File processing、Knowledge pipeline、chunk build、KU extract structuring summary、切片前准备、检查门摘要、切片执行 profile summary、RAG answer/fallback、query understanding、retrieval strategy、ranking、citation trace、feedback actions / feedback policy、Provider capability status 与桌面系统 API。
+- [docs/api-design.md](./docs/api-design.md)：P0 API 设计草案 v0.23，定义 Auth preembed、Upload、File Inspection、ProcessingJob Events、File processing、Knowledge pipeline、chunk build、KU extract structuring summary、切片前准备、检查门摘要、切片执行 profile summary、Retrieval Preview、Evidence Pack detail / Citation Detail replay、RAG answer/fallback、query understanding、retrieval strategy、ranking、citation trace、feedback actions / feedback policy、Provider capability status、桌面系统 API、D-106 `/api/settings` language 持久化边界，以及 D-107 `/api/feedback` / `/api/memory-drafts` 回流边界。
 - [docs/text-to-sql.md](./docs/text-to-sql.md)：Text-to-SQL P0 查询契约 v0.4，定义白名单对象、只读视图、典型 SQL 模板、权限过滤、Query Explanation，以及 D-081/D-085 的 Z0a retrieval_log 锚点 / Z2 persisted 调用对象边界。
-- [docs/api-implementation-plan.md](./docs/api-implementation-plan.md)：API route-level 实施计划 v0.20-draft，定义 P0-Core / P0-File / P0-AI / P0-RAG 的 route、DTO、service、repository、事务边界、job-first chunk build、切片前准备、切片执行 profile、AI 结构化整理 profile、知识调用 profile、隐式单 Agent 边界、D-081-D085 调用边界、D-092 OpenAPI 类型生成 / trace chain / migration 波次命名、D-093 桌面运行时 API 约束、D-094 P0-Core API skeleton 顺序、知识切片质量闭环、安全运维状态、P0-Z0a/Z0b 竖切和 Repository 抽象层接口契约。
-- [docs/desktop-architecture.md](./docs/desktop-architecture.md)：桌面应用架构 v0.6，定义 Electron 选型、FastAPI sidecar 部署、SQLite 本地数据库、IPC 通信、打包分发、文件系统集成、离线边界、桌面 UX 约束、数据可移植性、Schema 演进与数据迁移工具链、Electron 安全实践、产品包装规范、首次体验流程、D-092 sidecar 打包验证 spike、D-093 桌面运行时硬化和 D-094 P0-Core 启动状态机 / preload API surface。
+- [docs/api-implementation-plan.md](./docs/api-implementation-plan.md)：API route-level 实施计划 v0.25-draft，定义 P0-Core / P0-File / P0-AI / P0-RAG 的 route、DTO、service、repository、事务边界、job-first chunk build、切片前准备、切片执行 profile、AI 结构化整理 profile、知识调用 profile、隐式单 Agent 边界、D-081-D085 调用边界、D-092 OpenAPI 类型生成 / trace chain / migration 波次命名、D-093 桌面运行时 API 约束、D-094 P0-Core API skeleton 顺序、D-098 页面到 API service 映射、D-105 Citation Detail / Evidence Pack replay 实现边界、D-106 SettingsService / config.json language 持久化边界、D-107 FeedbackService / MemoryService Z0b-lite 实现边界、知识切片质量闭环、安全运维状态、P0-Z0a/Z0b 竖切和 Repository 抽象层接口契约。
+- [docs/desktop-architecture.md](./docs/desktop-architecture.md)：桌面应用架构 v0.8，定义 Electron 选型、FastAPI sidecar 部署、SQLite 本地数据库、IPC 通信、打包分发、文件系统集成、离线边界、桌面 UX 约束、数据可移植性、Schema 演进与数据迁移工具链、Electron 安全实践、产品包装规范、首次体验流程、D-092 sidecar 打包验证 spike、D-093 桌面运行时硬化、D-094 P0-Core 启动状态机 / preload API surface、D-098 桌面 Shell / 八页内部路由和 D-106 语言设置持久化。
+- [docs/distributed-development-plan.md](./docs/distributed-development-plan.md)：分布式开发计划 v0.4，基于当前技术栈与架构审查结果，把下一阶段 P0 代码实现拆成 S0-S7 工作流、依赖图、分支 / PR 计划、文件所有权矩阵和 G0-G8 验收门槛；补充共享契约锁、集成节奏、PR 准入 / 退出标准、冲突预案、风险登记、D-098 S6 页面所有权和 D-099 前后端交付边界；明确这里的“分布式”是开发协作方式，不是把 P0 桌面运行时改成分布式系统。
 - [docs/ai-provider-architecture.md](./docs/ai-provider-architecture.md)：AI Provider 抽象架构 v0.14，定义 file detection / security scan / preview generation / parser / OCR / ASR / vision / cleaning / PII / token counting / structure recovery / chunking / AI structuring / LLM / Embedding / Reranker 能力注册、Provider manifest、Provider 能力面板、切片执行和 AI 结构化整理 profile adapter 边界、D-082 调用 profile 与 Provider capability 分工、Provider 类型边界、API Key 安全存储、降级策略和多 Provider 路由。
 - [docs/p0a-execution-plan.md](./docs/p0a-execution-plan.md)：P0 6 周执行计划 v0.21，定义 P0-Core / P0-File / P0-AI / P0-RAG 的周计划、P0-Z0a/Z0b 竖切、D-090 首批依赖约束、D-091 工程化验收门槛、D-092 代码骨架前置契约、D-093 桌面运行时硬化、D-094 P0-Core 工程骨架开工契约、File Inspection 分层、切片前准备、AI 结构化整理 profile、知识调用 profile、D-081-D085 实现前边界、默认工具栈、降级策略和量化验收指标。
-- [docs/testing-strategy.md](./docs/testing-strategy.md)：测试与评估策略 v0.21，定义测试金字塔、P0-Z0a fixture、ProcessingJob fixture、File Inspection fixture、切片前准备 fixture、检查门映射 fixture、Chunk Quality fixture、AI 结构化整理 fixture、知识调用路由 fixture、D-081-D085 持久化边界/profile/前端状态 fixture、安全运维 fixture、D-090 技术栈执行优化 fixture、D-091 工程化验收门槛、D-092 代码骨架前置契约测试口径、D-093 桌面运行时硬化测试口径、D-094 P0-Core 工程骨架开工测试口径、SQLite 并发测试、Electron + Playwright E2E 方案、CI 集成预案和 P1 AI 能力评估方案。
+- [docs/testing-strategy.md](./docs/testing-strategy.md)：测试与评估策略 v0.26，定义测试金字塔、P0-Z0a fixture、ProcessingJob fixture、File Inspection fixture、切片前准备 fixture、检查门映射 fixture、Chunk Quality fixture、AI 结构化整理 fixture、知识调用路由 fixture、D-081-D085 持久化边界/profile/前端状态 fixture、D-098 页面契约 fixture、D-105 Citation Detail smoke、D-106 i18n settings smoke、D-107 feedback / memory smoke、安全运维 fixture、D-090 技术栈执行优化 fixture、D-091 工程化验收门槛、D-092 代码骨架前置契约测试口径、D-093 桌面运行时硬化测试口径、D-094 P0-Core 工程骨架开工测试口径、SQLite 并发测试、Electron + Playwright E2E 方案、CI 集成预案和 P1 AI 能力评估方案。
 - [docs/error-handling-and-observability.md](./docs/error-handling-and-observability.md)：错误处理与可观测性 v0.9，定义错误响应 envelope、错误码白名单（含 File Inspection、provider capability、parser、OCR/ASR、upload、RAG fallback、feedback 记录失败、sidecar auth、database integrity 和 worker unavailable）、UI 错误消息映射、诊断报告契约、日志分层与脱敏、D-083 前端状态契约、D-092 trace chain、D-093 桌面运行时诊断、D-094 runtime_state 与 UI severity、安全运维横切层、事件枚举单一来源和 P1 可观测性指标，并作为 API error envelope 单一来源。
 - [docs/git-management.md](./docs/git-management.md)：Git 管理说明 v0.2，记录本地仓库初始化状态、GitHub private remote、忽略规则、行尾与二进制策略、提交类型、分支建议、首次提交建议和禁止事项。
-- [docs/technical-stack-and-prototype-plan.md](./docs/technical-stack-and-prototype-plan.md)：技术栈与 P0 原型实施计划 v0.23，推荐 Electron + React + Vite + TypeScript、FastAPI sidecar、SQLite + sqlite-vec，并根据 README 入口口径把技术栈优化为 P0-Z0a 最小可执行栈、完整 P0 扩展栈和 P1/P2 后置栈，同时落地 D-090 依赖分组、Zustand 状态、sqlite-vec capability probe、File Inspection 分层、evidence-first RAG 执行口径、D-091 工程化验收门槛、D-092 代码骨架前置契约、D-093 桌面运行时硬化和 D-094 P0-Core 桌面工程骨架开工契约。
+- [docs/technical-stack-and-prototype-plan.md](./docs/technical-stack-and-prototype-plan.md)：技术栈与 P0 原型实施计划 v0.27，推荐 Electron + React + Vite + TypeScript、FastAPI sidecar、SQLite + sqlite-vec，并根据 README 入口口径把技术栈优化为 P0-Z0a 最小可执行栈、完整 P0 扩展栈和 P1/P2 后置栈，同时落地 D-090 依赖分组、Zustand 状态、sqlite-vec capability probe、File Inspection 分层、evidence-first RAG 执行口径、D-091 工程化验收门槛、D-092 代码骨架前置契约、D-093 桌面运行时硬化、D-094 P0-Core 桌面工程骨架开工契约、D-095 架构审查实现验收强化、D-098 Knowledge Workspace 页面 IA、D-104 Search / Ask typed API 接入和 D-107 Feedback / Memory typed API 接入。
 - [docs/development-plan.md](./docs/development-plan.md)：持续迭代开发计划、决策记录、架构验收清单和文档拆分路线。
-- [docs/knowledge-invocation-system-design-plan.md](./docs/knowledge-invocation-system-design-plan.md)：知识调用系统架构设计计划 v0.9，定义 Agent 如何通过 query understanding、retrieval strategy、ranking、citation trace、Text-to-SQL、RAG、证据包和引用解释调用个人知识资产，并收紧 `implicit_agent`、feedback signal、sensitive grant 与 P0-Z0a evidence-only 边界。
+- [docs/knowledge-invocation-system-design-plan.md](./docs/knowledge-invocation-system-design-plan.md)：知识调用系统架构设计计划 v0.11，定义 Agent 如何通过 query understanding、retrieval strategy、ranking、citation trace、Text-to-SQL、RAG、证据包和引用解释调用个人知识资产，并收紧 `implicit_agent`、feedback signal、sensitive grant、P0-Z0a evidence-only 边界与 D-098 Search / Ask / Graph / Outputs 调用页面契约。
 - [docs/open-source-rag-research.md](./docs/open-source-rag-research.md)：LightRAG / GraphRAG 开源调研、可借鉴机制和分期边界。
 - [docs/rag-pipeline.md](./docs/rag-pipeline.md)：RAG 与 Embedding 向量检索管线 v0.8-draft，明确 P0-Z0a evidence-only、P0-Z2 RAG answer、embedding profile registry、query understanding、retrieval strategy、ranking、citation trace、feedback signal / feedback_policy、D-081-D085 调用 profile、D-092 Evidence Pack 失败态和 chunk quality / source metadata 风险提示。
 - [docs/progress.md](./docs/progress.md)：当前阶段进度记录。
@@ -190,7 +202,7 @@ Invocation Request（Z0a 为 response/log summary；Z2 持久化）
 
 ## 技术栈状态
 
-P0 技术栈已确定（详见 `docs/development-plan.md` D-029 / D-039 / D-040），尚未进入代码实现阶段。
+P0 技术栈已确定（详见 `docs/development-plan.md` D-029 / D-039 / D-040），当前已进入 Feedback Events / Memory Draft Review Z0b-lite 代码阶段。
 
 P0 技术栈：
 
@@ -202,7 +214,7 @@ P0 技术栈：
 - Search：SQLite FTS5 全文检索 + sqlite-vec 向量检索 + metadata/tag/folder/relation 索引
 - AI Layer：Embedding、Tagging、Text-to-SQL、RAG generation 模块化接口
 - Invocation Layer：`query_understanding_profile`、`retrieval_strategy_profile`、`ranking_profile`、`citation_trace_profile`、`feedback_signal`、`feedback_policy`、`InvocationProfileSchema v1` 和 `implicit_agent` 元数据契约。
-- Frontend Layer：AI 工作台首页、项目选择、上传资料、文件管理、知识库、对话/RAG、引用与查询解释、数据可视化入口、设置页；P0 使用 React Context 或 Zustand、fetch/Axios、SSE、Toast、Error Boundary、Loading Skeleton 和 `FrontendStateContract`。
+- Frontend Layer：D-098 固定 `/dashboard`、`/import`、`/library`、`/search`、`/ask`、`/graph`、`/outputs`、`/settings` 八页 Knowledge Workspace；P0 使用 React Context 或 Zustand、fetch/Axios、SSE、Toast、Error Boundary、Loading Skeleton 和 `FrontendStateContract`。
 - P0 AI：开源优先 ProviderRegistry；未配置时使用手动 + 规则 + fallback/mock profile（仅用于链路验证）；embedding 默认优先 `bge_m3_local`，缺失时才使用 `mock_fixed_384` fallback。
 - P0 默认工具细化：Uppy + tus-style upload、SSE、local filesystem + S3-compatible StorageAdapter、local_sqlite_worker、libmagic/python-magic、charset-normalizer、qpdf/oletools/EXIF adapter、Pillow/PyMuPDF/openpyxl/FFmpeg preview、PyMuPDF/pdfplumber、PaddleOCR/Whisper optional、pandas/Pandera、KeyBERT/HanLP/spaCy、bge-m3 和 bge-reranker-v2 optional。
 - GraphRAG：P0 不引入 Neo4j / LightRAG 依赖；P1/P2 再评估。
@@ -215,24 +227,96 @@ P0 技术栈：
 
 ## 验证方式
 
-当前阶段仅涉及文档验证，不涉及代码测试。
+当前代码阶段使用：
 
-使用：
-
-- `rg --files`
-- `rg` 关键术语检查
-- 文档内容抽查
-
-后续进入代码阶段后，应按实际技术栈补充：
-
-- lint
-- typecheck
-- unit tests
-- build
-- smoke test
+- `pnpm generate:api-types`
+- `pnpm typecheck`
+- `pnpm api:ruff`
+- `pnpm api:test`
+- `pnpm smoke:p0-core`
+- `pnpm smoke:p0-i18n-settings`
+- `pnpm smoke:p0-file`
+- `pnpm smoke:p0-parse`
+- `pnpm smoke:p0-ku`
+- `pnpm smoke:p0-search-ask`
+- `pnpm smoke:p0-citation-detail`
+- `pnpm smoke:p0-feedback-memory`
+- `pnpm smoke:p0-z0a`
+- `pnpm --filter @knowledgebase-dev/renderer build`
+- `pnpm --filter @knowledgebase-dev/desktop-preload build`
+- `pnpm --filter @knowledgebase-dev/desktop-main build`
+- `git diff --check`
 
 ## Done
 
+- 已完成 Feedback Events / Memory Draft Review Z0b-lite（D-107）：
+  - 新增 `feedback_events` 与 `memories` 最小表；`POST /api/feedback` 只写 append-only 本地事件，不修改 confirmed KU、Source、Evidence Pack 或 AIAnswer。
+  - 新增 `POST /api/memory-drafts`、`GET /api/memory-drafts`、`GET /api/memory-drafts/{id}`；从 evidence-only answer 创建 `memories.status=pending_review` 和 `review_tasks.target_type=memory`。
+  - Review confirm / ignore 已支持 memory：confirm 标记 `confirmed / user_confirmed=1`，ignore 标记 `archived`；KU review 逻辑保持不变。
+  - Renderer `/ask` 增加反馈按钮和保存 Memory Draft 面板；`/library` Review 队列可处理 memory 任务；`/outputs` 显示 Memory Draft 摘要；新增 UI 文案已进入中英双语 i18n。
+  - 已新增并验证 `pnpm smoke:p0-feedback-memory`；真实 LLM、provider-backed RAG、`retrieval_feedback`、Text-to-SQL provider、GraphRAG 和自动长期记忆继续后置。
+- 已完成 UI i18n / Bilingual Settings Z0b-lite（D-106）：
+  - 新增 `GET /api/settings` 与 `PATCH /api/settings`，后端默认返回 `language=zh-CN`，只接受 `zh-CN / en-US`，并将语言偏好原子写入 app data `config.json`。
+  - Renderer 新增轻量 typed i18n 层、settings store 和 `/settings` 语言切换控件；普通浏览器无 Electron bridge 时只做 session fallback 并显示 degraded。
+  - 八页低保真工作台的导航、标题、按钮、状态、空态、runtime bar、Import/Library/Search/Ask/Citation Detail/Graph/Outputs/Settings 核心 UI 文案已覆盖中英双语；用户内容、文件名、KU、source excerpt、citation label 和 API enum 不翻译。
+  - 已新增并验证 `pnpm smoke:p0-i18n-settings`；真实 LLM、feedback、Memory Draft、Text-to-SQL provider、GraphRAG、设计稿级 UI 优化和新主路由继续后置。
+- 已完成 Citation Detail / Evidence Pack Replay Z0b-lite（D-105）：
+  - 扩展 `GET /api/evidence-packs/{evidence_pack_id}`，后端直接返回可渲染的 Citation Detail：KU title/status/type、Chunk citation/content excerpt、Source title/origin/type、rank score、provider/fallback、query explanation summary 和 citation trace。
+  - `/search` 的 Evidence Items 增加 Open detail；`/ask` 可从 answer 的 `evidence_pack_id` 打开同一 detail replay 面板。
+  - 空证据包继续显示 `failure_type=no_retrieval_result`、fallback reason 和 no evidence reason；Renderer 不拼接证据链。
+  - 已新增并验证 `pnpm smoke:p0-citation-detail`；真实 LLM、feedback、Memory Draft、Text-to-SQL provider、GraphRAG 和关系推理继续后置。
+- 已完成 Retrieval Preview / Search-Ask Integration Z0a（D-104）：
+  - 新增 `POST /api/retrieval/preview` 和 `GET /api/evidence-packs/{evidence_pack_id}`；`POST /api/retrieval/evidence-only` 复用同一 Evidence Pack 组装逻辑。
+  - 检索只读取 `knowledge_units.status = confirmed`；`pending_review` 候选不会进入 Evidence Pack。
+  - 无证据时返回 `failure_type=no_retrieval_result`，保留 no evidence reason，不生成伪答案。
+  - Renderer `/search` 接入真实 query input、Query Explanation、Evidence Pack、Evidence Items、Citation Trace 和 provider/fallback 状态；`/ask` 接入 evidence-only answer。
+  - 已新增并验证 `pnpm smoke:p0-search-ask`；真实 LLM、provider-backed RAG、Memory Draft、feedback、Text-to-SQL provider、GraphRAG 和关系推理继续后置。
+- 已完成 Candidate KU / Review / fallback embedding Z0a（D-103）：
+  - 新增 Knowledge Unit API：`POST /api/knowledge-units:extract`、`GET /api/knowledge-units`、`GET /api/knowledge-units/{id}`。
+  - parsed Source / Chunk 可显式生成 `pending_review` Candidate KU、Review Task 和 `mock_fixed_384` fallback embedding；重复执行默认复用已有候选，避免重复污染。
+  - Review confirm 后 KU 才进入 confirmed 检索范围；evidence-only answer 仍只读取 confirmed KU。
+  - Renderer `/library` 增加 Source Extract 操作和真实 Review 队列，可 confirm / ignore 候选 KU。
+  - 已新增并验证 `pnpm smoke:p0-ku`；真实 LLM、自动关系写入、标签合并、Memory Draft、provider-backed RAG 继续后置。
+- 已完成 Parser Router / Source / Chunk Z0a（D-102）：
+  - 新增 Parse / Source API：`POST /api/files/{file_id}:parse`、`GET /api/parse-tasks/{id}`、`GET /api/sources`、`GET /api/sources/{source_id}`。
+  - 新增 `parse_tasks`、`parse_warnings`、`chunk_quality_checks`；解析过程写入 `file_parse` ProcessingJob 和状态事件。
+  - Z0a Parser Router 支持 text / markdown / json / csv 类文件生成 Source / Chunk；unsupported / blocked 文件保留可恢复状态。
+  - Renderer `/library` 增加 Parse 操作和 Sources 面板。
+  - 已新增并验证 `pnpm smoke:p0-parse`；真实 parser provider、OCR/ASR 和 preview asset 继续后置。
+- 已完成 P0-File 上传与 File Inspection Z0a（D-101）：
+  - 新增 Upload / File API：`POST /api/uploads`、`PUT /api/uploads/{id}/parts/{part_no}`、`POST /api/uploads/{id}:complete`、`GET /api/uploads/{id}`、`GET /api/files`、`GET /api/files/{file_id}`、`POST /api/files/{file_id}:verify`。
+  - 新增本地上传与检查数据对象：`upload_tasks`、`upload_parts`、`files`、`file_integrity_checks`、`file_inspection_results`；文件先进入 app data 的 `tmp/uploads/`，完成后进入 `sources/`。
+  - File Inspection Z0a 记录扩展名、MIME、文件大小、sha256、文件头摘要、基础 risk summary、recoverable 状态和 `file_inspection` ProcessingJob events。
+  - Renderer `/import` 接入 Uppy core + 自定义黑白灰低保真上传控件，`/library` 显示真实 file list，`/dashboard` 显示 upload/file 计数。
+  - 已新增并验证 `pnpm smoke:p0-file`；Parser Router、Source/Chunk 自动创建、OCR/ASR、preview asset 和真实 Provider 继续后置。
+- 已完成 P0 代码阶段首轮实现（D-100）：
+  - 新增 monorepo 工程骨架：`apps/desktop-main`、`apps/desktop-preload`、`apps/renderer`、`apps/api`、`packages/runtime-contracts`、`packages/api-types`、`packages/shared-config` 和 `scripts`。
+  - 建立 FastAPI sidecar、local token middleware、SQLite 初始化、P0-Core API、OpenAPI 导出、generated TypeScript types、统一 error envelope 与 runtime status。
+  - 跑通 P0-Z0a 最小业务链路：text import → Source → Chunk → Candidate KU → Review confirm → fallback embedding → RetrievalLog → Evidence Pack → evidence-only answer。
+  - 建立 Electron Main sidecar lifecycle、受限 preload bridge、typed fetch wrapper、Zustand store slices 和八页黑白灰低保真 Knowledge Workspace route shell。
+  - 已验证：`pnpm generate:api-types`、`pnpm typecheck`、`pnpm api:ruff`、`pnpm api:test`、`pnpm smoke:p0-core`、`pnpm smoke:p0-z0a`、renderer build、desktop preload/main build、`git diff --check`。
+- 已完成前后端交付边界与分布式开发计划强化（D-099）：
+  - `docs/distributed-development-plan.md` 升级为 **v0.4**，明确 Electron Main、Preload bridge、Renderer Frontend、typed API client、FastAPI sidecar、local_sqlite_worker 与 SQLite/sqlite-vec 的职责边界。
+  - 新增 D-099 前后端交付模板、禁止事项、S1/S6 API-to-UI handoff 要求、G8 Frontend / Backend Boundary Gate、前后端边界漂移风险和 preload 过宽风险。
+  - `docs/development-plan.md` 升级为 v0.53，决策表新增 D-099；`docs/progress.md`、`docs/project-background-brief.md`（v0.11）与本文档已同步。
+  - 本轮仍为文档-only 优化，未新增运行时代码、migration、OpenAPI 文件、endpoint 或依赖。
+- 已完成前端页面信息架构与工作台契约收敛（D-098）：
+  - `docs/product-architecture.md` 升级为 **v0.15**，固定 Knowledge Workspace 八个内部路由：`/dashboard`、`/import`、`/library`、`/search`、`/ask`、`/graph`、`/outputs`、`/settings`。
+  - `docs/technical-stack-and-prototype-plan.md`、`docs/desktop-architecture.md`、`docs/api-design.md`、`docs/api-implementation-plan.md`、`docs/testing-strategy.md` 和 `docs/distributed-development-plan.md` 已同步页面 IA、桌面 shell、页面到 API 组映射、S6 页面所有权和页面状态验收。
+  - `docs/development-plan.md`、`docs/progress.md`、`docs/project-background-brief.md` 与本文档已同步。本轮仍为文档-only，未新增运行时代码、migration、OpenAPI 文件、endpoint 或依赖。
+- 已完成分布式开发计划二次优化（D-097）：
+  - `docs/distributed-development-plan.md` 升级为 **v0.2**，在不改变 P0 本地桌面技术栈的前提下，补充二次审查结论、runtime / API / data / evidence 四类共享契约锁、集成节奏、失败态优先实现顺序、关键路径 / 并行窗口、PR 准入 / 退出标准、冲突处理顺序、文档所有权、G6/G7 gate 和风险登记。
+  - `docs/development-plan.md` 升级为 v0.51，决策表新增 D-097；`docs/progress.md`、`docs/project-background-brief.md`（v0.9）与本文档已同步。
+  - 本轮仍为文档-only 优化，未新增运行时代码、migration、OpenAPI 文件、endpoint 或依赖。
+- 已完成当前技术栈与架构设计审查后的分布式开发计划（D-096）：
+  - 新增 `docs/distributed-development-plan.md` **v0.1**，明确继续沿用 Electron + React + Vite + TypeScript、FastAPI sidecar、SQLite + sqlite-vec、local_sqlite_worker、SSE、ProviderRegistry 和 OpenAPI/generated types 的 P0 本地桌面栈。
+  - 将下一阶段代码实现拆成 **S0 Runtime Desktop Core / S1 API Contract / S2 Data and Migration / S3 Worker and Job Events / S4 Ingestion and Knowledge Build / S5 Retrieval and Evidence / S6 Renderer Workspace / S7 Verification and Release**，并补充分支、PR、文件所有权与 G0-G5 验收门槛。
+  - `docs/development-plan.md` 升级为 v0.50，决策表新增 D-096；`docs/progress.md`、`docs/project-background-brief.md`（v0.8）与本文档已同步。
+  - 本轮仍为文档-only 优化，未新增运行时代码、migration、OpenAPI 文件、endpoint 或依赖。
+- 已完成架构审查实现验收强化（D-095）：
+  - `docs/technical-stack-and-prototype-plan.md` 升级为 **v0.24**，新增 §2.8 / §11.6：**打包态 CI**、**sqlite-vec 降级与 citation 一致性**、**SQLite 单写者与批写入退让**、**OpenAPI 首日**、**日志滚动与隐私**。
+  - `docs/development-plan.md` 升级为 v0.49，决策表新增 D-095；`docs/progress.md`、`docs/project-background-brief.md`（v0.7）与本文档已同步。
+  - 本轮仍为文档-only 优化，未新增运行时代码、migration、OpenAPI 文件、endpoint 或依赖。
 - 已完成 P0-Core 桌面工程骨架开工契约：
   - `docs/technical-stack-and-prototype-plan.md` 升级为 v0.23，新增 D-094 P0-Core 桌面工程骨架开工契约。
   - `docs/desktop-architecture.md` 升级为 v0.6，补齐 runtime state machine 与最小 preload API surface。

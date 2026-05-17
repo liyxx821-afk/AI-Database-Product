@@ -1,8 +1,8 @@
 # 产品总架构
 
-版本：v0.14  
+版本：v0.15
 日期：2026-05-17  
-状态：已按架构图升级为完整 P0 入库、File Inspection、知识切片质量闭环、AI 结构化整理 profile、D-079 存储映射、D-080 知识调用 / implicit_agent / 前端交互收敛、D-081-D085 调用持久化边界 / InvocationProfileSchema v1 / feedback_policy / 前端状态契约、RAG 平台与安全运维横切层，并收紧 P0-Z0a/Z0b 实现竖切
+状态：已按架构图升级为完整 P0 入库、File Inspection、知识切片质量闭环、AI 结构化整理 profile、D-079 存储映射、D-080 知识调用 / implicit_agent / 前端交互收敛、D-081-D085 调用持久化边界 / InvocationProfileSchema v1 / feedback_policy / 前端状态契约、D-098 Knowledge Workspace 八页信息架构、RAG 平台与安全运维横切层，并收紧 P0-Z0a/Z0b 实现竖切
 
 ## 1. 文档目的
 
@@ -86,6 +86,7 @@ AI 个人知识资产系统
 │   ├── AI 工作台首页 / 项目选择页 / 上传资料页 / 文件管理页
 │   ├── 知识库页面 / 对话与 RAG 页面 / 引用与查询解释页
 │   ├── 数据可视化入口 / 设置页
+│   ├── 内部路由：/dashboard /import /library /search /ask /graph /outputs /settings
 │   ├── 建库工作台（Source / Chunk / KU / Review 操作面）
 │   ├── 调用工作台（Query / Evidence / Citation / Feedback 操作面）
 │   ├── 知识组织面板（Tag / Folder / Relation / MOC 管理）
@@ -318,6 +319,40 @@ P0 边界：
 - P0 交互状态必须覆盖上传进度、AI 思考、检索失败、无权限、网络异常、空结果、citation 展示和用户反馈按钮；默认使用 SSE、Toast、Error Boundary、Loading Skeleton、Auth Guard、React Context 或 Zustand。
 - Vue / Next.js、Redux、WebSocket 双向通道只作为替代或 P1 评估项，不替换 P0 默认路线。
 - 本文档只定义前端在产品架构中的定位和工作台划分，不替代前端技术方案。
+
+### 5.0.1 Knowledge Workspace 八页信息架构（D-098）
+
+D-098 将前端体验层收敛为 8 个主页面。它们是 Renderer 内部 route contract，不新增后端 endpoint，也不改变 Electron + FastAPI sidecar + SQLite 的 P0 桌面边界。
+
+| 路由 | 页面 | 核心职责 | 连接的后端域 | P0 分期 |
+|---|---|---|---|---|
+| `/dashboard` | 首页 / 总览 Dashboard | 展示最近导入、知识库概览、文档数量、AI 摘要数量、最近搜索/问答和快捷入口 | Runtime status、Source summary、Retrieval/Answer summary、Provider status | P0-Core 先展示 shell 与 runtime；P0-Z0a 接入最小 summary |
+| `/import` | 资料导入页 | 拖拽上传、本地文件夹导入、格式能力状态、上传进度、解析状态 | Upload、File Inspection、ProcessingJob、Provider capability | P0-Z0a 支持 text/file 最小链路；微信/网盘/Obsidian/Notion 仅为 P1/P2 入口占位 |
+| `/library` | 知识库 / 文件管理页 | 分类树、文档列表、标签/时间/项目筛选、自动分类结果、文件状态 | Project/Folder/Tag、Source/File、Chunk、Review | P0-Z0a 展示可追溯 Source/Chunk/KU 摘要 |
+| `/search` | 智能搜索页 | 自然语言搜索、结果排序、命中文段、来源文件、标签筛选、跨文档结果 | Retrieval Preview、Evidence Pack、Citation Trace、Feedback | P0-Z0a evidence-first；无 LLM 时仍返回 query explanation 和 evidence-only 结果 |
+| `/ask` | AI 问答页 | 聊天式提问、evidence-only/provider answer、引用来源、相关文档卡片、追问和生成入口 | RAG Answer、Evidence Pack、Citation、AIAnswer、Feedback | P0-Z0a 默认 evidence-only；Provider 可用后才启用带 citation answer |
+| `/graph` | 知识图谱 / 关系网络页 | 展示文档、标签、项目、人物、会议节点与关系强弱，节点可回到资料 | Tag/Relation/MOC、confirmed relation、relation suggestion evidence | P0 只做可解释关系视图和空态，不做 GraphRAG 或装饰性背景图 |
+| `/outputs` | 生成结果页 | 会议纪要、学习笔记、项目摘要、汇报提纲、Word/PDF/Markdown 导出入口 | AIAnswer、Memory Draft、Review、Citation/Evidence | P0 作为入口和 disabled / pending review 视图；完整生成增强进入 Z1/Z2 |
+| `/settings` | 设置页 | 账号、存储、AI 模型、外观主题、导入导出、runtime/provider 状态 | Auth status、System runtime、Settings、Provider capability、Backups/Exports | P0-Core 可读取 runtime/provider/storage 状态；写入能力受 disabled contract 约束 |
+
+页面分期固定为：
+
+```text
+P0-Core: desktop shell + left navigation + runtime status bar + settings/runtime status
+P0-Z0a: dashboard / import / library / search / ask 的最小 evidence-only 工作流
+P0-Z0b: 补齐 citation 明细、source summary、provider/fallback 状态和 Review 入口
+P0-Z1/Z2: graph 交互增强、outputs 生成增强、provider answer 和更完整的反馈闭环
+```
+
+页面体验约束：
+
+- 首屏必须是 `/dashboard` 知识工作台，不做 landing page 或营销首页。
+- `/ask` 不能退化成普通 ChatGPT clone；回答必须显示 Evidence Pack、Citation Trace、provider/fallback 状态和证据不足原因。
+- `/search` 必须展示 Query Explanation、strategy route、ranking summary 和可追溯命中文段。
+- `/graph` 不能只是炫酷背景；每条关系必须能回到 confirmed relation 或 relation suggestion evidence，数据不足时展示 disabled reason。
+- `/outputs` 的摘要、报告、纪要和导出物都是 derived artifact，必须绑定 Evidence/Citation，不能绕过 Review 写入 confirmed knowledge。
+- `/import` 展示 PDF / Word / PPT / 音频 / 视频 / 图片等格式能力时，必须读取 Provider capability status，不得伪装成 P0 已完整支持。
+- 页面跨页状态继续复用 `workspaceStore / jobStore / reviewStore / retrievalStore / citationStore`；页面局部 UI 状态留在组件内，不新增大而全的 store slice。
 
 ### 5.1 知识构建域
 

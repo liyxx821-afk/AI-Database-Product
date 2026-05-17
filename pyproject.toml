@@ -1,0 +1,37 @@
+[project]
+name = "knowledgebase-dev-api"
+version = "0.1.0-alpha"
+description = "P0 local desktop sidecar for KnowledgeBaseDev"
+requires-python = ">=3.9"
+dependencies = []
+
+[project.optional-dependencies]
+core = [
+  "fastapi>=0.115,<0.124",
+  "uvicorn>=0.30,<0.39",
+  "pydantic>=2,<3"
+]
+dev = [
+  "httpx>=0.27,<0.29",
+  "pytest>=8,<10",
+  "ruff>=0.8,<0.15"
+]
+file = []
+ai = []
+ocr = []
+asr = []
+
+[tool.setuptools]
+py-modules = []
+
+[tool.pytest.ini_options]
+testpaths = ["apps/api/tests"]
+pythonpath = ["apps/api"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = ["UP006", "UP007", "UP035", "UP045"]
