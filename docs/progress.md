@@ -1,5 +1,24 @@
 # 进度记录
 
+## 2026-05-17（D-094 P0-Core 桌面工程骨架开工契约）
+
+### 已完成
+
+- `docs/technical-stack-and-prototype-plan.md` 升级为 v0.23，新增 D-094 P0-Core 桌面工程骨架开工契约。
+- `docs/desktop-architecture.md` 升级为 v0.6，补齐 P0-Core 启动状态机和最小 preload API surface。
+- `docs/p0a-execution-plan.md` 升级为 v0.21，将 `smoke:p0-core` 固定为 upload / parse / review / RAG 前的第一阻塞 gate。
+- `docs/testing-strategy.md` 升级为 v0.21，补充 monorepo structure、runtime state machine、preload API、local token health、app data dir / SQLite init、shutdown cleanup、status bar mapping 和 smoke 顺序测试。
+- `docs/api-implementation-plan.md` 升级为 v0.20-draft，新增 P0-Core API skeleton 顺序：`/api/health`、`/api/system/runtime`、`/api/system/status`、`/api/system/diagnostics:export`、`/api/auth/status`。
+- `docs/error-handling-and-observability.md` 升级为 v0.9，补齐 `runtime_state` 到 UI severity 的映射。
+- `docs/project-background-brief.md` 升级为 v0.6；README 与 `docs/development-plan.md` 已同步 D-094。
+
+### 验收
+
+- 本轮仍为文档-only：未新增运行时代码、migration、OpenAPI 文件、endpoint 或依赖。
+- D-094 不改变当前技术栈选择：仍为 Electron + React + Vite + TypeScript、FastAPI sidecar、SQLite + sqlite-vec、local filesystem、local_sqlite_worker、SSE、ProviderRegistry 和 evidence-only fallback。
+- 新增开工规则：代码阶段第一目标是通过 `smoke:p0-core`；通过后才进入 `smoke:p0-z0a` 的 text import → rule chunk → KU review → fallback embedding → evidence-only 业务竖切。
+- `smoke:p0-core` 通过前，不开发 upload parsing UI、RAG UI、真实 Provider 接入、OCR/ASR、图谱功能或面向用户的 Chat。
+
 ## 2026-05-17（D-093 桌面运行时硬化）
 
 ### 已完成

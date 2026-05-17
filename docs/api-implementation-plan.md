@@ -1,8 +1,8 @@
 # API Route-Level 实施计划
 
-版本：v0.19-draft
+版本：v0.20-draft
 日期：2026-05-17  
-状态：P0 API 实施映射草案——四切片 + P0-Z0a/Z0b 竖切 + 切片前准备层 / 结构化整理检查门 / 知识切片质量闭环 / 安全运维横切层 / 检查门映射单一来源 / 事件枚举单一来源 / ProcessingJob / sensitive grant / evidence-only / 切片执行 profile / AI 结构化整理 profile / D-079 存储映射契约对齐 / D-080 知识调用 profile 与 implicit_agent / D-081-D085 调用边界、profile schema、Z0a 锚点与前端状态契约对齐 / D-092 OpenAPI 类型生成、trace chain 与 migration 波次命名 / D-093 桌面运行时 API 约束
+状态：P0 API 实施映射草案——四切片 + P0-Z0a/Z0b 竖切 + 切片前准备层 / 结构化整理检查门 / 知识切片质量闭环 / 安全运维横切层 / 检查门映射单一来源 / 事件枚举单一来源 / ProcessingJob / sensitive grant / evidence-only / 切片执行 profile / AI 结构化整理 profile / D-079 存储映射契约对齐 / D-080 知识调用 profile 与 implicit_agent / D-081-D085 调用边界、profile schema、Z0a 锚点与前端状态契约对齐 / D-092 OpenAPI 类型生成、trace chain 与 migration 波次命名 / D-093 桌面运行时 API 约束 / D-094 P0-Core 工程骨架 API 顺序
 
 ## 1. 文档目的
 
@@ -84,6 +84,55 @@ D-093 后，API 层必须显式支持桌面软件运行形态：
 - migration / restore / backup 期间写接口返回 `migration_in_progress` 或 `backup_in_progress`，不得部分写入；
 - `local_sqlite_worker` 失去 heartbeat 时，长任务接口返回 `worker_unavailable`，但 health endpoint 仍可说明 sidecar 存活；
 - 诊断导出接口只导出脱敏后的 runtime summary、provider status、recent jobs 和日志，不包含 DB 文件、API Key、用户原文或完整私密路径。
+
+### 2.4 D-094：P0-Core API Skeleton 顺序
+
+D-094 后，首批 API skeleton 只证明桌面 runtime 可被 Main、Preload 和 Renderer 安全消费。上传、检索、RAG、Provider 调用等业务 route 可以注册占位或后续实现，但不得成为 `smoke:p0-core` 的前置依赖。
+
+第一批 route 仅包含：
+
+```text
+GET  /api/health
+GET  /api/system/runtime
+GET  /api/system/status
+POST /api/system/diagnostics:export
+GET  /api/auth/status
+```
+
+`GET /api/system/runtime` 是 D-094 新增的 runtime state 单一读取入口，至少返回：
+
+```yaml
+runtime_state: booting | sidecar_starting | sidecar_ready | db_checking | migration_running | worker_starting | ready | degraded | recovery_required | shutting_down
+sidecar_status:
+  status:
+  reason:
+db_status:
+  status:
+  reason:
+worker_status:
+  status:
+  reason:
+provider_summary_status:
+  status:
+  unavailable_count:
+  fallback_count:
+vector_status:
+  status: available | degraded | unavailable
+  reason:
+recovery_required:
+  required: boolean
+  reason:
+trace_id:
+request_id:
+```
+
+约束：
+
+- `/api/health` 用于 Main 判断 sidecar 是否存活；`/api/system/runtime` 用于 Renderer 状态栏和诊断；
+- runtime endpoint 必须通过 local session token middleware；
+- upload / retrieval / RAG route 不得参与 `smoke:p0-core`；
+- 如果 DB 处于 `migration_running` 或 `recovery_required`，写接口默认不可用，但 runtime endpoint 必须仍可返回状态；
+- `POST /api/system/diagnostics:export` 可以先生成最小脱敏包或 stub，但接口形态必须固定。
 
 ---
 

@@ -1,8 +1,8 @@
 # 错误处理与可观测性
 
-版本：v0.8
+版本：v0.9
 日期：2026-05-17  
-状态：P0 错误码 + UI 消息 + 诊断报告 + 日志策略草案 + File Inspection 错误码 + 知识切片质量事件 + 安全运维横切层 + D-083 feedback_policy / FrontendStateContract + 事件枚举单一来源 + API envelope 单一来源 + D-092 trace chain + D-093 桌面运行时诊断
+状态：P0 错误码 + UI 消息 + 诊断报告 + 日志策略草案 + File Inspection 错误码 + 知识切片质量事件 + 安全运维横切层 + D-083 feedback_policy / FrontendStateContract + 事件枚举单一来源 + API envelope 单一来源 + D-092 trace chain + D-093 桌面运行时诊断 + D-094 runtime_state 与 UI severity
 
 ## 1. 文档目的
 
@@ -204,6 +204,30 @@ unsupported_platform
 | `worker_unavailable` | `local_sqlite_worker` 心跳丢失或无法接管任务 | 状态栏显示任务系统异常，允许导出诊断报告 |
 
 这些错误不得把 local token、数据库完整路径或用户原文写入 `details`。
+
+### 4.2 D-094 Runtime State 与 UI Severity
+
+D-094 后，runtime status bar、诊断包和 `/api/system/runtime` 必须使用同一 `runtime_state` 枚举，并映射为统一 UI severity：
+
+| runtime_state | UI severity | UI 行为 |
+|---|---|---|
+| `booting` | info | 显示启动中，不允许业务操作 |
+| `sidecar_starting` | info | 显示 sidecar 启动中，业务请求暂停 |
+| `sidecar_ready` | info | 显示 sidecar 已连接，等待数据库检查 |
+| `db_checking` | info | 显示数据库检查中，写操作不可用 |
+| `migration_running` | blocking | 显示迁移/恢复进行中，禁止业务写入 |
+| `worker_starting` | info | 显示任务系统启动中，允许只读状态查看 |
+| `ready` | ok | 主工作台可用 |
+| `degraded` | warning | 主工作台可用，但必须说明 `sidecar / db / worker / provider / vector` 哪一层降级 |
+| `recovery_required` | blocking | 禁止业务写入，显示恢复说明和诊断导出入口 |
+| `shutting_down` | info | 应用退出中，不再发起新任务 |
+
+约束：
+
+- `degraded` 不得只显示“部分异常”，必须携带子系统和 `reason`；
+- `recovery_required` 必须进入诊断包；
+- UI status bar 不从多个接口拼状态，默认消费 `/api/system/runtime` 的聚合结果；
+- runtime state 不是业务 job 状态，不替代 ProcessingJob 的 `queued / processing / completed / failed_*`。
 
 ---
 

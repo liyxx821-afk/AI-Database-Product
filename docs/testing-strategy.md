@@ -1,8 +1,8 @@
 # 测试与评估策略
 
-版本：v0.20
+版本：v0.21
 日期：2026-05-17  
-状态：完整 P0 入库、P0-Z0a/Z0b 竖切、ProcessingJob、File Inspection、切片前准备层、结构化整理检查门、知识切片质量闭环、安全运维横切层、检查门映射单一来源、事件枚举单一来源、切片执行 profile fixture、AI 结构化整理 profile 与 D-079 存储映射 fixture、D-080 知识调用 / implicit_agent / D-081-D085 调用边界、profile schema、反馈策略与前端状态 fixture、向量检索与 RAG 验收策略 + provider fallback fixture + D-090 技术栈执行优化测试口径 + D-091 工程化验收门槛 + D-092 代码骨架前置契约测试口径 + D-093 桌面运行时硬化测试口径
+状态：完整 P0 入库、P0-Z0a/Z0b 竖切、ProcessingJob、File Inspection、切片前准备层、结构化整理检查门、知识切片质量闭环、安全运维横切层、检查门映射单一来源、事件枚举单一来源、切片执行 profile fixture、AI 结构化整理 profile 与 D-079 存储映射 fixture、D-080 知识调用 / implicit_agent / D-081-D085 调用边界、profile schema、反馈策略与前端状态 fixture、向量检索与 RAG 验收策略 + provider fallback fixture + D-090 技术栈执行优化测试口径 + D-091 工程化验收门槛 + D-092 代码骨架前置契约测试口径 + D-093 桌面运行时硬化测试口径 + D-094 P0-Core 工程骨架开工测试口径
 
 ## 1. 文档目的
 
@@ -139,6 +139,35 @@ D-093 后，首批桌面工程必须补充以下测试：
 - Runtime status bar 测试：sidecar、DB、worker、provider、job 五类状态能从系统状态 API 映射到 UI。
 - Provider settings panel 测试：manifest 中 `user_visible / provider_type / fallback_provider_key / network_required / api_key_required` 能正确展示；mock/system 不显示为真实 AI 能力。
 - 最小诊断包测试：导出的诊断包包含脱敏日志、provider status、recent jobs、system status；不得包含 API Key、用户原文、数据库文件或完整私密路径。
+
+### 2.9 D-094 P0-Core 工程骨架开工测试口径
+
+D-094 后，首批代码工程必须先通过 `smoke:p0-core`，再运行或开发 `smoke:p0-z0a`。测试目标从业务闭环前移到桌面运行时骨架：
+
+| 测试项 | 期望 |
+|---|---|
+| Monorepo structure check | `apps/desktop-main`、`apps/desktop-preload`、`apps/renderer`、`apps/api`、`packages/api-types`、`packages/runtime-contracts`、`packages/shared-config` 存在并职责清楚 |
+| Runtime state machine transitions | 覆盖 `booting → sidecar_starting → sidecar_ready → db_checking → migration_running? → worker_starting → ready/degraded/recovery_required → shutting_down` |
+| Preload API contract | 只暴露 `getRuntimeConfig / getRuntimeStatus / onRuntimeStatusChange / openFileDialog / exportDiagnostics`，不暴露 Node 能力 |
+| Sidecar local token health | 无 token、错误 token、旧 token 被拒绝；正确 token 可访问 `/api/health` 和 runtime endpoint |
+| App data dir + SQLite init | 数据库、WAL、日志、backup hook 全部落在 app data dir；SQLite init 包含 WAL、foreign keys、busy timeout、quick check |
+| Shutdown cleanup | 应用退出后 sidecar 和 worker 被清理，不残留后台进程或锁文件 |
+| Status bar mapping | runtime state 和 sidecar / DB / worker / provider / vector 子状态能映射到底部状态栏 |
+| Smoke order | `pnpm smoke:p0-core` 必须先于 `pnpm smoke:p0-z0a` 通过 |
+| Business feature block | `smoke:p0-core` 通过前不得新增 upload parsing UI、RAG UI、真实 Provider 接入、OCR/ASR、图谱或用户聊天入口；初期可用 review checklist 执行，后续再自动化 |
+
+`smoke:p0-core` 最小链路固定为：
+
+```text
+Electron Main boot
+→ sidecar_starting
+→ local token health
+→ app data dir / SQLite init
+→ runtime status endpoint
+→ renderer shell + status bar
+→ diagnostics export stub
+→ graceful shutdown
+```
 
 ---
 

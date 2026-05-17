@@ -1,8 +1,8 @@
 # P0 执行计划
 
-版本：v0.20
+版本：v0.21
 日期：2026-05-17  
-状态：已升级为 P0-Core / P0-File / P0-AI / P0-RAG 完整执行计划 + P0-Z0a/Z0b 竖切 / ProcessingJob / File Inspection / 切片前准备层 / 结构化整理检查门 / 知识切片质量闭环 / 安全运维横切层 / 检查门映射契约细化 / 切片执行 profile 收敛 / AI 结构化整理 profile 与 D-079 存储映射收敛 / D-080 知识调用 profile 与前端状态契约收敛 / D-081-D085 实现前边界修正 / D-090 技术栈执行优化 / D-091 技术栈工程化验收门槛 / D-092 代码骨架前置契约优化 / D-093 桌面运行时硬化
+状态：已升级为 P0-Core / P0-File / P0-AI / P0-RAG 完整执行计划 + P0-Z0a/Z0b 竖切 / ProcessingJob / File Inspection / 切片前准备层 / 结构化整理检查门 / 知识切片质量闭环 / 安全运维横切层 / 检查门映射契约细化 / 切片执行 profile 收敛 / AI 结构化整理 profile 与 D-079 存储映射收敛 / D-080 知识调用 profile 与前端状态契约收敛 / D-081-D085 实现前边界修正 / D-090 技术栈执行优化 / D-091 技术栈工程化验收门槛 / D-092 代码骨架前置契约优化 / D-093 桌面运行时硬化 / D-094 P0-Core 桌面工程骨架开工契约
 
 ## 1. 文档目的
 
@@ -29,7 +29,7 @@ P0 当前不是轻量建库闭环，而是完整入库与知识处理平台：
 - [ ] `docs/mvp-scope.md` v0.13 已确认 P0 四切片与 P0-Z0a / Z0b / Z1 / Z2 波次、D-080 调用/Agent/前端边界。
 - [ ] `docs/data-model.md` v0.20-draft 已确认 P0-Z0a blocking 对象、Z0b 补齐对象、检查门映射、事件枚举单一来源、切片前准备、chunk quality/source metadata、`chunk_execution_profile`、`structured_organization`、D-079 存储映射、D-080 profile、D-081/D-082/D-083/D-085 调用边界、D-092 trace chain / Evidence Pack 失败态与 Provider capability/fallback 元数据。
 - [ ] `docs/api-design.md` v0.18-draft 已确认 Upload / File / Job Events / Parse / Chunk Build / KU Extract / Retrieval / RAG / System Status API、ProcessingJob、sensitive grant、provider capability status、chunk summary 执行 profile、D-079 structuring summary 与 D-080-D085 query/ranking/citation/feedback 响应。
-- [ ] `docs/api-implementation-plan.md` v0.19-draft 已确认 route-service-repository 映射、`ChunkBuildService` 执行 profile、`KnowledgeExtractionService` 结构化整理 profile、D-079 review payload 边界、D-080-D085 RetrievalPreview / Evidence / RAG 实施边界、D-092 OpenAPI 类型生成 / trace chain / migration 波次命名与 D-093 桌面运行时 API 约束。
+- [ ] `docs/api-implementation-plan.md` v0.20-draft 已确认 route-service-repository 映射、`ChunkBuildService` 执行 profile、`KnowledgeExtractionService` 结构化整理 profile、D-079 review payload 边界、D-080-D085 RetrievalPreview / Evidence / RAG 实施边界、D-092 OpenAPI 类型生成 / trace chain / migration 波次命名、D-093 桌面运行时 API 约束与 D-094 P0-Core API skeleton 顺序。
 - [ ] `docs/rag-pipeline.md` v0.8-draft 已确认 RAG answer / evidence-only fallback、Evidence Pack 失败态、chunk quality 风险展示与 D-080-D085 调用路由。
 
 ### 2.2 技术决策
@@ -53,6 +53,7 @@ P0 当前不是轻量建库闭环，而是完整入库与知识处理平台：
 - [ ] 工程化门槛：W1 必须具备最小依赖 CI gate、optional provider 延迟加载、typed fetch wrapper、sidecar 生命周期验证、sqlite-vec 三态一致性和 evidence-first smoke。
 - [ ] 代码骨架前置契约：W1 必须冻结 OpenAPI → TypeScript 类型生成、Provider manifest、trace chain、migration 波次命名、SQLite 性能基线脚本、Zustand store slices 和 Evidence Pack 失败态。
 - [ ] 桌面运行时硬化：W1 必须验证 local session token、127.0.0.1 sidecar 绑定、SQLite WAL / backup / integrity check、worker heartbeat、状态栏 runtime summary 和最小诊断包。
+- [ ] P0-Core 工程骨架：W1 必须先通过 `smoke:p0-core`，再进入 upload / parse / review / RAG 业务链路。
 
 ### 2.3 产品命名与本地数据目录
 
@@ -153,6 +154,22 @@ D-093 要求 W1/W2 不只跑通开发态功能，还必须证明桌面软件运�
 | Provider settings panel | manifest 状态、联网属性、fallback 和 API Key 需求可见 | mock/system 被包装成真实 AI 能力 |
 | Minimal diagnostics | 可导出脱敏 logs、provider status、recent jobs、system status | 诊断包包含 API Key、原文、DB 或完整私密路径 |
 
+### 3.0.5 D-094 P0-Core 桌面工程骨架开工契约
+
+D-094 把 W1 的第一目标收窄为桌面工程骨架。`smoke:p0-core` 通过前，不进入 upload / parse / review / RAG 业务链路。
+
+| Gate | 必须证明 | 不允许 |
+|---|---|---|
+| Monorepo responsibility split | `apps/desktop-main`、`apps/desktop-preload`、`apps/renderer`、`apps/api` 职责独立；`packages/api-types`、`packages/runtime-contracts`、`packages/shared-config` 可被引用 | Electron Main、Renderer、FastAPI sidecar 混成单目录或互相越权 |
+| Startup state machine | `booting / sidecar_starting / sidecar_ready / db_checking / migration_running / worker_starting / ready / degraded / recovery_required / shutting_down` 贯穿 Main、API、Renderer 和诊断 | 前端另造不可追踪的 loading/failed 状态 |
+| Preload API | `getRuntimeConfig / getRuntimeStatus / onRuntimeStatusChange / openFileDialog / exportDiagnostics` 可用 | 直接暴露 Node、fs、child_process、数据库连接或长期 token |
+| Local token health check | `/api/health` 只在正确 `X-Local-Session-Token` 下通过 | Renderer 裸连 localhost 或 API base/token 硬编码 |
+| SQLite init + backup hook | app data dir、WAL、quick_check、migration skeleton、pre-migration backup hook 建立 | 数据库、日志、上传缓存写入源码目录或安装目录 |
+| Runtime status bar | shell 加载后显示 sidecar / DB / worker / provider / vector 状态 | 用户看到空白页但不知道哪层失败 |
+| `smoke:p0-core` | sidecar、local token、DB init、runtime status、shutdown 可重复通过 | 业务 smoke 代替运行时骨架 smoke |
+
+骨架通过后，再执行 `smoke:p0-z0a`：text import → rule chunk → KU review → fallback embedding → evidence-only。
+
 ### 3.1 P0 默认工具落地
 
 | 能力 | P0 默认 | 缺失时行为 |
@@ -204,10 +221,14 @@ P0-Z0a 技术栈执行口径：
 任务：
 
 - 创建 Electron + React + FastAPI + SQLite monorepo。
+- 创建 P0-Core monorepo 目录骨架：`apps/desktop-main`、`apps/desktop-preload`、`apps/renderer`、`apps/api`、`packages/api-types`、`packages/runtime-contracts`、`packages/shared-config`。
 - 创建 `pyproject.toml` optional dependency groups：`core / file / ai / ocr / asr / dev`。
-- 创建 `pnpm-workspace.yaml`，固定 `apps/web`、Electron 主进程和共享脚本的 Node 工作区。
+- 创建 `pnpm-workspace.yaml`，固定桌面 Main、Preload、Renderer、共享 packages 和脚本工作区。
 - 创建 OpenAPI 导出与类型生成脚本：`uv run python scripts/export-openapi.py`、`pnpm generate:api-types`。
+- 创建 `runtime_state` 枚举契约：`booting / sidecar_starting / sidecar_ready / db_checking / migration_running / worker_starting / ready / degraded / recovery_required / shutting_down`。
+- 创建 preload API surface 契约：`getRuntimeConfig / getRuntimeStatus / onRuntimeStatusChange / openFileDialog / exportDiagnostics`。
 - 创建最小依赖 smoke gate：只安装 `core + dev` 时可运行 health、migration、text_import、rule chunk、KU review、embedding fallback、retrieval/evidence-only。
+- 创建 `pnpm smoke:p0-core`：验证 sidecar、local token、DB init、runtime status 和 shutdown。
 - 创建 sidecar 打包 spike：最小 packaged / pseudo-packaged FastAPI sidecar 可 health check、写日志、优雅退出。
 - 创建 Alembic 迁移工具链。
 - Alembic migration 文件名按 `z0a / z0b / z1 / z2` 波次命名，不把后置对象混入 Z0a。
@@ -226,11 +247,15 @@ P0-Z0a 技术栈执行口径：
 - 建立 trace chain 规则：Electron、FastAPI、worker、SSE、Evidence Pack 均写 `trace_id`。
 - 实现 sqlite-vec capability probe：`available / degraded / unavailable` 三态，写入 system status；不可用时不阻塞启动。
 - 创建 SQLite 性能基线脚本，至少覆盖 1K / 10K KU 的 FTS5、metadata filter、fallback ranking 和 Evidence Pack 组装。
+- `smoke:p0-core` 通过前，禁止开发 upload parsing UI、RAG UI、真实 Provider 接入、OCR/ASR、图谱功能和面向用户的 Chat。
 
 验收：
 
 - `pnpm dev` 或等价脚本启动 Electron + Vite + FastAPI。
+- `pnpm dev:desktop` 或等价脚本启动 Electron Main + preload + Renderer + FastAPI sidecar。
 - `/api/health` 和 `/api/auth/status` 返回 200。
+- `GET /api/system/runtime` 返回统一 `runtime_state`、sidecar、DB、worker、provider、vector 摘要。
+- `pnpm smoke:p0-core` 先于 `pnpm smoke:p0-z0a` 通过。
 - 创建 Project / Folder 后可重启复盘。
 - `uv run ruff check .`、`uv run pytest`、`pnpm typecheck` 命令存在并可运行基础用例。
 - sqlite-vec 不可用时系统进入 degraded vector mode，`embeddings` 表和 VectorStoreService 仍存在。

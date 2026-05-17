@@ -1,8 +1,8 @@
 # 技术栈与 P0 原型实施计划
 
-版本：v0.22
+版本：v0.23
 日期：2026-05-17  
-状态：已同步——完整 P0 四切片 + P0-Z0a/Z0b 竖切 + ProcessingJob + 切片前准备层 / 结构化整理检查门 + 知识切片质量闭环 + 安全运维横切层 + 技术选型矩阵 + Provider capability 契约收紧 + 切片执行 profile + AI 结构化整理 profile + D-079 存储映射 + D-080 知识调用 / implicit_agent / D-081-D085 调用 schema、反馈策略与前端系统技术矩阵 + D-088 README 对齐后的技术栈优化 + D-090 技术栈执行优化 + D-091 技术栈工程化验收门槛 + D-092 代码骨架前置契约优化 + D-093 桌面运行时硬化
+状态：已同步——完整 P0 四切片 + P0-Z0a/Z0b 竖切 + ProcessingJob + 切片前准备层 / 结构化整理检查门 + 知识切片质量闭环 + 安全运维横切层 + 技术选型矩阵 + Provider capability 契约收紧 + 切片执行 profile + AI 结构化整理 profile + D-079 存储映射 + D-080 知识调用 / implicit_agent / D-081-D085 调用 schema、反馈策略与前端系统技术矩阵 + D-088 README 对齐后的技术栈优化 + D-090 技术栈执行优化 + D-091 技术栈工程化验收门槛 + D-092 代码骨架前置契约优化 + D-093 桌面运行时硬化 + D-094 P0-Core 桌面工程骨架开工契约
 
 ## 1. 文档目的
 
@@ -636,6 +636,101 @@ P0-Z0a 应先实现最小诊断导出，不等完整 P0：
 | `logs/sidecar.log` | 脱敏后的 sidecar 日志 |
 
 诊断包不得包含 API Key、用户原文、未脱敏本地路径或数据库文件。
+
+### 2.7 P0-Core 桌面工程骨架开工契约（D-094）
+
+D-094 不创建代码、不新增依赖、不改变 Electron + React + Vite + TypeScript、FastAPI sidecar、SQLite + sqlite-vec 的技术栈选择。它只冻结下一轮真正创建工程代码时的第一批目录、命令、状态枚举、实现顺序和 smoke gate，避免直接跳到上传、RAG 或聊天功能。
+
+#### 首批 Monorepo 职责划分
+
+后续代码阶段可以微调命名，但职责不能合并。Electron Main、Preload、Renderer 和 FastAPI sidecar 必须分开：
+
+```text
+apps/
+├── desktop-main/        # Electron Main：窗口、sidecar lifecycle、数据目录、原生能力
+├── desktop-preload/     # contextBridge：受控 runtime config、IPC、诊断导出
+├── renderer/            # React + Vite + TypeScript 工作台 UI
+└── api/                 # FastAPI sidecar：health、runtime status、DB、worker、业务 API
+packages/
+├── api-types/           # OpenAPI 生成的 TypeScript 类型
+├── runtime-contracts/   # runtime_state、preload API、error/status shared contracts
+└── shared-config/       # lint、tsconfig、脚本共享配置
+scripts/
+├── export-openapi.py
+├── smoke-p0-core.mjs
+└── bench-sqlite.mjs
+```
+
+禁止把 `desktop-main` 和 `renderer` 合成一个前端目录；禁止让 Renderer 直接读取 Node、文件系统、数据库或长期 token；禁止把 FastAPI sidecar 伪装成普通远程后端服务。
+
+#### 第一批命令
+
+下一轮创建工程骨架时，根目录命令名先按以下口径落地：
+
+```bash
+pnpm install
+uv sync --extra core --extra dev
+pnpm generate:api-types
+pnpm dev:desktop
+pnpm smoke:p0-core
+pnpm smoke:p0-z0a
+```
+
+`smoke:p0-core` 是桌面运行时骨架验收；`smoke:p0-z0a` 是 text import 到 evidence-only 的业务竖切验收。两者不能混成一个脚本，且必须先过 `smoke:p0-core`。
+
+#### Runtime State 枚举
+
+首批运行时状态必须使用同一组枚举：
+
+```text
+booting
+sidecar_starting
+sidecar_ready
+db_checking
+migration_running
+worker_starting
+ready
+degraded
+recovery_required
+shutting_down
+```
+
+Renderer 的状态栏、`GET /api/system/runtime`、诊断报告和 Main 进程日志必须使用同一枚举；不得在前端另造 `loading / failed / ok` 等不可追踪状态。
+
+#### 第一批实现顺序
+
+后续代码阶段先按以下顺序执行：
+
+1. Electron Main + Preload secure bridge；
+2. FastAPI health + local token middleware；
+3. app data dir + SQLite init；
+4. migration skeleton + backup hook；
+5. runtime status endpoint；
+6. renderer shell + status bar；
+7. OpenAPI export + generated TS types；
+8. smoke tests。
+
+#### 骨架通过前禁止做的业务功能
+
+`smoke:p0-core` 通过前，不允许进入以下功能：
+
+- upload parsing UI；
+- RAG UI；
+- real provider integrations；
+- OCR / ASR；
+- graph features；
+- user-facing chat。
+
+这些功能依赖稳定 runtime、preload API、DB 初始化、worker 状态和诊断链路。先做业务功能会让失败来源难以定位。
+
+#### 首批 Smoke Gate
+
+| Gate | 必须证明 |
+|---|---|
+| `smoke:p0-core` | sidecar 启动、local token 校验、DB 初始化、runtime status、优雅 shutdown |
+| `smoke:p0-z0a` | text import → rule chunk → KU review → fallback embedding → evidence-only |
+
+`smoke:p0-core` 是 W1 第一阻塞门槛。只有它通过后，才允许把 P0-Z0a 的 text import / review / evidence-only 链路接进 UI。
 
 ---
 

@@ -1,8 +1,8 @@
 # 桌面应用架构
 
-版本：v0.5
+版本：v0.6
 日期：2026-05-17
-状态：已同步完整 P0 入库、文件处理、开源优先 AI、P0-RAG 桌面边界、D-092 sidecar 打包验证 spike 与 D-093 桌面运行时硬化
+状态：已同步完整 P0 入库、文件处理、开源优先 AI、P0-RAG 桌面边界、D-092 sidecar 打包验证 spike、D-093 桌面运行时硬化与 D-094 P0-Core 工程骨架开工契约
 
 ## 1. 文档目的
 
@@ -187,6 +187,44 @@ Electron Main
 - FastAPI middleware 对缺失、错误或过期 token 返回 `sidecar_auth_failed`；
 - 端口冲突、sidecar 启动失败和 token 校验失败必须进入主进程状态栏与诊断报告。
 
+### 3.7 D-094 P0-Core 启动状态机
+
+D-094 要求桌面工程骨架先实现统一 runtime state，再进入上传、解析、RAG 或聊天业务。状态机由 Electron Main 维护，FastAPI sidecar 和 Renderer 只能消费或报告子系统状态。
+
+```text
+booting
+→ sidecar_starting
+→ sidecar_ready
+→ db_checking
+→ migration_running?
+→ worker_starting
+→ ready | degraded | recovery_required
+→ shutting_down
+```
+
+状态定义：
+
+| runtime_state | 含义 |
+|---|---|
+| `booting` | Electron Main 启动，尚未选择端口和数据目录 |
+| `sidecar_starting` | Main 正在启动 FastAPI sidecar |
+| `sidecar_ready` | sidecar health 已通过 local token 校验 |
+| `db_checking` | sidecar 正在检查 app data dir、SQLite 文件和 `quick_check` |
+| `migration_running` | schema migration 或 restore/backup 锁定中 |
+| `worker_starting` | `local_sqlite_worker` 初始化和 heartbeat 建立中 |
+| `ready` | sidecar、DB、worker、Provider summary、vector channel 均达到可用或可解释 fallback |
+| `degraded` | 至少一个非阻塞子系统降级，但工作台可加载 |
+| `recovery_required` | DB integrity、migration、sidecar auth 或数据目录错误阻止继续写入 |
+| `shutting_down` | 应用退出，sidecar 和 worker 正在优雅关闭 |
+
+约束：
+
+- Renderer 不得在 `ready` 或带解释的 `degraded` 前把主工作台标记为 ready；
+- shell 加载后底部 runtime status bar 必须始终可见；
+- `degraded` 必须说明子系统：`sidecar / db / worker / provider / vector`；
+- `recovery_required` 默认禁用写操作，并提供诊断导出入口；
+- runtime state 必须进入 `GET /api/system/runtime`、Main 日志和诊断包。
+
 ---
 
 ## 4. 数据库部署：SQLite
@@ -321,6 +359,26 @@ contextIsolation: true
 nodeIntegration: false
 sandbox: true（P0 可选）
 ```
+
+### 5.4 D-094 Preload API Surface
+
+D-094 的首批 preload API 只暴露桌面运行时骨架所需能力：
+
+```ts
+getRuntimeConfig()
+getRuntimeStatus()
+onRuntimeStatusChange(listener)
+openFileDialog()
+exportDiagnostics()
+```
+
+约束：
+
+- 不暴露 `require`、`fs`、`child_process`、数据库连接或 Node 全局对象；
+- `getRuntimeConfig()` 只返回当前会话需要的 API base、feature flags 和脱敏配置，不返回长期 token；
+- `onRuntimeStatusChange()` 只传递 runtime state 与子系统摘要，不传用户原文或本地私密路径；
+- `openFileDialog()` 由 Main 代理，Renderer 只获得用户确认后的文件句柄/路径摘要；
+- `exportDiagnostics()` 只触发脱敏诊断包生成，不能把数据库文件、API Key 或完整私密路径交给 Renderer。
 
 ---
 
