@@ -22,6 +22,7 @@ import {
   type FeedbackDiagnosticsFilters,
   type FeedbackExportFormat
 } from "../services/feedbackMemoryApi";
+import { storeErrorCode } from "./errors";
 
 type ViewState = "loading" | "empty" | "degraded" | "recoverable_error" | "done";
 
@@ -78,7 +79,7 @@ export const useFeedbackMemoryStore = create<FeedbackMemoryState>((set, get) => 
     } catch (error) {
       set({
         feedbackState: "recoverable_error",
-        feedbackErrorCode: error instanceof Error ? error.message : "feedback_submit_failed"
+        feedbackErrorCode: storeErrorCode(error, "feedback_submit_failed")
       });
     }
   },
@@ -102,7 +103,7 @@ export const useFeedbackMemoryStore = create<FeedbackMemoryState>((set, get) => 
     } catch (error) {
       set({
         memoryState: "recoverable_error",
-        memoryErrorCode: error instanceof Error ? error.message : "memory_draft_create_failed"
+        memoryErrorCode: storeErrorCode(error, "memory_draft_create_failed")
       });
       return undefined;
     }
@@ -127,7 +128,7 @@ export const useFeedbackMemoryStore = create<FeedbackMemoryState>((set, get) => 
     } catch (error) {
       set({
         memoryState: "recoverable_error",
-        memoryErrorCode: error instanceof Error ? error.message : "memory_draft_list_failed"
+        memoryErrorCode: storeErrorCode(error, "memory_draft_list_failed")
       });
     }
   },
@@ -156,7 +157,7 @@ export const useFeedbackMemoryStore = create<FeedbackMemoryState>((set, get) => 
     } catch (error) {
       set({
         diagnosticsState: "recoverable_error",
-        diagnosticsErrorCode: error instanceof Error ? error.message : "feedback_diagnostics_failed"
+        diagnosticsErrorCode: storeErrorCode(error, "feedback_diagnostics_failed")
       });
     }
   },
@@ -184,8 +185,7 @@ export const useFeedbackMemoryStore = create<FeedbackMemoryState>((set, get) => 
     } catch (error) {
       set({
         diagnosticsExportState: "recoverable_error",
-        diagnosticsExportErrorCode:
-          error instanceof Error ? error.message : "feedback_export_failed"
+        diagnosticsExportErrorCode: storeErrorCode(error, "feedback_export_failed")
       });
       return undefined;
     }
@@ -210,8 +210,7 @@ export const useFeedbackMemoryStore = create<FeedbackMemoryState>((set, get) => 
     } catch (error) {
       set({
         exportHistoryState: "recoverable_error",
-        exportHistoryErrorCode:
-          error instanceof Error ? error.message : "feedback_export_history_failed"
+        exportHistoryErrorCode: storeErrorCode(error, "feedback_export_history_failed")
       });
     }
   },
@@ -235,8 +234,7 @@ export const useFeedbackMemoryStore = create<FeedbackMemoryState>((set, get) => 
     } catch (error) {
       set({
         exportHistoryState: "recoverable_error",
-        exportHistoryErrorCode:
-          error instanceof Error ? error.message : "feedback_export_history_delete_failed"
+        exportHistoryErrorCode: storeErrorCode(error, "feedback_export_history_delete_failed")
       });
     }
   }

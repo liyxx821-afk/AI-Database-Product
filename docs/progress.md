@@ -1,5 +1,30 @@
 # 进度记录
 
+## 2026-05-18（Feedback Memory Store 错误处理接入优化）
+
+### 审查结论
+
+- `storeErrorCode` 已接入 core 小 store 后，`feedbackMemoryStore` 仍保留 7 处重复错误提取逻辑。
+- 该 store 同时驱动 `/ask` 反馈 / Memory Draft 与 `/outputs` Feedback Diagnostics / Export History；错误处理分叉会影响后续反馈诊断与导出维护。
+
+### 已优化
+
+- `feedbackMemoryStore` 接入共享 `storeErrorCode`。
+- 覆盖 feedback submit、memory draft create/list、feedback diagnostics list/summary、feedback export、feedback export history refresh/delete。
+- 保留既有 fallback error code、state 字段和 degraded/recoverable_error 行为。
+
+### 验收
+
+- `pnpm typecheck` 通过。
+- `pnpm --filter @knowledgebase-dev/renderer build` 通过。
+- `git diff --check` 通过。
+- in-app browser 检查 `/ask` 与 `/outputs` 可达，反馈 / Memory Draft / Feedback Diagnostics 面板仍显示预期 degraded 状态。
+
+### 备注
+
+- 本轮只做 renderer store 层维护性优化，不改 OpenAPI schema、数据库、主路由、业务语义或 smoke 命令。
+- `retrievalStore` 的 Citation / Retrieval 状态机仍保留到单独一轮处理，避免本轮扩大改动面。
+
 ## 2026-05-18（Renderer Core Store 错误处理接入优化）
 
 ### 审查结论
