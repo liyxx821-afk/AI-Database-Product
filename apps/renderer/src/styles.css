@@ -357,6 +357,57 @@ button {
   gap: 8px;
 }
 
+.citation-button-row,
+.copy-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.citation-token {
+  display: grid;
+  gap: 4px;
+  max-width: 100%;
+  min-height: 42px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  padding: 8px 10px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.citation-token strong,
+.citation-token span {
+  overflow-wrap: anywhere;
+}
+
+.focused-citation {
+  display: grid;
+  gap: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-muted);
+  padding: 12px;
+}
+
+.trace-path-list {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0 0;
+  padding-left: 18px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.trace-path-list li span {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
 .memory-form {
   display: grid;
   gap: 10px;
@@ -426,6 +477,11 @@ button {
 
 .review-row {
   grid-template-columns: minmax(260px, 1fr) minmax(118px, 150px) minmax(132px, 180px) auto auto;
+}
+
+.review-row.is-focused {
+  border-color: var(--border-strong);
+  background: #f9f9f9;
 }
 
 .file-row .status-pill,

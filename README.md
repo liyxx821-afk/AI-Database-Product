@@ -33,7 +33,7 @@ AI 个人知识资产系统
 └── 横切支撑层（治理：Auth / 权限 / 版本记录 / 日志 / 安全 / 性能成本）
 ```
 
-当前阶段已从文档与架构设计进入 **P0 Feedback Diagnostics Advanced Filters / Export History Z0b-lite 代码阶段**。D-100 已创建 Electron + React + Vite + TypeScript、FastAPI sidecar、SQLite、OpenAPI/generated types、runtime contracts、P0-Z0a text import / review / evidence-only smoke 和八页黑白灰低保真 Knowledge Workspace 壳层；D-101 已补齐文件上传、分片接收、完整性校验、File Inspection Z0a、真实 file list 和 `smoke:p0-file`；D-102 已补齐 Parser Router Z0a、Source / Chunk 创建、parse task、source API 和 `smoke:p0-parse`；D-103 已把 parsed Source / Chunk 接入 Candidate KU、Review Queue、384 维 fallback embedding 和 `smoke:p0-ku`；D-104 已把 confirmed KU 接入 Retrieval Preview、Evidence Pack detail、Search / Ask 真实查询状态和 `smoke:p0-search-ask`；D-105 已把 Evidence Pack detail 扩展为可复盘 Citation Detail，并在 `/search`、`/ask` 内嵌 detail replay 面板和 `smoke:p0-citation-detail`；D-106 已把八页工作台 UI 文案改为默认中文、可切换英文，并通过 `/api/settings` 将语言偏好持久化到 app data 的 `config.json`；D-107 已新增 append-only feedback events、pending-review Memory Draft、memory review confirm/ignore、`/ask` 反馈与保存入口、`/outputs` 草稿摘要和 `smoke:p0-feedback-memory`；D-108 已新增 Feedback Diagnostics 只读列表 / 聚合摘要 API、`/outputs` 反馈诊断面板和 `smoke:p0-feedback-diagnostics`；D-109 已新增 `smoke:p0-desktop-runtime`，验证已 build Electron Main / Preload、renderer preview、FastAPI sidecar、preload bridge、local token、受保护 API、非空 Renderer 和 sidecar clean shutdown；D-110 已新增 Feedback Diagnostics JSON / CSV 脱敏导出 API、`/outputs` 当前筛选导出按钮和 `smoke:p0-feedback-export`；D-111 已新增 feedback diagnostics 高级过滤、`config.json.feedback_export_history` 最近 20 条导出历史 metadata、`/outputs` Export History 面板和 `smoke:p0-feedback-filters-history`。
+当前阶段已从文档与架构设计进入 **P0 Citation Detail Focus / Evidence Trace Interaction Z0b-lite 代码阶段**。D-100 已创建 Electron + React + Vite + TypeScript、FastAPI sidecar、SQLite、OpenAPI/generated types、runtime contracts、P0-Z0a text import / review / evidence-only smoke 和八页黑白灰低保真 Knowledge Workspace 壳层；D-101 已补齐文件上传、分片接收、完整性校验、File Inspection Z0a、真实 file list 和 `smoke:p0-file`；D-102 已补齐 Parser Router Z0a、Source / Chunk 创建、parse task、source API 和 `smoke:p0-parse`；D-103 已把 parsed Source / Chunk 接入 Candidate KU、Review Queue、384 维 fallback embedding 和 `smoke:p0-ku`；D-104 已把 confirmed KU 接入 Retrieval Preview、Evidence Pack detail、Search / Ask 真实查询状态和 `smoke:p0-search-ask`；D-105 已把 Evidence Pack detail 扩展为可复盘 Citation Detail，并在 `/search`、`/ask` 内嵌 detail replay 面板和 `smoke:p0-citation-detail`；D-106 已把八页工作台 UI 文案改为默认中文、可切换英文，并通过 `/api/settings` 将语言偏好持久化到 app data 的 `config.json`；D-107 已新增 append-only feedback events、pending-review Memory Draft、memory review confirm/ignore、`/ask` 反馈与保存入口、`/outputs` 草稿摘要和 `smoke:p0-feedback-memory`；D-108 已新增 Feedback Diagnostics 只读列表 / 聚合摘要 API、`/outputs` 反馈诊断面板和 `smoke:p0-feedback-diagnostics`；D-109 已新增 `smoke:p0-desktop-runtime`，验证已 build Electron Main / Preload、renderer preview、FastAPI sidecar、preload bridge、local token、受保护 API、非空 Renderer 和 sidecar clean shutdown；D-110 已新增 Feedback Diagnostics JSON / CSV 脱敏导出 API、`/outputs` 当前筛选导出按钮和 `smoke:p0-feedback-export`；D-111 已新增 feedback diagnostics 高级过滤、`config.json.feedback_export_history` 最近 20 条导出历史 metadata、`/outputs` Export History 面板和 `smoke:p0-feedback-filters-history`；D-112 已将 Citation Detail 扩展为可聚焦、可筛选、可排序、可复制引用轨迹的 Evidence Trace 复盘面板，并新增 `smoke:p0-citation-focus`。
 
 ## 当前文档
 
@@ -241,6 +241,7 @@ P0 技术栈：
 - `pnpm smoke:p0-ku`
 - `pnpm smoke:p0-search-ask`
 - `pnpm smoke:p0-citation-detail`
+- `pnpm smoke:p0-citation-focus`
 - `pnpm smoke:p0-feedback-memory`
 - `pnpm smoke:p0-feedback-diagnostics`
 - `pnpm smoke:p0-feedback-export`
@@ -258,6 +259,12 @@ P0 技术栈：
   - 新增 `GET /api/feedback/export-history` 与 `DELETE /api/feedback/export-history/{id}`；每次导出只向 app data `config.json.feedback_export_history` 写入最近 20 条 metadata、summary totals、filters、content_sha256 和脱敏标记，不保存导出正文。
   - Renderer `/outputs` Feedback Diagnostics 面板增加关键词、时间、ranking effect、comment、排序、limit、重置、高级过滤和 Export History 面板；列表、summary 与导出共享当前过滤条件。
   - 已新增并验证 `pnpm smoke:p0-feedback-filters-history`；反馈驱动排序、feedback 编辑、重新下载旧 content、系统级 zip 诊断包、真实 LLM、provider-backed RAG、Text-to-SQL provider 和 GraphRAG 继续后置。
+
+- 已完成 Citation Detail Focus / Evidence Trace Interaction Z0b-lite（D-112）：
+  - 扩展 `GET /api/evidence-packs/{evidence_pack_id}?focus_item_id=...`，返回 `detail_summary`、item-level `trace_path` 与 copy-safe citation payload；非本 pack 的 `focus_item_id` 返回 `evidence_item_not_in_pack`。
+  - `/search` 的 Evidence Items 打开详情时聚焦对应 evidence item；`/ask` 的 citation label / evidence item id 可点击打开同一 Citation Detail 面板。
+  - Citation Detail 面板新增关键词过滤、按 rank/source 排序、上一条/下一条、focused item summary、trace path 展示和复制 label / trace ids / source-chunk-KU 摘要按钮。
+  - 已新增 `pnpm smoke:p0-citation-focus`；真实 LLM、provider-backed RAG、reranker、Text-to-SQL provider、GraphRAG、feedback 写回和新数据库表继续后置。
 
 - 已完成 Feedback Diagnostics Export Z0b-lite（D-110）：
   - 新增 `GET /api/feedback/export`：复用 D-108 filters，支持 `format=json|csv`，返回 filename、mime_type、record_count、generated_at、filters、summary、content 和脱敏标记。

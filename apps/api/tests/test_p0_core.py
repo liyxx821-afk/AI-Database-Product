@@ -126,6 +126,14 @@ def test_z0a_text_import_review_and_evidence(monkeypatch, tmp_path):
         pack_body = pack.json()
         assert [item["id"] for item in pack_body["items"]] == preview_body["evidence_item_ids"]
         assert pack_body["query"] == "Evidence Pack Source Chunk"
+        assert pack_body["detail_summary"]["item_count"] == len(preview_body["evidence_item_ids"])
+        assert pack_body["detail_summary"]["source_count"] == 1
+        assert pack_body["detail_summary"]["knowledge_unit_count"] == 1
+        assert pack_body["detail_summary"]["citation_labels"] == preview_body["citation_labels"]
+        assert pack_body["detail_summary"]["rank_score_min"] is not None
+        assert pack_body["detail_summary"]["rank_score_max"] is not None
+        assert pack_body["detail_summary"]["focused_item_id"] is None
+        assert pack_body["detail_summary"]["no_evidence_reason"] is None
         assert pack_body["query_explanation"]["retrieval_strategy_profile"] == (
             "p0_confirmed_ku_token_overlap_v1"
         )
@@ -139,6 +147,36 @@ def test_z0a_text_import_review_and_evidence(monkeypatch, tmp_path):
         assert detail_item["source_title"] == "Evidence test"
         assert detail_item["source_origin"] == "text_import"
         assert detail_item["citation_trace"]["profile"] == "p0_citation_trace_source_chunk_v1"
+        assert detail_item["citation_trace"]["evidence_pack_id"] == preview_body["evidence_pack_id"]
+        assert detail_item["citation_trace"]["evidence_item_id"] == detail_item["id"]
+        trace_path_types = [node["type"] for node in detail_item["citation_trace"]["trace_path"]]
+        assert trace_path_types == [
+            "evidence_pack",
+            "evidence_item",
+            "knowledge_unit",
+            "chunk",
+            "source",
+        ]
+        copy_payload = detail_item["citation_trace"]["copy_payload"]
+        assert copy_payload["citation_label"] == detail_item["citation_label"]
+        assert copy_payload["evidence_item_id"] == detail_item["id"]
+        assert copy_payload["knowledge_unit_id"] == detail_item["knowledge_unit_id"]
+
+        focused_pack = client.get(
+            f"/api/evidence-packs/{preview_body['evidence_pack_id']}",
+            headers=headers,
+            params={"focus_item_id": detail_item["id"]},
+        )
+        assert focused_pack.status_code == 200
+        assert focused_pack.json()["detail_summary"]["focused_item_id"] == detail_item["id"]
+
+        invalid_focus = client.get(
+            f"/api/evidence-packs/{preview_body['evidence_pack_id']}",
+            headers=headers,
+            params={"focus_item_id": "eitem_not_in_pack"},
+        )
+        assert invalid_focus.status_code == 404
+        assert invalid_focus.json()["error"]["code"] == "evidence_item_not_in_pack"
 
         answer = client.post(
             "/api/retrieval/evidence-only",
@@ -169,6 +207,11 @@ def test_z0a_text_import_review_and_evidence(monkeypatch, tmp_path):
         assert no_evidence_pack_body["status"] == "empty"
         assert no_evidence_pack_body["failure_type"] == "no_retrieval_result"
         assert no_evidence_pack_body["items"] == []
+        assert no_evidence_pack_body["detail_summary"]["item_count"] == 0
+        assert (
+            no_evidence_pack_body["detail_summary"]["no_evidence_reason"]
+            == "no_retrieval_result"
+        )
 
 
 def test_feedback_events_and_memory_draft_review(monkeypatch, tmp_path):

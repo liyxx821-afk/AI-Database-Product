@@ -1,8 +1,8 @@
 # API Route-Level 实施计划
 
-版本：v0.28-draft
+版本：v0.29-draft
 日期：2026-05-17  
-状态：P0 API 实施映射草案——四切片 + P0-Z0a/Z0b 竖切 + 切片前准备层 / 结构化整理检查门 / 知识切片质量闭环 / 安全运维横切层 / 检查门映射单一来源 / 事件枚举单一来源 / ProcessingJob / sensitive grant / evidence-only / 切片执行 profile / AI 结构化整理 profile / D-079 存储映射契约对齐 / D-080 知识调用 profile 与 implicit_agent / D-081-D085 调用边界、profile schema、Z0a 锚点与前端状态契约对齐 / D-092 OpenAPI 类型生成、trace chain 与 migration 波次命名 / D-093 桌面运行时 API 约束 / D-094 P0-Core 工程骨架 API 顺序 / D-098 页面到 API 组映射 / D-105 Citation Detail replay / D-106 Settings language config 持久化 / D-107 Feedback Events 与 Memory Draft Review / D-108 Feedback Diagnostics 只读复盘 / D-110 Feedback Diagnostics Export 脱敏导出 / D-111 Feedback Advanced Filters 与 Export History
+状态：P0 API 实施映射草案——四切片 + P0-Z0a/Z0b 竖切 + 切片前准备层 / 结构化整理检查门 / 知识切片质量闭环 / 安全运维横切层 / 检查门映射单一来源 / 事件枚举单一来源 / ProcessingJob / sensitive grant / evidence-only / 切片执行 profile / AI 结构化整理 profile / D-079 存储映射契约对齐 / D-080 知识调用 profile 与 implicit_agent / D-081-D085 调用边界、profile schema、Z0a 锚点与前端状态契约对齐 / D-092 OpenAPI 类型生成、trace chain 与 migration 波次命名 / D-093 桌面运行时 API 约束 / D-094 P0-Core 工程骨架 API 顺序 / D-098 页面到 API 组映射 / D-105 Citation Detail replay / D-106 Settings language config 持久化 / D-107 Feedback Events 与 Memory Draft Review / D-108 Feedback Diagnostics 只读复盘 / D-110 Feedback Diagnostics Export 脱敏导出 / D-111 Feedback Advanced Filters 与 Export History / D-112 Citation Detail Focus 与 Evidence Trace Interaction
 
 ## 1. 文档目的
 
@@ -21,6 +21,8 @@ D-107 已新增 `POST /api/feedback`、`POST /api/memory-drafts`、`GET /api/mem
 D-108 已新增 `GET /api/feedback` 与 `GET /api/feedback/summary`：FeedbackService 只读 append-only `feedback_events`，按过滤条件返回事件列表，并通过既有 `ai_answers`、`evidence_packs`、`evidence_items`、`retrieval_logs` 补足 query / citation context；summary 返回类型/目标分布、正负向计数和 `feedback_policy`，不写 `retrieval_feedback`，不影响 ranking 或 confirmed knowledge。
 
 D-110 已新增 `GET /api/feedback/export`：FeedbackService 复用 D-108 过滤和诊断 join，返回 JSON / CSV content、summary、filters、record_count 和脱敏标记；后端不写本地文件路径，Renderer 用 Blob download，不包含 source excerpt、answer text、local token、SQLite path 或完整本地路径。D-111 已将 list / summary / export 扩展为同一组高级 filters，并新增 `GET /api/feedback/export-history` 与 `DELETE /api/feedback/export-history/{id}`；history 只写 `config.json.feedback_export_history` metadata，不新增 SQLite 表。
+
+D-112 已扩展 `GET /api/evidence-packs/{evidence_pack_id}`：EvidencePackService 支持可选 `focus_item_id`，返回 `detail_summary`、item-level `trace_path` 与 copy-safe citation payload；非法 focus 使用 `evidence_item_not_in_pack` error envelope。Renderer `/search` 与 `/ask` 只调用 typed detail API 聚焦 item，不自行 join KU / Chunk / Source，也不保存复制行为。
 
 目标：
 
@@ -599,7 +601,7 @@ commit
 | Route | Service | Repository / Module | P0 关键行为 |
 |---|---|---|---|
 | `POST /api/retrieval/preview` | `RetrievalPreviewService.preview` | `QueryUnderstandingService`, `RetrievalStrategyService`, `TextToSqlTemplateService`, `KnowledgeUnitRepository`, `EmbeddingRepository`, `VectorStoreService`, `ProviderCapabilityService`, `RetrievalLogRepository` | 规则 query understanding、strategy route、keyword/vector/hybrid merge、ranking/citation trace 摘要、检索解释、写 retrieval log |
-| `GET /api/evidence-packs/{evidence_pack_id}` | `EvidencePackService.getDetail` | `EvidencePackRepository`, `EvidenceItemRepository`, `KnowledgeUnitRepository`, `ChunkRepository`, `SourceRepository`, `RetrievalLogRepository` | D-105 Z0b-lite 已实现：按 ID 返回 Evidence Pack replay 与 item-level citation detail；detail 包含 KU title/status/type、chunk excerpt、source origin、query explanation、provider fallback 和 citation trace |
+| `GET /api/evidence-packs/{evidence_pack_id}` | `EvidencePackService.getDetail` | `EvidencePackRepository`, `EvidenceItemRepository`, `KnowledgeUnitRepository`, `ChunkRepository`, `SourceRepository`, `RetrievalLogRepository` | D-112 Z0b-lite 已实现：按 ID 返回 Evidence Pack replay，支持 `focus_item_id`、`detail_summary`、KU/Chunk/Source trace path 和 copy-safe citation payload；非法 focus 返回 `evidence_item_not_in_pack` |
 | `POST /api/retrieval/evidence-only` | `EvidenceOnlyAnswerService.answer` | `RetrievalPreviewService`, `AIAnswerRepository` | D-104 Z0a 已实现：复用 retrieval preview / evidence assembly，不调用 LLM；无证据只返回 no evidence reason，不生成伪答案 |
 
 流程：
@@ -638,6 +640,8 @@ P0 输出必须包含：
 D-104 后，feedback policy/actions、relation evidence、provider-backed vector ranking 和 Text-to-SQL provider 仍是 Z2 或后续增强，不属于当前实现验收。
 
 D-105 后，`GET /api/evidence-packs/{id}` 是 Search / Ask citation detail 的单一后端入口；不得要求 Renderer 自行 join KU / Chunk / Source，也不得在 detail replay 中写 feedback、Memory Draft 或 confirmed knowledge。
+
+D-112 后，Citation Detail focus 仍只读；不得修改 ranking、不得保存用户复制行为、不得让 `pending_review` KU 进入 Evidence Pack。
 
 D-106 后，`GET /api/settings` 与 `PATCH /api/settings` 是语言偏好持久化的单一后端入口；Renderer 普通浏览器 fallback 只能保留 session 语言，不得绕过 preload bridge 直接读写 `config.json`。
 

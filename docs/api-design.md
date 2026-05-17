@@ -1,8 +1,8 @@
 # API 设计草案
 
-版本：v0.26-draft
+版本：v0.27-draft
 日期：2026-05-17  
-状态：P0 API 边界草案——完整上传/文件处理/File Inspection/切片前准备层/切片执行 profile/AI 结构化整理 profile/D-079 structuring summary 子字段/结构化整理检查门/知识切片质量闭环/AI/RAG API + D-080 知识调用 profile / implicit_agent / D-081 Z0a-Z2 持久化边界 / D-082 InvocationProfileSchema / D-083 前端状态与反馈策略 / D-085 Z0a 调用锚点、feedback 与 citation 边界修正 + D-098 页面到现有 API 组映射 + D-105 Citation Detail / Evidence Pack replay 实现边界 + D-106 Settings language 持久化边界 + D-107 Feedback Events / Memory Draft Review Z0b-lite + D-108 Feedback Diagnostics / Event Replay Z0b-lite + D-110 Feedback Diagnostics Export Z0b-lite + D-111 Feedback Diagnostics Advanced Filters / Export History Z0b-lite + 安全运维横切层 + 检查门映射单一来源 + 事件枚举单一来源 + P0-Z0a/ProcessingJob/sensitive grant 契约收紧
+状态：P0 API 边界草案——完整上传/文件处理/File Inspection/切片前准备层/切片执行 profile/AI 结构化整理 profile/D-079 structuring summary 子字段/结构化整理检查门/知识切片质量闭环/AI/RAG API + D-080 知识调用 profile / implicit_agent / D-081 Z0a-Z2 持久化边界 / D-082 InvocationProfileSchema / D-083 前端状态与反馈策略 / D-085 Z0a 调用锚点、feedback 与 citation 边界修正 + D-098 页面到现有 API 组映射 + D-105 Citation Detail / Evidence Pack replay 实现边界 + D-106 Settings language 持久化边界 + D-107 Feedback Events / Memory Draft Review Z0b-lite + D-108 Feedback Diagnostics / Event Replay Z0b-lite + D-110 Feedback Diagnostics Export Z0b-lite + D-111 Feedback Diagnostics Advanced Filters / Export History Z0b-lite + D-112 Citation Detail Focus / Evidence Trace Interaction Z0b-lite + 安全运维横切层 + 检查门映射单一来源 + 事件枚举单一来源 + P0-Z0a/ProcessingJob/sensitive grant 契约收紧
 
 ## 1. 文档目的
 
@@ -1069,7 +1069,7 @@ D-104 Z0a 实现口径：
 ### 10.2 获取 Evidence Pack Detail
 
 ```text
-GET /api/evidence-packs/{evidence_pack_id}
+GET /api/evidence-packs/{evidence_pack_id}?focus_item_id={evidence_item_id}
 ```
 
 响应返回持久化 Evidence Pack 与 item-level citation detail；Z0b-lite 不新增 citation 明细表，Citation Trace 仍通过现有 `retrieval_logs`、`evidence_packs`、`evidence_items`、`knowledge_units`、`chunks` 和 `sources` 组装。
@@ -1082,6 +1082,14 @@ D-105 Z0b-lite 实现口径：
 - `pending_review` KU 不进入 Evidence Pack，也不出现在 citation detail。
 - 空证据包返回 `status=empty`、`failure_type=no_retrieval_result`、空 `items`、fallback reason 和 no evidence reason。
 - sqlite-vec degraded 时仍必须保留 source/chunk/KU 绑定，且返回 `provider_status=degraded` 与 `fallback_reason`。
+
+D-112 Z0b-lite 扩展口径：
+
+- `focus_item_id` 可选；命中同一 Evidence Pack 时，response `detail_summary.focused_item_id` 回显该 item id。
+- `focus_item_id` 不属于该 Evidence Pack 时，返回现有 error envelope，错误码为 `evidence_item_not_in_pack`。
+- `detail_summary` 由后端返回，包含 item/source/KU 计数、citation labels、rank score min/max、focused item 和 no evidence reason。
+- 每个 item 的 `citation_trace` 包含 `evidence_pack_id`、`evidence_item_id`、KU / Chunk / Source `trace_path` 和 copy-safe citation payload；Renderer 不自行 join KU / Chunk / Source。
+- 复制 payload 不包含 source excerpt、answer text、local token、DB path 或完整本地路径。
 
 响应：
 
@@ -1105,6 +1113,16 @@ D-105 Z0b-lite 实现口径：
   "provider_status": "degraded",
   "fallback_reason": "sqlite-vec extension unavailable",
   "citation_trace_summary": "Evidence Pack uses source title · chunk 1",
+  "detail_summary": {
+    "item_count": 1,
+    "source_count": 1,
+    "knowledge_unit_count": 1,
+    "citation_labels": ["source title · chunk 1"],
+    "rank_score_min": 1.0,
+    "rank_score_max": 1.0,
+    "focused_item_id": "eitem_xxx",
+    "no_evidence_reason": null
+  },
   "items": [
     {
       "id": "eitem_xxx",
@@ -1124,12 +1142,29 @@ D-105 Z0b-lite 实现口径：
       "rank_score": 1.0,
       "citation_trace": {
         "profile": "p0_citation_trace_source_chunk_v1",
+        "evidence_pack_id": "epack_xxx",
+        "evidence_item_id": "eitem_xxx",
         "knowledge_unit_id": "ku_xxx",
         "chunk_id": "chunk_xxx",
         "source_id": "source_xxx",
         "citation_label": "source title · chunk 1",
         "source_title": "source title",
-        "source_origin": "parsed_file"
+        "source_origin": "parsed_file",
+        "trace_path": [
+          {"type": "evidence_pack", "id": "epack_xxx"},
+          {"type": "evidence_item", "id": "eitem_xxx", "label": "source title · chunk 1"},
+          {"type": "knowledge_unit", "id": "ku_xxx", "title": "Confirmed KU title", "status": "confirmed"},
+          {"type": "chunk", "id": "chunk_xxx", "label": "source title · chunk 1"},
+          {"type": "source", "id": "source_xxx", "title": "source title", "origin": "parsed_file"}
+        ],
+        "copy_payload": {
+          "citation_label": "source title · chunk 1",
+          "evidence_pack_id": "epack_xxx",
+          "evidence_item_id": "eitem_xxx",
+          "knowledge_unit_id": "ku_xxx",
+          "chunk_id": "chunk_xxx",
+          "source_id": "source_xxx"
+        }
       }
     }
   ],

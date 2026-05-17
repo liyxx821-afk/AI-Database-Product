@@ -77,8 +77,19 @@ export type ApiSchemas = {
   "status": string;
   "failure_type": string | null;
   "summary": string;
+  "detail_summary": EvidencePackDetailSummary;
   "items": EvidenceItemRecord[];
   "created_at": string;
+};
+  "EvidencePackDetailSummary": {
+  "item_count": number;
+  "source_count": number;
+  "knowledge_unit_count": number;
+  "citation_labels": string[];
+  "rank_score_min": number | null;
+  "rank_score_max": number | null;
+  "focused_item_id": string | null;
+  "no_evidence_reason": string | null;
 };
   "FeedbackDiagnosticsExportResponse": {
   "filename": string;
@@ -532,8 +543,20 @@ export type EvidencePackDetail = {
   "status": string;
   "failure_type": string | null;
   "summary": string;
+  "detail_summary": EvidencePackDetailSummary;
   "items": EvidenceItemRecord[];
   "created_at": string;
+};
+
+export type EvidencePackDetailSummary = {
+  "item_count": number;
+  "source_count": number;
+  "knowledge_unit_count": number;
+  "citation_labels": string[];
+  "rank_score_min": number | null;
+  "rank_score_max": number | null;
+  "focused_item_id": string | null;
+  "no_evidence_reason": string | null;
 };
 
 export type FeedbackDiagnosticsExportResponse = {

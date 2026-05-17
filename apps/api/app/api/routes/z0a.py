@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from typing import Optional
 
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
@@ -234,5 +235,5 @@ def retrieval_preview(payload: RetrievalPreviewRequest) -> dict:
 
 
 @router.get("/evidence-packs/{evidence_pack_id}", response_model=EvidencePackDetail)
-def evidence_pack_detail(evidence_pack_id: str) -> dict:
-    return get_evidence_pack(evidence_pack_id)
+def evidence_pack_detail(evidence_pack_id: str, focus_item_id: Optional[str] = None) -> dict:
+    return get_evidence_pack(evidence_pack_id, focus_item_id)

@@ -109,7 +109,66 @@ def _pack_summary(evidence_count: int, provider_status: str) -> str:
     return "Evidence Pack assembled from confirmed knowledge."
 
 
-def _build_evidence_pack_response(evidence_pack_id: str) -> Dict[str, Any]:
+def _citation_trace_path(item: Dict[str, Any]) -> List[Dict[str, Any]]:
+    path = [
+        {
+            "type": "evidence_pack",
+            "id": item["evidence_pack_id"],
+        },
+        {
+            "type": "evidence_item",
+            "id": item["id"],
+            "label": item["citation_label"],
+        },
+    ]
+    if item["knowledge_unit_id"]:
+        path.append(
+            {
+                "type": "knowledge_unit",
+                "id": item["knowledge_unit_id"],
+                "title": item["knowledge_unit_title"],
+                "status": item["knowledge_unit_status"],
+            }
+        )
+    if item["chunk_id"]:
+        path.append(
+            {
+                "type": "chunk",
+                "id": item["chunk_id"],
+                "label": item["chunk_citation_label"],
+            }
+        )
+    if item["source_id"]:
+        path.append(
+            {
+                "type": "source",
+                "id": item["source_id"],
+                "title": item["source_title"],
+                "origin": item["source_origin"],
+            }
+        )
+    return path
+
+
+def _copy_safe_citation_payload(item: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "citation_label": item["citation_label"],
+        "evidence_pack_id": item["evidence_pack_id"],
+        "evidence_item_id": item["id"],
+        "knowledge_unit_id": item["knowledge_unit_id"],
+        "knowledge_unit_title": item["knowledge_unit_title"],
+        "chunk_id": item["chunk_id"],
+        "chunk_citation_label": item["chunk_citation_label"],
+        "source_id": item["source_id"],
+        "source_title": item["source_title"],
+        "source_origin": item["source_origin"],
+    }
+
+
+def _build_evidence_pack_response(
+    evidence_pack_id: str,
+    focus_item_id: Optional[str] = None,
+) -> Dict[str, Any]:
     with db() as conn:
         pack = conn.execute(
             """
@@ -152,8 +211,15 @@ def _build_evidence_pack_response(evidence_pack_id: str) -> Dict[str, Any]:
             """,
             (evidence_pack_id,),
         ).fetchall()
+    if focus_item_id and not any(item["id"] == focus_item_id for item in items):
+        raise AppError(
+            "evidence_item_not_in_pack",
+            "Evidence item is not part of this Evidence Pack.",
+            status_code=404,
+        )
     query_explanation = json.loads(pack["filters_json"])
     citation_labels = [item["citation_label"] for item in items]
+    rank_scores = [float(item["rank_score"]) for item in items]
     citation_summary = (
         "Evidence Pack uses " + ", ".join(citation_labels)
         if citation_labels
@@ -170,6 +236,22 @@ def _build_evidence_pack_response(evidence_pack_id: str) -> Dict[str, Any]:
         "status": pack["status"],
         "failure_type": pack["failure_type"],
         "summary": pack["summary"],
+        "detail_summary": {
+            "item_count": len(items),
+            "source_count": len({item["source_id"] for item in items if item["source_id"]}),
+            "knowledge_unit_count": len(
+                {
+                    item["knowledge_unit_id"]
+                    for item in items
+                    if item["knowledge_unit_id"]
+                }
+            ),
+            "citation_labels": citation_labels,
+            "rank_score_min": min(rank_scores) if rank_scores else None,
+            "rank_score_max": max(rank_scores) if rank_scores else None,
+            "focused_item_id": focus_item_id,
+            "no_evidence_reason": pack["failure_type"] if not items else None,
+        },
         "items": [
             {
                 "id": item["id"],
@@ -190,12 +272,16 @@ def _build_evidence_pack_response(evidence_pack_id: str) -> Dict[str, Any]:
                 "source_type": item["source_type"],
                 "citation_trace": {
                     "profile": CITATION_TRACE_PROFILE,
+                    "evidence_pack_id": item["evidence_pack_id"],
+                    "evidence_item_id": item["id"],
                     "knowledge_unit_id": item["knowledge_unit_id"],
                     "chunk_id": item["chunk_id"],
                     "source_id": item["source_id"],
                     "citation_label": item["citation_label"],
                     "source_title": item["source_title"],
                     "source_origin": item["source_origin"],
+                    "trace_path": _citation_trace_path(dict(item)),
+                    "copy_payload": _copy_safe_citation_payload(dict(item)),
                 },
                 "created_at": item["created_at"],
             }
@@ -302,8 +388,11 @@ def build_retrieval_preview(query: str, project_id: str = "default-space") -> Di
     }
 
 
-def get_evidence_pack(evidence_pack_id: str) -> Dict[str, Any]:
-    return _build_evidence_pack_response(evidence_pack_id)
+def get_evidence_pack(
+    evidence_pack_id: str,
+    focus_item_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    return _build_evidence_pack_response(evidence_pack_id, focus_item_id)
 
 
 def build_evidence_only_answer(query: str, project_id: str = "default-space") -> Dict[str, Any]:

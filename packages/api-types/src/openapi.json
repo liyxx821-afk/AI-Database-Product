@@ -1992,6 +1992,22 @@
               "type": "string",
               "title": "Evidence Pack Id"
             }
+          },
+          {
+            "name": "focus_item_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Focus Item Id"
+            }
           }
         ],
         "responses": {
@@ -2476,6 +2492,9 @@
             "type": "string",
             "title": "Summary"
           },
+          "detail_summary": {
+            "$ref": "#/components/schemas/EvidencePackDetailSummary"
+          },
           "items": {
             "items": {
               "$ref": "#/components/schemas/EvidenceItemRecord"
@@ -2500,10 +2519,90 @@
           "status",
           "failure_type",
           "summary",
+          "detail_summary",
           "items",
           "created_at"
         ],
         "title": "EvidencePackDetail"
+      },
+      "EvidencePackDetailSummary": {
+        "properties": {
+          "item_count": {
+            "type": "integer",
+            "title": "Item Count"
+          },
+          "source_count": {
+            "type": "integer",
+            "title": "Source Count"
+          },
+          "knowledge_unit_count": {
+            "type": "integer",
+            "title": "Knowledge Unit Count"
+          },
+          "citation_labels": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Citation Labels"
+          },
+          "rank_score_min": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rank Score Min"
+          },
+          "rank_score_max": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rank Score Max"
+          },
+          "focused_item_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Focused Item Id"
+          },
+          "no_evidence_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "No Evidence Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "item_count",
+          "source_count",
+          "knowledge_unit_count",
+          "citation_labels",
+          "rank_score_min",
+          "rank_score_max",
+          "focused_item_id",
+          "no_evidence_reason"
+        ],
+        "title": "EvidencePackDetailSummary"
       },
       "FeedbackDiagnosticsExportResponse": {
         "properties": {

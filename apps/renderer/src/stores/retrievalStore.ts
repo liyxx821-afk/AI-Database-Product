@@ -22,9 +22,10 @@ type RetrievalState = {
   preview?: RetrievalPreviewResponse;
   answer?: EvidenceOnlyResponse;
   detail?: EvidencePackDetail;
+  focusedEvidenceItemId?: string;
   previewQuery: (query: string) => Promise<void>;
   ask: (query: string) => Promise<void>;
-  loadDetail: (evidencePackId: string) => Promise<void>;
+  loadDetail: (evidencePackId: string, focusItemId?: string) => Promise<void>;
 };
 
 export const useRetrievalStore = create<RetrievalState>((set) => ({
@@ -57,6 +58,7 @@ export const useRetrievalStore = create<RetrievalState>((set) => ({
       set({
         preview,
         detail: undefined,
+        focusedEvidenceItemId: undefined,
         detailState: "empty",
         state: nextState,
         previewState: nextState,
@@ -97,6 +99,7 @@ export const useRetrievalStore = create<RetrievalState>((set) => ({
       set({
         answer,
         detail: undefined,
+        focusedEvidenceItemId: undefined,
         detailState: "empty",
         state: nextState,
         answerState: nextState,
@@ -113,7 +116,7 @@ export const useRetrievalStore = create<RetrievalState>((set) => ({
       });
     }
   },
-  async loadDetail(evidencePackId: string) {
+  async loadDetail(evidencePackId: string, focusItemId?: string) {
     if (!hasBridge()) {
       set({
         state: "degraded",
@@ -125,9 +128,10 @@ export const useRetrievalStore = create<RetrievalState>((set) => ({
     }
     set({ state: "loading", detailState: "loading", detailErrorCode: undefined });
     try {
-      const detail = await getEvidencePack(evidencePackId);
+      const detail = await getEvidencePack(evidencePackId, focusItemId);
       set({
         detail,
+        focusedEvidenceItemId: detail.detail_summary.focused_item_id ?? focusItemId,
         state: detail.items.length ? "done" : "empty",
         detailState: detail.items.length ? "done" : "empty",
         detailErrorCode: undefined

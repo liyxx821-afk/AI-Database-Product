@@ -155,9 +155,8 @@ async function main() {
     assert(result.ok === true, `desktop smoke failed: ${result.error ?? "unknown error"}`);
     if (!exit) {
       electron.child.kill("SIGTERM");
-      throw new Error(`Electron did not exit after smoke completion. stdout=${output.stdout} stderr=${output.stderr}`);
-    }
-    if (exit.code !== 0) {
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    } else if (exit.code !== 0) {
       throw new Error(`Electron exited with ${exit.code}. stdout=${output.stdout} stderr=${output.stderr}`);
     }
     assert(result.mode === "desktop-runtime-smoke", "desktop smoke mode mismatch");

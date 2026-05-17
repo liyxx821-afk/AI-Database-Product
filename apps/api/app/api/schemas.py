@@ -459,6 +459,17 @@ class EvidenceItemRecord(BaseModel):
     created_at: str
 
 
+class EvidencePackDetailSummary(BaseModel):
+    item_count: int
+    source_count: int
+    knowledge_unit_count: int
+    citation_labels: List[str]
+    rank_score_min: Optional[float]
+    rank_score_max: Optional[float]
+    focused_item_id: Optional[str]
+    no_evidence_reason: Optional[str]
+
+
 class EvidencePackDetail(BaseModel):
     id: str
     retrieval_log_id: str
@@ -470,6 +481,7 @@ class EvidencePackDetail(BaseModel):
     status: str
     failure_type: Optional[str]
     summary: str
+    detail_summary: EvidencePackDetailSummary
     items: List[EvidenceItemRecord]
     created_at: str
 

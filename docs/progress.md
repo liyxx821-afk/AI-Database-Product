@@ -1,5 +1,40 @@
 # 进度记录
 
+## 2026-05-17（D-112 Citation Detail Focus / Evidence Trace Interaction Z0b-lite）
+
+### 已完成
+
+- 扩展 `GET /api/evidence-packs/{evidence_pack_id}`：新增可选 `focus_item_id` query 参数；非本 Evidence Pack 的 item 返回 `evidence_item_not_in_pack`。
+- `EvidencePackDetail` 新增 `detail_summary`，包含 item/source/KU 计数、citation labels、rank score min/max、focused item 和 no evidence reason。
+- item-level `citation_trace` 新增 `evidence_pack_id`、`evidence_item_id`、`trace_path` 和 copy-safe citation payload；后端仍从既有 `retrieval_logs`、`evidence_packs`、`evidence_items`、`knowledge_units`、`chunks`、`sources` 组装，不新增数据库表。
+- Renderer `retrievalApi` / `retrievalStore` 支持 `loadDetail(evidencePackId, focusItemId?)`，保存当前 focused evidence item。
+- `/search` 的 Evidence Items 打开 Citation Detail 时聚焦对应 evidence item；`/ask` 的 citation label / evidence item id 可点击打开同一 detail 面板。
+- Citation Detail 面板新增关键词过滤、按 rank/source 排序、上一条/下一条、focused item summary、trace path 展示和复制 citation label / trace ids / source-chunk-KU summary 的低保真按钮。
+- 新增中英双语 i18n 文案，覆盖 citation focus、过滤、排序、复制和 trace path；用户 query、source excerpt、citation label、API enum/status code 不翻译。
+- 新增 `scripts/smoke-p0-citation-focus.mjs` 与 `pnpm smoke:p0-citation-focus`；完整 smoke 顺序更新为 `smoke:p0-core` → `smoke:p0-desktop-runtime` → `smoke:p0-i18n-settings` → `smoke:p0-file` → `smoke:p0-parse` → `smoke:p0-ku` → `smoke:p0-search-ask` → `smoke:p0-citation-detail` → `smoke:p0-citation-focus` → `smoke:p0-feedback-memory` → `smoke:p0-feedback-diagnostics` → `smoke:p0-feedback-export` → `smoke:p0-feedback-filters-history` → `smoke:p0-z0a`。
+- 稳定 `smoke:p0-desktop-runtime` harness：当 smoke result 已写入且 sidecar 已 clean shutdown 后，脚本会清理 Electron wrapper，避免 macOS Electron wrapper 未及时退出导致假失败；仍保留 sidecar pid 不残留检查。
+- 已同步 README、`docs/development-plan.md`、`docs/api-design.md`、`docs/api-implementation-plan.md`、`docs/testing-strategy.md`、`docs/technical-stack-and-prototype-plan.md`。
+
+### 验收
+
+- `pnpm generate:api-types` 通过，已更新 `packages/api-types/src/openapi.json` 与 `packages/api-types/src/generated.ts`。
+- `pnpm typecheck` 通过。
+- `pnpm api:ruff` 通过。
+- `pnpm api:test` 通过，9 个 API 测试通过。
+- `pnpm smoke:p0-citation-focus` 通过，输出 `SMOKE_P0_CITATION_FOCUS_OK`。
+- 完整 smoke 顺序通过：
+  `pnpm smoke:p0-core`、`pnpm smoke:p0-desktop-runtime`、`pnpm smoke:p0-i18n-settings`、`pnpm smoke:p0-file`、`pnpm smoke:p0-parse`、`pnpm smoke:p0-ku`、`pnpm smoke:p0-search-ask`、`pnpm smoke:p0-citation-detail`、`pnpm smoke:p0-citation-focus`、`pnpm smoke:p0-feedback-memory`、`pnpm smoke:p0-feedback-diagnostics`、`pnpm smoke:p0-feedback-export`、`pnpm smoke:p0-feedback-filters-history`、`pnpm smoke:p0-z0a`。
+- `pnpm --filter @knowledgebase-dev/renderer build` 通过。
+- `pnpm --filter @knowledgebase-dev/desktop-preload build` 通过。
+- `pnpm --filter @knowledgebase-dev/desktop-main build` 通过。
+- `git diff --check` 通过。
+- in-app browser 检查通过：重启 `http://127.0.0.1:5173` 后，`/ask` 与 `/search` 默认中文、普通浏览器显示 bridge degraded、Citation Detail 空态可见；`/settings` 切换英文后显示 “Settings / Interface language / Desktop bridge is unavailable”，最后已切回中文并停在 `/ask`。
+
+### 备注
+
+- D-112 不修改检索 ranking，不保存复制行为，不新增 feedback 写回，不新增主路由，不接真实 LLM / provider-backed RAG / reranker / Text-to-SQL provider / GraphRAG。
+- Export history、Feedback Diagnostics、Memory Draft 既有行为保持不变。
+
 ## 2026-05-17（D-111 Feedback Diagnostics Advanced Filters / Export History Z0b-lite）
 
 ### 已完成

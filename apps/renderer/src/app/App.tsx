@@ -6,7 +6,10 @@ import {
   Bookmark,
   Bot,
   Boxes,
+  ChevronLeft,
+  ChevronRight,
   CheckCircle,
+  Clipboard,
   Download,
   FileCheck,
   FileInput,
@@ -584,7 +587,9 @@ function SearchPage() {
       <EvidenceItemsPanel
         items={preview?.evidence_pack.items ?? []}
         state={retrieval.previewState}
-        onOpenDetail={(evidencePackId) => retrieval.loadDetail(evidencePackId)}
+        onOpenDetail={(evidencePackId, evidenceItemId) =>
+          retrieval.loadDetail(evidencePackId, evidenceItemId)
+        }
         evidencePackId={preview?.evidence_pack_id}
       />
 
@@ -592,6 +597,10 @@ function SearchPage() {
         detail={retrieval.detail}
         state={retrieval.detailState}
         errorCode={retrieval.detailErrorCode}
+        focusedEvidenceItemId={retrieval.focusedEvidenceItemId}
+        onFocusItem={(evidenceItemId) =>
+          retrieval.detail?.id && retrieval.loadDetail(retrieval.detail.id, evidenceItemId)
+        }
       />
 
       <PageFrame
@@ -837,11 +846,48 @@ function AskPage() {
         <div className="panel-grid">
           <article className="panel">
             <h3>{t("ask.labels")}</h3>
-            <p>{answer?.citation_labels.length ? answer.citation_labels.join(", ") : t("empty.none")}</p>
+            {answer?.citation_labels.length ? (
+              <div className="citation-button-row">
+                {answer.citation_labels.map((label, index) => (
+                  <button
+                    className="citation-token"
+                    key={`${label}-${answer.evidence_item_ids[index] ?? index}`}
+                    type="button"
+                    onClick={() =>
+                      answer.evidence_pack_id &&
+                      retrieval.loadDetail(answer.evidence_pack_id, answer.evidence_item_ids[index])
+                    }
+                  >
+                    <span>{label}</span>
+                    <strong>{answer.evidence_item_ids[index] ?? t("empty.none")}</strong>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <p>{t("empty.none")}</p>
+            )}
           </article>
           <article className="panel">
             <h3>{t("ask.evidenceItems")}</h3>
-            <p>{answer?.evidence_item_ids.length ? answer.evidence_item_ids.join(", ") : t("empty.none")}</p>
+            {answer?.evidence_item_ids.length ? (
+              <div className="citation-button-row">
+                {answer.evidence_item_ids.map((evidenceItemId, index) => (
+                  <button
+                    className="citation-token"
+                    key={evidenceItemId}
+                    type="button"
+                    onClick={() =>
+                      answer.evidence_pack_id && retrieval.loadDetail(answer.evidence_pack_id, evidenceItemId)
+                    }
+                  >
+                    <span>{evidenceItemId}</span>
+                    <strong>{answer.citation_labels[index] ?? t("empty.none")}</strong>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <p>{t("empty.none")}</p>
+            )}
           </article>
           <article className="panel">
             <h3>{t("search.fallback")}</h3>
@@ -854,6 +900,10 @@ function AskPage() {
         detail={retrieval.detail}
         state={retrieval.detailState}
         errorCode={retrieval.detailErrorCode}
+        focusedEvidenceItemId={retrieval.focusedEvidenceItemId}
+        onFocusItem={(evidenceItemId) =>
+          retrieval.detail?.id && retrieval.loadDetail(retrieval.detail.id, evidenceItemId)
+        }
       />
 
       <PageFrame
@@ -1590,7 +1640,7 @@ function EvidenceItemsPanel({
   items: EvidenceItemRecord[];
   state: "loading" | "empty" | "degraded" | "recoverable_error" | "done";
   evidencePackId?: string;
-  onOpenDetail?: (evidencePackId: string) => void;
+  onOpenDetail?: (evidencePackId: string, evidenceItemId?: string) => void;
 }) {
   const t = useT();
   return (
@@ -1613,7 +1663,7 @@ function EvidenceItemsPanel({
                 className="icon-command"
                 type="button"
                 disabled={!evidencePackId}
-                onClick={() => evidencePackId && onOpenDetail?.(evidencePackId)}
+                onClick={() => evidencePackId && onOpenDetail?.(evidencePackId, item.id)}
               >
                 <FileText aria-hidden="true" size={16} />
                 <span>{t("action.openDetail")}</span>
@@ -1637,14 +1687,104 @@ function EvidenceItemsPanel({
 function CitationDetailPanel({
   detail,
   state,
-  errorCode
+  errorCode,
+  focusedEvidenceItemId,
+  onFocusItem
 }: {
   detail?: EvidencePackDetail;
   state: "loading" | "empty" | "degraded" | "recoverable_error" | "done";
   errorCode?: string;
+  focusedEvidenceItemId?: string;
+  onFocusItem?: (evidenceItemId: string) => void;
 }) {
   const t = useT();
+  const [filter, setFilter] = useState("");
+  const [sort, setSort] = useState<"rank_desc" | "source_asc">("rank_desc");
+  const [copyState, setCopyState] = useState("");
   const explanation = detail?.query_explanation ?? {};
+  const visibleItems = useMemo(() => {
+    const needle = filter.trim().toLowerCase();
+    const filtered = (detail?.items ?? []).filter((item) => {
+      if (!needle) return true;
+      return [
+        item.id,
+        item.citation_label,
+        item.knowledge_unit_id,
+        item.knowledge_unit_title,
+        item.chunk_id,
+        item.chunk_citation_label,
+        item.source_id,
+        item.source_title,
+        item.source_origin,
+        item.excerpt,
+        item.chunk_content_excerpt
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+        .includes(needle);
+    });
+    return [...filtered].sort((left, right) => {
+      if (sort === "source_asc") {
+        return (
+          (left.source_title ?? left.source_id ?? "").localeCompare(
+            right.source_title ?? right.source_id ?? ""
+          ) || right.rank_score - left.rank_score
+        );
+      }
+      return right.rank_score - left.rank_score;
+    });
+  }, [detail?.items, filter, sort]);
+  const focusedItem =
+    visibleItems.find((item) => item.id === focusedEvidenceItemId) ??
+    detail?.items.find((item) => item.id === focusedEvidenceItemId) ??
+    visibleItems[0];
+  const focusedIndex = focusedItem
+    ? visibleItems.findIndex((item) => item.id === focusedItem.id)
+    : -1;
+  const focusedTrace = focusedItem?.citation_trace as Record<string, unknown> | undefined;
+  const tracePath = Array.isArray(focusedTrace?.trace_path)
+    ? (focusedTrace.trace_path as Record<string, unknown>[])
+    : [];
+  const traceIds = focusedItem
+    ? {
+        evidence_pack_id: detail?.id,
+        evidence_item_id: focusedItem.id,
+        knowledge_unit_id: focusedItem.knowledge_unit_id,
+        chunk_id: focusedItem.chunk_id,
+        source_id: focusedItem.source_id,
+        citation_label: focusedItem.citation_label
+      }
+    : undefined;
+  const sourceChunkKuSummary = focusedItem
+    ? [
+        `citation=${focusedItem.citation_label}`,
+        `source=${focusedItem.source_title ?? focusedItem.source_id ?? "unknown"}`,
+        `chunk=${focusedItem.chunk_citation_label ?? focusedItem.chunk_id ?? "unknown"}`,
+        `knowledge_unit=${focusedItem.knowledge_unit_title ?? focusedItem.knowledge_unit_id ?? "unknown"}`
+      ].join(" | ")
+    : "";
+
+  useEffect(() => {
+    setCopyState("");
+  }, [detail?.id, focusedEvidenceItemId]);
+
+  function focusRelative(delta: number) {
+    if (!visibleItems.length || focusedIndex < 0) return;
+    const nextIndex = (focusedIndex + delta + visibleItems.length) % visibleItems.length;
+    onFocusItem?.(visibleItems[nextIndex].id);
+  }
+
+  async function copyText(label: string, value: string) {
+    if (!value) return;
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopyState(`${t("citation.copied")} · ${label}`);
+    } catch {
+      setCopyState(t("citation.copyFailed"));
+    }
+  }
+
   return (
     <section className="page-frame">
       <div className="section-title-row">
@@ -1675,6 +1815,29 @@ function CitationDetailPanel({
           </div>
           <div className="panel-grid">
             <article className="panel">
+              <h3>{t("citation.detailSummary")}</h3>
+              <p>
+                {t("evidence.itemCount", { count: detail.detail_summary.item_count })} ·{" "}
+                {t("citation.sourceCount", { count: detail.detail_summary.source_count })} ·{" "}
+                {t("citation.knowledgeUnitCount", {
+                  count: detail.detail_summary.knowledge_unit_count
+                })}
+              </p>
+            </article>
+            <article className="panel">
+              <h3>{t("citation.rankRange")}</h3>
+              <p>
+                {detail.detail_summary.rank_score_min?.toFixed(2) ?? t("empty.none")} /{" "}
+                {detail.detail_summary.rank_score_max?.toFixed(2) ?? t("empty.none")}
+              </p>
+            </article>
+            <article className="panel">
+              <h3>{t("citation.noEvidenceReason")}</h3>
+              <p>{detail.detail_summary.no_evidence_reason ?? t("empty.none")}</p>
+            </article>
+          </div>
+          <div className="panel-grid">
+            <article className="panel">
               <h3>{t("search.strategy")}</h3>
               <p>{formatMaybe(explanation.retrieval_strategy_profile)}</p>
             </article>
@@ -1687,16 +1850,133 @@ function CitationDetailPanel({
               <p>{detail.failure_type ?? t("empty.none")}</p>
             </article>
           </div>
+          <div className="settings-row">
+            <label className="memory-label">
+              <span>{t("citation.filter")}</span>
+              <input
+                className="query-input"
+                type="search"
+                value={filter}
+                placeholder={t("citation.filterPlaceholder")}
+                onChange={(event) => setFilter(event.target.value)}
+              />
+            </label>
+            <label className="memory-label">
+              <span>{t("citation.sort")}</span>
+              <select
+                className="settings-select"
+                value={sort}
+                onChange={(event) => setSort(event.target.value as "rank_desc" | "source_asc")}
+              >
+                <option value="rank_desc">{t("citation.sortRank")}</option>
+                <option value="source_asc">{t("citation.sortSource")}</option>
+              </select>
+            </label>
+            <div className="inline-actions">
+              <button
+                className="icon-command"
+                type="button"
+                disabled={!focusedItem || visibleItems.length < 2}
+                onClick={() => focusRelative(-1)}
+              >
+                <ChevronLeft aria-hidden="true" size={16} />
+                <span>{t("citation.previous")}</span>
+              </button>
+              <button
+                className="icon-command"
+                type="button"
+                disabled={!focusedItem || visibleItems.length < 2}
+                onClick={() => focusRelative(1)}
+              >
+                <ChevronRight aria-hidden="true" size={16} />
+                <span>{t("citation.next")}</span>
+              </button>
+            </div>
+          </div>
+          {focusedItem ? (
+            <section className="focused-citation">
+              <div className="section-title-row compact-title-row">
+                <h3>{t("citation.focusedItem")}</h3>
+                <span className="state-chip">{focusedItem.id}</span>
+              </div>
+              <div className="panel-grid">
+                <article className="panel">
+                  <h3>{focusedItem.citation_label}</h3>
+                  <p>{sourceChunkKuSummary}</p>
+                </article>
+                <article className="panel">
+                  <h3>{t("citation.tracePath")}</h3>
+                  <ol className="trace-path-list">
+                    {tracePath.length ? (
+                      tracePath.map((node, index) => (
+                        <li key={`${formatMaybe(node.type)}-${formatMaybe(node.id)}-${index}`}>
+                          <strong>{formatMaybe(node.type)}</strong>
+                          <span>{formatMaybe(node.id)}</span>
+                        </li>
+                      ))
+                    ) : (
+                      <li>{t("empty.none")}</li>
+                    )}
+                  </ol>
+                </article>
+                <article className="panel">
+                  <h3>{t("citation.copy")}</h3>
+                  <div className="copy-actions">
+                    <button
+                      className="icon-command"
+                      type="button"
+                      onClick={() => copyText(t("citation.copyLabel"), focusedItem.citation_label)}
+                    >
+                      <Clipboard aria-hidden="true" size={16} />
+                      <span>{t("citation.copyLabel")}</span>
+                    </button>
+                    <button
+                      className="icon-command"
+                      type="button"
+                      onClick={() =>
+                        copyText(t("citation.copyTraceIds"), JSON.stringify(traceIds, null, 2))
+                      }
+                    >
+                      <Clipboard aria-hidden="true" size={16} />
+                      <span>{t("citation.copyTraceIds")}</span>
+                    </button>
+                    <button
+                      className="icon-command"
+                      type="button"
+                      onClick={() =>
+                        copyText(t("citation.copySummary"), sourceChunkKuSummary)
+                      }
+                    >
+                      <Clipboard aria-hidden="true" size={16} />
+                      <span>{t("citation.copySummary")}</span>
+                    </button>
+                  </div>
+                  {copyState ? <p>{copyState}</p> : null}
+                </article>
+              </div>
+            </section>
+          ) : null}
           <div className="file-table">
-            {detail.items.length ? (
-              detail.items.map((item) => (
-                <div className="review-row" key={item.id}>
+            {visibleItems.length ? (
+              visibleItems.map((item) => (
+                <div
+                  className={`review-row ${focusedItem?.id === item.id ? "is-focused" : ""}`}
+                  key={item.id}
+                >
                   <div>
                     <strong>{item.knowledge_unit_title ?? item.citation_label}</strong>
                     <span>{item.knowledge_unit_status ?? "unknown"} · {item.knowledge_unit_type ?? "unknown"}</span>
                   </div>
                   <StatusPill label="source" value={item.source_origin ?? "unknown"} />
                   <StatusPill label="score" value={item.rank_score.toFixed(2)} />
+                  <button
+                    className="icon-command"
+                    type="button"
+                    onClick={() => onFocusItem?.(item.id)}
+                  >
+                    <FileText aria-hidden="true" size={16} />
+                    <span>{t("citation.focus")}</span>
+                  </button>
                   <div className="row-note evidence-excerpt">
                     <FileText aria-hidden="true" size={15} />
                     <span>

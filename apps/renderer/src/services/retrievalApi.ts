@@ -19,6 +19,10 @@ export async function askEvidenceOnly(query: string): Promise<EvidenceOnlyRespon
   });
 }
 
-export async function getEvidencePack(evidencePackId: string): Promise<EvidencePackDetail> {
-  return apiFetch<EvidencePackDetail>(`/evidence-packs/${evidencePackId}`);
+export async function getEvidencePack(
+  evidencePackId: string,
+  focusItemId?: string
+): Promise<EvidencePackDetail> {
+  const params = focusItemId ? `?focus_item_id=${encodeURIComponent(focusItemId)}` : "";
+  return apiFetch<EvidencePackDetail>(`/evidence-packs/${evidencePackId}${params}`);
 }
