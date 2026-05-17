@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import csv
+import io
 import json
 from typing import Any, Dict, Optional
 
@@ -86,13 +88,101 @@ def list_feedback_events(
     evidence_item_id: Optional[str] = None,
     limit: int = 50,
 ) -> list[Dict[str, Any]]:
+    return _query_feedback_events(
+        feedback_type=feedback_type,
+        target_type=target_type,
+        evidence_pack_id=evidence_pack_id,
+        ai_answer_id=ai_answer_id,
+        evidence_item_id=evidence_item_id,
+        limit=limit,
+        max_limit=100,
+    )
+
+
+def export_feedback_diagnostics(
+    *,
+    export_format: str,
+    feedback_type: Optional[str] = None,
+    target_type: Optional[str] = None,
+    evidence_pack_id: Optional[str] = None,
+    ai_answer_id: Optional[str] = None,
+    evidence_item_id: Optional[str] = None,
+    limit: int = 50,
+) -> Dict[str, Any]:
+    if export_format not in {"json", "csv"}:
+        raise AppError(
+            "invalid_feedback_export_format",
+            "Unsupported export format.",
+            status_code=422,
+        )
+
+    events = _query_feedback_events(
+        feedback_type=feedback_type,
+        target_type=target_type,
+        evidence_pack_id=evidence_pack_id,
+        ai_answer_id=ai_answer_id,
+        evidence_item_id=evidence_item_id,
+        limit=limit,
+        max_limit=100,
+    )
+    generated_at = now_iso()
+    filters = _normalized_export_filters(
+        feedback_type=feedback_type,
+        target_type=target_type,
+        evidence_pack_id=evidence_pack_id,
+        ai_answer_id=ai_answer_id,
+        evidence_item_id=evidence_item_id,
+        limit=min(max(limit, 1), 100),
+    )
+    summary = _summary_from_events(events)
+    if export_format == "json":
+        content = json.dumps(
+            {
+                "generated_at": generated_at,
+                "filters": filters,
+                "summary": summary,
+                "events": events,
+                "redacted": True,
+                "includes_source_text": False,
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+        mime_type = "application/json"
+    else:
+        content = _events_to_csv(events)
+        mime_type = "text/csv"
+    return {
+        "filename": _export_filename(generated_at, export_format),
+        "mime_type": mime_type,
+        "format": export_format,
+        "record_count": len(events),
+        "generated_at": generated_at,
+        "filters": filters,
+        "summary": summary,
+        "content": content,
+        "redacted": True,
+        "includes_source_text": False,
+    }
+
+
+def _query_feedback_events(
+    *,
+    feedback_type: Optional[str] = None,
+    target_type: Optional[str] = None,
+    evidence_pack_id: Optional[str] = None,
+    ai_answer_id: Optional[str] = None,
+    evidence_item_id: Optional[str] = None,
+    limit: int = 50,
+    max_limit: int = 100,
+) -> list[Dict[str, Any]]:
     if target_type and target_type not in VALID_TARGET_TYPES:
         raise AppError(
             "invalid_feedback_filter",
             "Unsupported feedback target type.",
             status_code=422,
         )
-    safe_limit = min(max(limit, 1), 100)
+    safe_limit = min(max(limit, 1), max_limit)
     where: list[str] = []
     params: list[Any] = []
     if feedback_type:
@@ -163,6 +253,31 @@ def feedback_summary() -> Dict[str, Any]:
         "negative_count": negative_count,
         "last_event_at": rows[0]["created_at"] if rows else None,
         "feedback_policy": _summary_feedback_policy(rows),
+    }
+
+
+def _summary_from_events(events: list[Dict[str, Any]]) -> Dict[str, Any]:
+    by_type: dict[str, int] = {}
+    by_target_type: dict[str, int] = {}
+    positive_count = 0
+    negative_count = 0
+    for event in events:
+        event_type = event["feedback_type"]
+        target_type = event["target_type"]
+        by_type[event_type] = by_type.get(event_type, 0) + 1
+        by_target_type[target_type] = by_target_type.get(target_type, 0) + 1
+        if event_type in POSITIVE_FEEDBACK_TYPES:
+            positive_count += 1
+        if event_type in NEGATIVE_FEEDBACK_TYPES:
+            negative_count += 1
+    return {
+        "total": len(events),
+        "by_type": by_type,
+        "by_target_type": by_target_type,
+        "positive_count": positive_count,
+        "negative_count": negative_count,
+        "last_event_at": events[0]["created_at"] if events else None,
+        "feedback_policy": feedback_policy(),
     }
 
 
@@ -369,6 +484,62 @@ def _feedback_event_row(row) -> Dict[str, Any]:
         "citation_label": row["evidence_citation_label"],
         "created_at": row["created_at"],
     }
+
+
+def _normalized_export_filters(
+    *,
+    feedback_type: Optional[str],
+    target_type: Optional[str],
+    evidence_pack_id: Optional[str],
+    ai_answer_id: Optional[str],
+    evidence_item_id: Optional[str],
+    limit: int,
+) -> Dict[str, Any]:
+    filters: Dict[str, Any] = {"limit": limit}
+    if feedback_type:
+        filters["feedback_type"] = feedback_type
+    if target_type:
+        filters["target_type"] = target_type
+    if evidence_pack_id:
+        filters["evidence_pack_id"] = evidence_pack_id
+    if ai_answer_id:
+        filters["ai_answer_id"] = ai_answer_id
+    if evidence_item_id:
+        filters["evidence_item_id"] = evidence_item_id
+    return filters
+
+
+def _events_to_csv(events: list[Dict[str, Any]]) -> str:
+    output = io.StringIO()
+    fieldnames = [
+        "id",
+        "feedback_type",
+        "target_type",
+        "target_id",
+        "evidence_pack_id",
+        "ai_answer_id",
+        "evidence_item_id",
+        "ranking_effect",
+        "query",
+        "citation_label",
+        "comment",
+        "created_at",
+    ]
+    writer = csv.DictWriter(output, fieldnames=fieldnames, extrasaction="ignore")
+    writer.writeheader()
+    for event in events:
+        writer.writerow({key: event.get(key) for key in fieldnames})
+    return output.getvalue()
+
+
+def _export_filename(generated_at: str, export_format: str) -> str:
+    safe_timestamp = (
+        generated_at.replace("-", "")
+        .replace(":", "")
+        .replace(".", "")
+        .replace("+", "")
+    )
+    return f"feedback-diagnostics-{safe_timestamp}.{export_format}"
 
 
 def _summary_feedback_policy(rows) -> Dict[str, Any]:

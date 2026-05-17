@@ -51,6 +51,7 @@ FeedbackType = Literal[
     "missing_source",
     "downrank_source",
 ]
+FeedbackExportFormat = Literal["json", "csv"]
 MemoryType = Literal["preference", "decision", "style", "conclusion", "reusable_context"]
 
 
@@ -374,6 +375,19 @@ class FeedbackDiagnosticsSummary(BaseModel):
     negative_count: int
     last_event_at: Optional[str]
     feedback_policy: Dict[str, Any]
+
+
+class FeedbackDiagnosticsExportResponse(BaseModel):
+    filename: str
+    mime_type: str
+    format: FeedbackExportFormat
+    record_count: int
+    generated_at: str
+    filters: Dict[str, Any]
+    summary: FeedbackDiagnosticsSummary
+    content: str
+    redacted: bool
+    includes_source_text: bool
 
 
 class MemoryDraftRequest(BaseModel):

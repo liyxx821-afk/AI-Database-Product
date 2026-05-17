@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import csv
 import hashlib
+import io
+import json
 
 from app.db.sqlite import db
 from app.main import create_app
@@ -342,6 +345,9 @@ def test_feedback_diagnostics_list_summary_and_filters(monkeypatch, tmp_path):
         unauthorized = client.get("/api/feedback")
         assert unauthorized.status_code == 401
         assert unauthorized.json()["error"]["code"] == "sidecar_auth_failed"
+        unauthorized_export = client.get("/api/feedback/export?format=json")
+        assert unauthorized_export.status_code == 401
+        assert unauthorized_export.json()["error"]["code"] == "sidecar_auth_failed"
 
         imported = client.post(
             "/api/text-imports",
@@ -447,6 +453,64 @@ def test_feedback_diagnostics_list_summary_and_filters(monkeypatch, tmp_path):
         assert summary_body["negative_count"] == 2
         assert summary_body["last_event_at"] == event_body[0]["created_at"]
         assert summary_body["feedback_policy"]["mutates_confirmed_knowledge"] is False
+
+        json_export = client.get("/api/feedback/export?format=json&limit=2", headers=headers)
+        assert json_export.status_code == 200
+        json_export_body = json_export.json()
+        assert json_export_body["format"] == "json"
+        assert json_export_body["record_count"] == 2
+        assert json_export_body["redacted"] is True
+        assert json_export_body["includes_source_text"] is False
+        assert json_export_body["mime_type"] == "application/json"
+        assert json_export_body["filename"].endswith(".json")
+        json_payload = json.loads(json_export_body["content"])
+        assert json_payload["summary"]["total"] == 2
+        assert len(json_payload["events"]) == 2
+        assert json_payload["events"][0]["query"] == "Feedback Diagnostics Citation"
+
+        csv_export = client.get(
+            (
+                "/api/feedback/export?format=csv&feedback_type=bad_citation"
+                f"&ai_answer_id={answer_body['answer_id']}"
+                f"&evidence_pack_id={answer_body['evidence_pack_id']}"
+                f"&evidence_item_id={evidence_item_id}"
+            ),
+            headers=headers,
+        )
+        assert csv_export.status_code == 200
+        csv_export_body = csv_export.json()
+        assert csv_export_body["format"] == "csv"
+        assert csv_export_body["record_count"] == 1
+        assert csv_export_body["mime_type"] == "text/csv"
+        assert csv_export_body["filename"].endswith(".csv")
+        header = csv_export_body["content"].splitlines()[0].split(",")
+        assert header == [
+            "id",
+            "feedback_type",
+            "target_type",
+            "target_id",
+            "evidence_pack_id",
+            "ai_answer_id",
+            "evidence_item_id",
+            "ranking_effect",
+            "query",
+            "citation_label",
+            "comment",
+            "created_at",
+        ]
+        csv_rows = list(csv.DictReader(io.StringIO(csv_export_body["content"])))
+        assert len(csv_rows) == 1
+        assert csv_rows[0]["feedback_type"] == "bad_citation"
+        assert csv_rows[0]["ranking_effect"] == "negative_weight_suggestion"
+        assert csv_rows[0]["query"] == "Feedback Diagnostics Citation"
+        assert csv_rows[0]["citation_label"]
+
+        exported_blob = (
+            json.dumps(json_export_body, ensure_ascii=False) + csv_export_body["content"]
+        )
+        assert "test-token" not in exported_blob
+        assert str(tmp_path) not in exported_blob
+        assert "mutating retrieval artifacts" not in exported_blob
 
         invalid_target = client.get("/api/feedback?target_type=unknown", headers=headers)
         assert invalid_target.status_code == 422

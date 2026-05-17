@@ -1,5 +1,42 @@
 # 进度记录
 
+## 2026-05-17（D-110 Feedback Diagnostics Export Z0b-lite）
+
+### 已完成
+
+- 新增 `GET /api/feedback/export`：支持 `format=json|csv`，复用 D-108 `feedback_type`、`target_type`、`evidence_pack_id`、`ai_answer_id`、`evidence_item_id`、`limit` filters。
+- Export response 返回 `filename`、`mime_type`、`format`、`record_count`、`generated_at`、`filters`、`summary`、`content`、`redacted=true`、`includes_source_text=false`。
+- JSON `content` 包含 summary + events；CSV `content` 包含稳定表头与 feedback id/type、target、evidence ids、ranking_effect、query、citation_label、comment、created_at。
+- 导出只读取 `feedback_events` 与既有 D-108 join 上下文；不包含 source excerpt、answer text、local token、DB path 或完整本地路径；不写 `retrieval_feedback`，不影响 ranking，不修改 confirmed KU、Source、Evidence Pack、AIAnswer 或 Memory。
+- Renderer 扩展 `feedbackMemoryApi` / `feedbackMemoryStore`，新增 export 状态、格式选择和导出 action。
+- Renderer `/outputs` Feedback Diagnostics 面板增加 JSON / CSV 导出控件，按当前筛选条件导出，使用 Blob download，不使用 Node fs 或本地路径。
+- 新增中英双语 i18n 文案，覆盖导出按钮和格式控件；用户 comment、query、citation label、API enum/status code 不翻译。
+- 新增 `scripts/smoke-p0-feedback-export.mjs` 与 `pnpm smoke:p0-feedback-export`；完整 smoke 顺序更新为 `smoke:p0-core` → `smoke:p0-desktop-runtime` → `smoke:p0-i18n-settings` → `smoke:p0-file` → `smoke:p0-parse` → `smoke:p0-ku` → `smoke:p0-search-ask` → `smoke:p0-citation-detail` → `smoke:p0-feedback-memory` → `smoke:p0-feedback-diagnostics` → `smoke:p0-feedback-export` → `smoke:p0-z0a`。
+- 修正 desktop smoke-only 退出路径：Electron Main 在写入 smoke result 后使用 `app.exit(code)` 并保留短 fallback，避免结果已写入但 Electron wrapper 未及时退出导致验收不稳定。
+- 已同步 README、`docs/development-plan.md`、`docs/api-design.md`、`docs/api-implementation-plan.md`、`docs/testing-strategy.md`、`docs/technical-stack-and-prototype-plan.md`。
+
+### 验收
+
+- `pnpm generate:api-types` 通过，已更新 `packages/api-types/src/openapi.json` 与 `packages/api-types/src/generated.ts`。
+- `pnpm typecheck` 通过。
+- `pnpm api:ruff` 通过。
+- `pnpm api:test` 通过，9 个 API 测试通过。
+- `pnpm smoke:p0-feedback-export` 通过，输出 `SMOKE_P0_FEEDBACK_EXPORT_OK`。
+- 完整 smoke 顺序通过：
+  `pnpm smoke:p0-core`、`pnpm smoke:p0-desktop-runtime`、`pnpm smoke:p0-i18n-settings`、`pnpm smoke:p0-file`、`pnpm smoke:p0-parse`、`pnpm smoke:p0-ku`、`pnpm smoke:p0-search-ask`、`pnpm smoke:p0-citation-detail`、`pnpm smoke:p0-feedback-memory`、`pnpm smoke:p0-feedback-diagnostics`、`pnpm smoke:p0-feedback-export`、`pnpm smoke:p0-z0a`。
+- `pnpm --filter @knowledgebase-dev/renderer build` 通过。
+- `pnpm --filter @knowledgebase-dev/desktop-preload build` 通过。
+- `pnpm --filter @knowledgebase-dev/desktop-main build` 通过。
+- `git diff --check` 通过。
+- in-app browser 检查通过：`/outputs` 默认中文显示“反馈诊断”、导出、导出格式、JSON、CSV 和 bridge degraded；切换英文后显示 “Feedback Diagnostics / Export / Export format / All types”；最终已切回中文并停在 `/ask`。
+
+### 备注
+
+- D-110 只做反馈诊断导出，不做反馈驱动排序、反馈编辑、导出文件长期存储、系统级 zip 诊断包、真实 LLM、provider-backed RAG、Text-to-SQL provider 或 GraphRAG。
+- 导出内容只覆盖 feedback diagnostics；Knowledge Unit / project export 仍按后续 `/api/exports` 阶段处理。
+- 普通浏览器无 Electron preload 时 `/outputs` 仍显示 bridge degraded；真实持久化和导出以 Electron bridge / API smoke 为准。
+- 下一阶段可继续推进 feedback diagnostics 深层过滤 / 导出历史管理、Citation detail 深层交互，或更接近真实 packaged sidecar 的构建 / 分发 spike。
+
 ## 2026-05-17（D-109 Desktop Runtime Smoke / Pseudo-Packaged Sidecar Z0b-lite）
 
 ### 已完成

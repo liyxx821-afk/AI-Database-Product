@@ -1,4 +1,5 @@
 import type {
+  FeedbackDiagnosticsExportResponse,
   FeedbackDiagnosticsSummary,
   FeedbackEventRecord,
   FeedbackRequest,
@@ -9,6 +10,7 @@ import type {
 import { apiFetch } from "./apiClient";
 
 export type FeedbackTargetType = "evidence_pack" | "ai_answer" | "evidence_item";
+export type FeedbackExportFormat = "json" | "csv";
 
 export type FeedbackDiagnosticsFilters = {
   feedback_type?: FeedbackRequest["feedback_type"];
@@ -39,6 +41,17 @@ export async function listFeedbackEvents(
 
 export async function getFeedbackSummary(): Promise<FeedbackDiagnosticsSummary> {
   return apiFetch<FeedbackDiagnosticsSummary>("/feedback/summary");
+}
+
+export async function exportFeedbackDiagnostics(
+  format: FeedbackExportFormat,
+  filters: FeedbackDiagnosticsFilters = {}
+): Promise<FeedbackDiagnosticsExportResponse> {
+  const params = new URLSearchParams({ format });
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value !== undefined && value !== "") params.set(key, String(value));
+  });
+  return apiFetch<FeedbackDiagnosticsExportResponse>(`/feedback/export?${params.toString()}`);
 }
 
 export async function createMemoryDraft(payload: MemoryDraftRequest): Promise<MemoryDraftRecord> {

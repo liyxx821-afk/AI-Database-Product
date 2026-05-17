@@ -7,6 +7,7 @@ import {
   Bot,
   Boxes,
   CheckCircle,
+  Download,
   FileCheck,
   FileInput,
   FileText,
@@ -45,6 +46,7 @@ import { useRetrievalStore } from "../stores/retrievalStore";
 import { useSettingsStore } from "../stores/settingsStore";
 import { useFeedbackMemoryStore } from "../stores/feedbackMemoryStore";
 import { hasBridge } from "../services/apiClient";
+import type { FeedbackExportFormat } from "../services/feedbackMemoryApi";
 import { supportedLanguages, translate, type LanguageCode, type MessageKey } from "../services/i18n";
 
 type RouteKey =
@@ -864,17 +866,27 @@ function OutputsPage() {
   const feedbackMemory = useFeedbackMemoryStore();
   const [feedbackTypeFilter, setFeedbackTypeFilter] = useState<FeedbackFilterValue>("all");
   const [targetTypeFilter, setTargetTypeFilter] = useState<FeedbackTargetFilterValue>("all");
+  const [exportFormat, setExportFormat] = useState<FeedbackExportFormat>("json");
 
   useEffect(() => {
     feedbackMemory.refreshMemories();
     feedbackMemory.refreshFeedbackDiagnostics();
   }, []);
 
-  async function refreshDiagnostics() {
-    await feedbackMemory.refreshFeedbackDiagnostics({
+  function diagnosticsFilters() {
+    return {
       feedback_type: feedbackTypeFilter === "all" ? undefined : feedbackTypeFilter,
       target_type: targetTypeFilter === "all" ? undefined : targetTypeFilter
-    });
+    };
+  }
+
+  async function refreshDiagnostics() {
+    await feedbackMemory.refreshFeedbackDiagnostics(diagnosticsFilters());
+  }
+
+  async function exportDiagnostics() {
+    const exported = await feedbackMemory.exportFeedbackDiagnostics(diagnosticsFilters(), exportFormat);
+    if (exported) downloadTextFile(exported.filename, exported.mime_type, exported.content);
   }
 
   return (
@@ -916,9 +928,14 @@ function OutputsPage() {
         errorCode={feedbackMemory.diagnosticsErrorCode}
         feedbackTypeFilter={feedbackTypeFilter}
         targetTypeFilter={targetTypeFilter}
+        exportFormat={exportFormat}
+        exportState={feedbackMemory.diagnosticsExportState}
+        exportErrorCode={feedbackMemory.diagnosticsExportErrorCode}
         onFeedbackTypeChange={setFeedbackTypeFilter}
         onTargetTypeChange={setTargetTypeFilter}
+        onExportFormatChange={setExportFormat}
         onRefresh={refreshDiagnostics}
+        onExport={exportDiagnostics}
       />
     </section>
   );
@@ -963,9 +980,14 @@ function FeedbackDiagnosticsPanel({
   errorCode,
   feedbackTypeFilter,
   targetTypeFilter,
+  exportFormat,
+  exportState,
+  exportErrorCode,
   onFeedbackTypeChange,
   onTargetTypeChange,
-  onRefresh
+  onExportFormatChange,
+  onRefresh,
+  onExport
 }: {
   events: FeedbackEventRecord[];
   summary?: FeedbackDiagnosticsSummary;
@@ -973,9 +995,14 @@ function FeedbackDiagnosticsPanel({
   errorCode?: string;
   feedbackTypeFilter: FeedbackFilterValue;
   targetTypeFilter: FeedbackTargetFilterValue;
+  exportFormat: FeedbackExportFormat;
+  exportState: "loading" | "empty" | "degraded" | "recoverable_error" | "done";
+  exportErrorCode?: string;
   onFeedbackTypeChange: (value: FeedbackFilterValue) => void;
   onTargetTypeChange: (value: FeedbackTargetFilterValue) => void;
+  onExportFormatChange: (value: FeedbackExportFormat) => void;
   onRefresh: () => Promise<void>;
+  onExport: () => Promise<void>;
 }) {
   const t = useT();
   const feedbackTypes: FeedbackFilterValue[] = [
@@ -1003,6 +1030,15 @@ function FeedbackDiagnosticsPanel({
           <button className="icon-command" type="button" onClick={onRefresh}>
             <RefreshCw aria-hidden="true" size={16} />
             <span>{t("action.refresh")}</span>
+          </button>
+          <button
+            className="icon-command"
+            type="button"
+            disabled={exportState === "loading"}
+            onClick={onExport}
+          >
+            <Download aria-hidden="true" size={16} />
+            <span>{t("feedback.export")}</span>
           </button>
         </div>
       </div>
@@ -1036,11 +1072,22 @@ function FeedbackDiagnosticsPanel({
             ))}
           </select>
         </label>
+        <label className="memory-label">
+          <span>{t("feedback.exportFormat")}</span>
+          <select
+            className="settings-select"
+            value={exportFormat}
+            onChange={(event) => onExportFormatChange(event.target.value as FeedbackExportFormat)}
+          >
+            <option value="json">{t("feedback.exportJson")}</option>
+            <option value="csv">{t("feedback.exportCsv")}</option>
+          </select>
+        </label>
       </div>
-      {errorCode ? (
+      {errorCode || exportErrorCode ? (
         <div className="row-note">
           <AlertCircle aria-hidden="true" size={15} />
-          <span>{errorCode}</span>
+          <span>{errorCode ?? exportErrorCode}</span>
         </div>
       ) : null}
       <div className="metric-row">
@@ -1528,6 +1575,18 @@ function formatMaybe(value: unknown) {
   if (typeof value === "number" || typeof value === "boolean") return String(value);
   if (value == null) return "not_ready";
   return JSON.stringify(value);
+}
+
+function downloadTextFile(filename: string, mimeType: string, content: string) {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
 }
 
 function formatCounts(value?: Record<string, unknown>) {

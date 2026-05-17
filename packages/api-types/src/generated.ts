@@ -80,6 +80,18 @@ export type ApiSchemas = {
   "items": EvidenceItemRecord[];
   "created_at": string;
 };
+  "FeedbackDiagnosticsExportResponse": {
+  "filename": string;
+  "mime_type": string;
+  "format": "json" | "csv";
+  "record_count": number;
+  "generated_at": string;
+  "filters": Record<string, unknown>;
+  "summary": FeedbackDiagnosticsSummary;
+  "content": string;
+  "redacted": boolean;
+  "includes_source_text": boolean;
+};
   "FeedbackDiagnosticsSummary": {
   "total": number;
   "by_type": Record<string, unknown>;
@@ -512,6 +524,19 @@ export type EvidencePackDetail = {
   "created_at": string;
 };
 
+export type FeedbackDiagnosticsExportResponse = {
+  "filename": string;
+  "mime_type": string;
+  "format": "json" | "csv";
+  "record_count": number;
+  "generated_at": string;
+  "filters": Record<string, unknown>;
+  "summary": FeedbackDiagnosticsSummary;
+  "content": string;
+  "redacted": boolean;
+  "includes_source_text": boolean;
+};
+
 export type FeedbackDiagnosticsSummary = {
   "total": number;
   "by_type": Record<string, unknown>;
@@ -915,6 +940,7 @@ export type ApiPath =
   | "/api/knowledge-units/{knowledge_unit_id}"
   | "/api/feedback"
   | "/api/feedback/summary"
+  | "/api/feedback/export"
   | "/api/memory-drafts"
   | "/api/memory-drafts/{memory_id}"
   | "/api/text-imports"

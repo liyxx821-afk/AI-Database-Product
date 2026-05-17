@@ -1,8 +1,8 @@
 # API Route-Level 实施计划
 
-版本：v0.26-draft
+版本：v0.27-draft
 日期：2026-05-17  
-状态：P0 API 实施映射草案——四切片 + P0-Z0a/Z0b 竖切 + 切片前准备层 / 结构化整理检查门 / 知识切片质量闭环 / 安全运维横切层 / 检查门映射单一来源 / 事件枚举单一来源 / ProcessingJob / sensitive grant / evidence-only / 切片执行 profile / AI 结构化整理 profile / D-079 存储映射契约对齐 / D-080 知识调用 profile 与 implicit_agent / D-081-D085 调用边界、profile schema、Z0a 锚点与前端状态契约对齐 / D-092 OpenAPI 类型生成、trace chain 与 migration 波次命名 / D-093 桌面运行时 API 约束 / D-094 P0-Core 工程骨架 API 顺序 / D-098 页面到 API 组映射 / D-105 Citation Detail replay / D-106 Settings language config 持久化 / D-107 Feedback Events 与 Memory Draft Review / D-108 Feedback Diagnostics 只读复盘
+状态：P0 API 实施映射草案——四切片 + P0-Z0a/Z0b 竖切 + 切片前准备层 / 结构化整理检查门 / 知识切片质量闭环 / 安全运维横切层 / 检查门映射单一来源 / 事件枚举单一来源 / ProcessingJob / sensitive grant / evidence-only / 切片执行 profile / AI 结构化整理 profile / D-079 存储映射契约对齐 / D-080 知识调用 profile 与 implicit_agent / D-081-D085 调用边界、profile schema、Z0a 锚点与前端状态契约对齐 / D-092 OpenAPI 类型生成、trace chain 与 migration 波次命名 / D-093 桌面运行时 API 约束 / D-094 P0-Core 工程骨架 API 顺序 / D-098 页面到 API 组映射 / D-105 Citation Detail replay / D-106 Settings language config 持久化 / D-107 Feedback Events 与 Memory Draft Review / D-108 Feedback Diagnostics 只读复盘 / D-110 Feedback Diagnostics Export 脱敏导出
 
 ## 1. 文档目的
 
@@ -19,6 +19,8 @@ D-106 已新增 `GET /api/settings` 与 `PATCH /api/settings`：SettingsService 
 D-107 已新增 `POST /api/feedback`、`POST /api/memory-drafts`、`GET /api/memory-drafts` 和 `GET /api/memory-drafts/{id}`：FeedbackService 只写 append-only `feedback_events`，MemoryService 只创建 `memories.status=pending_review` 与 `review_tasks.target_type=memory`；Review confirm / ignore 支持 memory 状态变更，但不创建 confirmed KU，也不启用 `retrieval_feedback`。
 
 D-108 已新增 `GET /api/feedback` 与 `GET /api/feedback/summary`：FeedbackService 只读 append-only `feedback_events`，按过滤条件返回事件列表，并通过既有 `ai_answers`、`evidence_packs`、`evidence_items`、`retrieval_logs` 补足 query / citation context；summary 返回类型/目标分布、正负向计数和 `feedback_policy`，不写 `retrieval_feedback`，不影响 ranking 或 confirmed knowledge。
+
+D-110 已新增 `GET /api/feedback/export`：FeedbackService 复用 D-108 过滤和诊断 join，返回 JSON / CSV content、summary、filters、record_count 和脱敏标记；后端不写本地文件路径，Renderer 用 Blob download，不包含 source excerpt、answer text、local token、SQLite path 或完整本地路径。
 
 目标：
 
@@ -711,15 +713,17 @@ commit
 | `POST /api/feedback` | `FeedbackService.submit` | `FeedbackEventRepository`, `EvidencePackRepository`, `AIAnswerRepository`, `EvidenceItemRepository` | D-107 已实现：校验至少一个 evidence_pack / ai_answer / evidence_item 目标，写 append-only `feedback_events`，返回 `feedback_policy`；不写 `retrieval_feedback` |
 | `GET /api/feedback` | `FeedbackService.listDiagnostics` | `FeedbackEventRepository`, `EvidencePackRepository`, `AIAnswerRepository`, `EvidenceItemRepository`, `RetrievalLogRepository` | D-108 已实现：按 `created_at desc` 返回反馈事件，支持 type / target / evidence_pack / ai_answer / evidence_item / limit 过滤，返回 query、citation_label 和 ranking_effect |
 | `GET /api/feedback/summary` | `FeedbackService.summarizeDiagnostics` | `FeedbackEventRepository` | D-108 已实现：返回 total、by_type、by_target_type、positive_count、negative_count、last_event_at 和 `feedback_policy` |
+| `GET /api/feedback/export` | `FeedbackService.exportDiagnostics` | `FeedbackEventRepository`, `EvidencePackRepository`, `AIAnswerRepository`, `EvidenceItemRepository`, `RetrievalLogRepository` | D-110 已实现：复用 diagnostics filters，支持 `format=json|csv`，返回 filename、mime_type、record_count、summary、content、`redacted=true` 和 `includes_source_text=false`；导出不写本地文件 |
 | `POST /api/memory-drafts` | `MemoryService.createDraft` | `MemoryRepository`, `ReviewTaskRepository`, `AuditLogRepository`, `AIAnswerRepository` | D-107 已实现：从既有 `ai_answer_id` 创建 `memories.status=pending_review` 与 `review_tasks.target_type=memory` |
 | `GET /api/memory-drafts` | `MemoryService.listDrafts` | `MemoryRepository`, `ReviewTaskRepository` | D-107 已实现：返回 memory draft / confirmed / archived 摘要，可按 status 过滤 |
 | `GET /api/memory-drafts/{id}` | `MemoryService.getDraft` | `MemoryRepository`, `ReviewTaskRepository` | D-107 已实现：复盘单个 memory draft 与 review task 绑定 |
 
 约束：
 
-- Feedback 在 D-107 / D-108 只保存和读取 `feedback_events`，并携带 / 还原 `feedback_policy`。Z2 才允许写 `retrieval_feedback` 并参与 ranking suggestion。
+- Feedback 在 D-107 / D-108 / D-110 只保存、读取和导出 `feedback_events`，并携带 / 还原 `feedback_policy`。Z2 才允许写 `retrieval_feedback` 并参与 ranking suggestion。
 - `click / useful / not_useful / favorite / bad_citation / missing_source / downrank_source` 只影响后续排序建议、诊断和 UI 提示，不自动改写 confirmed knowledge。
 - Feedback Diagnostics 是只读复盘入口；不得修改 `feedback_events`、`knowledge_units`、`sources`、`evidence_packs`、`ai_answers` 或 `memories`。
+- Feedback Diagnostics Export 只导出当前筛选的诊断摘要和事件表，不包含 source excerpt、answer text、local token、DB path 或完整本地路径；不得创建长期导出文件。
 - Memory Draft 在 D-107 作为 Z0b-lite 能力提前实现，但仍必须进入 Review。
 - Memory confirmed 后才可在后续阶段进入 agent_default；D-107 不把 Memory 加入 retrieval results。
 

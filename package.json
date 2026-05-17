@@ -18,6 +18,7 @@
     "smoke:p0-citation-detail": "node scripts/smoke-p0-citation-detail.mjs",
     "smoke:p0-feedback-memory": "node scripts/smoke-p0-feedback-memory.mjs",
     "smoke:p0-feedback-diagnostics": "node scripts/smoke-p0-feedback-diagnostics.mjs",
+    "smoke:p0-feedback-export": "node scripts/smoke-p0-feedback-export.mjs",
     "smoke:p0-z0a": "node scripts/smoke-p0-z0a.mjs",
     "python:ensure": "node scripts/ensure-python-env.mjs",
     "api:test": "node scripts/ensure-python-env.mjs && .venv/bin/python -m pytest apps/api/tests",

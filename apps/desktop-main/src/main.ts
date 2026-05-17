@@ -81,7 +81,9 @@ function writeDesktopSmokeResult(result: DesktopSmokeResult): void {
 
 function exitDesktopSmoke(code: number): void {
   mainWindow?.destroy();
-  process.exit(code);
+  mainWindow = null;
+  app.exit(code);
+  setTimeout(() => process.exit(code), 1000).unref();
 }
 
 async function runDesktopSmoke(runtime: SidecarRuntime, rendererUrl: string): Promise<void> {

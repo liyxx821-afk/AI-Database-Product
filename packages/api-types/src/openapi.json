@@ -938,6 +938,149 @@
         }
       }
     },
+    "/api/feedback/export": {
+      "get": {
+        "summary": "Export Feedback Diagnostics Route",
+        "operationId": "export_feedback_diagnostics_route_api_feedback_export_get",
+        "parameters": [
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "json",
+                "csv"
+              ],
+              "type": "string",
+              "default": "json",
+              "title": "Format"
+            }
+          },
+          {
+            "name": "feedback_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "click",
+                    "useful",
+                    "not_useful",
+                    "favorite",
+                    "bad_citation",
+                    "missing_source",
+                    "downrank_source"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Feedback Type"
+            }
+          },
+          {
+            "name": "target_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Target Type"
+            }
+          },
+          {
+            "name": "evidence_pack_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Evidence Pack Id"
+            }
+          },
+          {
+            "name": "ai_answer_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ai Answer Id"
+            }
+          },
+          {
+            "name": "evidence_item_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Evidence Item Id"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 50,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeedbackDiagnosticsExportResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/memory-drafts": {
       "post": {
         "summary": "Create Memory Draft Route",
@@ -1900,6 +2043,68 @@
           "created_at"
         ],
         "title": "EvidencePackDetail"
+      },
+      "FeedbackDiagnosticsExportResponse": {
+        "properties": {
+          "filename": {
+            "type": "string",
+            "title": "Filename"
+          },
+          "mime_type": {
+            "type": "string",
+            "title": "Mime Type"
+          },
+          "format": {
+            "type": "string",
+            "enum": [
+              "json",
+              "csv"
+            ],
+            "title": "Format"
+          },
+          "record_count": {
+            "type": "integer",
+            "title": "Record Count"
+          },
+          "generated_at": {
+            "type": "string",
+            "title": "Generated At"
+          },
+          "filters": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Filters"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/FeedbackDiagnosticsSummary"
+          },
+          "content": {
+            "type": "string",
+            "title": "Content"
+          },
+          "redacted": {
+            "type": "boolean",
+            "title": "Redacted"
+          },
+          "includes_source_text": {
+            "type": "boolean",
+            "title": "Includes Source Text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "filename",
+          "mime_type",
+          "format",
+          "record_count",
+          "generated_at",
+          "filters",
+          "summary",
+          "content",
+          "redacted",
+          "includes_source_text"
+        ],
+        "title": "FeedbackDiagnosticsExportResponse"
       },
       "FeedbackDiagnosticsSummary": {
         "properties": {

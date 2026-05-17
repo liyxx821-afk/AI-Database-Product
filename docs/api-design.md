@@ -1,8 +1,8 @@
 # API 设计草案
 
-版本：v0.24-draft
+版本：v0.25-draft
 日期：2026-05-17  
-状态：P0 API 边界草案——完整上传/文件处理/File Inspection/切片前准备层/切片执行 profile/AI 结构化整理 profile/D-079 structuring summary 子字段/结构化整理检查门/知识切片质量闭环/AI/RAG API + D-080 知识调用 profile / implicit_agent / D-081 Z0a-Z2 持久化边界 / D-082 InvocationProfileSchema / D-083 前端状态与反馈策略 / D-085 Z0a 调用锚点、feedback 与 citation 边界修正 + D-098 页面到现有 API 组映射 + D-105 Citation Detail / Evidence Pack replay 实现边界 + D-106 Settings language 持久化边界 + D-107 Feedback Events / Memory Draft Review Z0b-lite + D-108 Feedback Diagnostics / Event Replay Z0b-lite + 安全运维横切层 + 检查门映射单一来源 + 事件枚举单一来源 + P0-Z0a/ProcessingJob/sensitive grant 契约收紧
+状态：P0 API 边界草案——完整上传/文件处理/File Inspection/切片前准备层/切片执行 profile/AI 结构化整理 profile/D-079 structuring summary 子字段/结构化整理检查门/知识切片质量闭环/AI/RAG API + D-080 知识调用 profile / implicit_agent / D-081 Z0a-Z2 持久化边界 / D-082 InvocationProfileSchema / D-083 前端状态与反馈策略 / D-085 Z0a 调用锚点、feedback 与 citation 边界修正 + D-098 页面到现有 API 组映射 + D-105 Citation Detail / Evidence Pack replay 实现边界 + D-106 Settings language 持久化边界 + D-107 Feedback Events / Memory Draft Review Z0b-lite + D-108 Feedback Diagnostics / Event Replay Z0b-lite + D-110 Feedback Diagnostics Export Z0b-lite + 安全运维横切层 + 检查门映射单一来源 + 事件枚举单一来源 + P0-Z0a/ProcessingJob/sensitive grant 契约收紧
 
 ## 1. 文档目的
 
@@ -1464,6 +1464,7 @@ D-107 边界：当前实现只写 append-only `feedback_events` 作为 UI/诊断
 ```text
 GET /api/feedback
 GET /api/feedback/summary
+GET /api/feedback/export
 ```
 
 D-108 边界：当前实现只读取 append-only `feedback_events`，用于 `/outputs` 内的 Feedback Diagnostics 面板复盘事件、目标绑定、query / citation 上下文和聚合摘要。它不写 `retrieval_feedback`，不影响 ranking，也不得修改 confirmed KU、Source、Evidence Pack、AIAnswer 或 Memory。
@@ -1517,6 +1518,52 @@ limit?: number // 默认 50，最大 100
 ```
 
 后端从 `feedback_events.metadata_json.feedback_signal` / `feedback_policy` 还原诊断字段，并通过既有 `ai_answers`、`evidence_packs`、`evidence_items`、`retrieval_logs` join 补足 query 与 citation label。Renderer 不自行拼接证据链。
+
+`GET /api/feedback/export` 为 D-110 Feedback Diagnostics Export Z0b-lite，只导出当前筛选后的反馈诊断内容。它复用 `GET /api/feedback` 的 filters，并额外支持：
+
+```text
+format?: json | csv // 默认 json
+```
+
+返回：
+
+```json
+{
+  "filename": "feedback-diagnostics-20260517T120000Z.json",
+  "mime_type": "application/json",
+  "format": "json",
+  "record_count": 3,
+  "generated_at": "2026-05-17T12:00:00Z",
+  "filters": {
+    "feedback_type": "bad_citation",
+    "limit": 50
+  },
+  "summary": {
+    "total": 1,
+    "by_type": { "bad_citation": 1 },
+    "by_target_type": { "evidence_item": 1 },
+    "positive_count": 0,
+    "negative_count": 1,
+    "last_event_at": "2026-05-17T00:00:00Z",
+    "feedback_policy": {
+      "storage_mode": "local_only",
+      "ranking_effect": "suggestion_only",
+      "mutates_confirmed_knowledge": false
+    }
+  },
+  "content": "...json-or-csv-string...",
+  "redacted": true,
+  "includes_source_text": false
+}
+```
+
+导出约束：
+
+- JSON `content` 包含 `summary`、`events`、`filters`、`generated_at` 和脱敏标记。
+- CSV `content` 包含稳定表头：`id,feedback_type,target_type,target_id,evidence_pack_id,ai_answer_id,evidence_item_id,ranking_effect,query,citation_label,comment,created_at`。
+- 导出不得包含 source excerpt、answer text、local token、SQLite path、app data path 或完整本地文件路径。
+- 后端不写本地文件路径；Renderer 使用 Blob download 触发用户侧下载。
+- Export 只读 `feedback_events` 与 D-108 join 上下文，不写 `retrieval_feedback`，不影响 ranking，不修改 confirmed KU、Source、Evidence Pack、AIAnswer 或 Memory。
 
 ### 13.3 保存为 Memory Draft
 
