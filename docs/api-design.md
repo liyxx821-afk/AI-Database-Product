@@ -2,7 +2,7 @@
 
 版本：v0.30-draft
 日期：2026-05-17  
-状态：P0 API 边界草案——完整上传/文件处理/File Inspection/切片前准备层/切片执行 profile/AI 结构化整理 profile/D-079 structuring summary 子字段/结构化整理检查门/知识切片质量闭环/AI/RAG API + D-080 知识调用 profile / implicit_agent / D-081 Z0a-Z2 持久化边界 / D-082 InvocationProfileSchema / D-083 前端状态与反馈策略 / D-085 Z0a 调用锚点、feedback 与 citation 边界修正 + D-098 页面到现有 API 组映射 + D-105 Citation Detail / Evidence Pack replay 实现边界 + D-106 Settings language 持久化边界 + D-107 Feedback Events / Memory Draft Review Z0b-lite + D-108 Feedback Diagnostics / Event Replay Z0b-lite + D-110 Feedback Diagnostics Export Z0b-lite + D-111 Feedback Diagnostics Advanced Filters / Export History Z0b-lite + D-112 Citation Detail Focus / Evidence Trace Interaction Z0b-lite + D-113 Citation Annotation / Evidence Compare Z0b-lite + D-114 Knowledge Space / Folder-Tag / Metadata Filters Z0b-lite + D-115 Knowledge Unit / Project Export Z0b-lite + D-116 Knowledge Export History / Replay Z0b-lite + 安全运维横切层 + 检查门映射单一来源 + 事件枚举单一来源 + P0-Z0a/ProcessingJob/sensitive grant 契约收紧
+状态：P0 API 边界草案——完整上传/文件处理/File Inspection/切片前准备层/切片执行 profile/AI 结构化整理 profile/D-079 structuring summary 子字段/结构化整理检查门/知识切片质量闭环/AI/RAG API + D-080 知识调用 profile / implicit_agent / D-081 Z0a-Z2 持久化边界 / D-082 InvocationProfileSchema / D-083 前端状态与反馈策略 / D-085 Z0a 调用锚点、feedback 与 citation 边界修正 + D-098 页面到现有 API 组映射 + D-105 Citation Detail / Evidence Pack replay 实现边界 + D-106 Settings language 持久化边界 + D-107 Feedback Events / Memory Draft Review Z0b-lite + D-108 Feedback Diagnostics / Event Replay Z0b-lite + D-110 Feedback Diagnostics Export Z0b-lite + D-111 Feedback Diagnostics Advanced Filters / Export History Z0b-lite + D-112 Citation Detail Focus / Evidence Trace Interaction Z0b-lite + D-113 Citation Annotation / Evidence Compare Z0b-lite + D-114 Knowledge Space / Folder-Tag / Metadata Filters Z0b-lite + D-115 Knowledge Unit / Project Export Z0b-lite + D-116 Knowledge Export History / Replay Z0b-lite + D-118 Batch Actions Z0b-lite + 安全运维横切层 + 检查门映射单一来源 + 事件枚举单一来源 + P0-Z0a/ProcessingJob/sensitive grant 契约收紧
 
 ## 1. 文档目的
 
@@ -360,7 +360,9 @@ POST /api/tags
 
 ```text
 PATCH /api/sources/{source_id}/organization
+PATCH /api/sources/organization:batch
 PATCH /api/knowledge-units/{knowledge_unit_id}/organization
+PATCH /api/knowledge-units/organization:batch
 ```
 
 请求：
@@ -379,6 +381,12 @@ D-114 Z0b-lite 实现口径：
 - `GET /api/sources`、`GET /api/knowledge-units`、`POST /api/retrieval/preview`、`POST /api/retrieval/evidence-only` 均支持 `project_id`、`folder_id`、`tag_ids` 过滤。
 - `pending_review` KU 即使带 folder/tag，也不得进入 Evidence Pack。
 - invalid project/folder/tag/source/KU id 使用现有 error envelope，例如 `project_not_found`、`folder_not_found`、`tag_not_found`、`source_not_found`、`knowledge_unit_not_found`。
+
+D-118 Z0b-lite 批量口径：
+
+- `PATCH /api/sources/organization:batch` body：`source_ids` 1-50 个、`folder_id`、`tag_ids`；采用单条 Source organization 的替换语义，并同步派生 KU。
+- `PATCH /api/knowledge-units/organization:batch` body：`knowledge_unit_ids` 1-50 个、`folder_id`、`tag_ids`；只调整指定 KU 自身 folder/user tags。
+- 批量请求要求目标属于同一 project；重复 id、超出数量或未知字段返回 validation error / error envelope。
 
 ---
 
@@ -1222,6 +1230,7 @@ D-114 Z0b-lite 组织过滤口径：
 ```text
 GET /api/evidence-packs/{evidence_pack_id}/annotations
 POST /api/evidence-packs/{evidence_pack_id}/annotations
+POST /api/evidence-packs/{evidence_pack_id}/annotations:batch
 PATCH /api/citation-annotations/{annotation_id}
 DELETE /api/citation-annotations/{annotation_id}
 POST /api/evidence-packs/{evidence_pack_id}/compare
@@ -1230,6 +1239,7 @@ POST /api/evidence-packs/{evidence_pack_id}/compare
 约束：
 
 - `POST annotations` body：`evidence_item_id`、`annotation_type=note|question|risk|follow_up`、`content`。
+- `POST annotations:batch` body：`evidence_item_ids` 1-20 个、`annotation_type`、`content`；为每个 item 创建一条同内容批注。
 - `PATCH annotations` 只允许更新 `annotation_type` 和 `content`；空 content 或未知字段返回 validation error。
 - annotation 的 evidence item 必须属于目标 Evidence Pack；否则返回 `evidence_item_not_in_pack`。
 - compare body：`evidence_item_ids`，只接受同一 pack 内 2-3 条 item。
@@ -2098,7 +2108,7 @@ chunks.json
 README.md
 ```
 
-D-115 导出不得包含 local token、SQLite path、完整本地文件路径、app data 路径或原始二进制文件；`source_path` 只能保留 basename 或置空。默认只导出 confirmed KU，`pending_review` 必须显式 `include_pending_review=true` 才能进入导出。
+D-115 导出不得包含 local token、SQLite path、完整本地文件路径、app data 路径或原始二进制文件；`source_path` 只能保留 basename 或置空。默认只导出 confirmed KU，`pending_review` 必须显式 `include_pending_review=true` 才能进入导出。D-118 后，Renderer 的 KU 多选导出只向该接口传入 `knowledge_unit_ids`，不新增 export endpoint；空数组仍表示按当前 project/folder/tag filters 导出。
 
 D-116 后，每次成功知识导出会向 app data `config.json.knowledge_export_history` 追加最近 20 条脱敏 metadata。历史记录只用于复盘和复用 filters，不保存 `content`、`content_base64`、source text、完整 KU 正文、local token、SQLite path、app data path 或完整本地路径。
 

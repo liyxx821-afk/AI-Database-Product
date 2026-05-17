@@ -466,6 +466,44 @@
         }
       }
     },
+    "/api/sources/organization:batch": {
+      "patch": {
+        "summary": "Patch Sources Organization Batch",
+        "operationId": "patch_sources_organization_batch_api_sources_organization_batch_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SourceOrganizationBatchUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationBatchUpdateResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/knowledge-units/{knowledge_unit_id}/organization": {
       "patch": {
         "summary": "Patch Knowledge Unit Organization",
@@ -498,6 +536,44 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/OrganizationUpdateResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/knowledge-units/organization:batch": {
+      "patch": {
+        "summary": "Patch Knowledge Units Organization Batch",
+        "operationId": "patch_knowledge_units_organization_batch_api_knowledge_units_organization_batch_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KnowledgeUnitOrganizationBatchUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationBatchUpdateResponse"
                 }
               }
             }
@@ -2671,6 +2747,55 @@
         }
       }
     },
+    "/api/evidence-packs/{evidence_pack_id}/annotations:batch": {
+      "post": {
+        "summary": "Create Evidence Pack Annotations Batch",
+        "operationId": "create_evidence_pack_annotations_batch_api_evidence_packs__evidence_pack_id__annotations_batch_post",
+        "parameters": [
+          {
+            "name": "evidence_pack_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Evidence Pack Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CitationAnnotationBatchRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CitationAnnotationBatchResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/citation-annotations/{annotation_id}": {
       "patch": {
         "summary": "Patch Citation Annotation",
@@ -2885,6 +3010,77 @@
           "created_at"
         ],
         "title": "ChunkRecord"
+      },
+      "CitationAnnotationBatchRequest": {
+        "properties": {
+          "evidence_item_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 20,
+            "minItems": 1,
+            "title": "Evidence Item Ids"
+          },
+          "annotation_type": {
+            "type": "string",
+            "enum": [
+              "note",
+              "question",
+              "risk",
+              "follow_up"
+            ],
+            "title": "Annotation Type"
+          },
+          "content": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Content"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "evidence_item_ids",
+          "annotation_type",
+          "content"
+        ],
+        "title": "CitationAnnotationBatchRequest"
+      },
+      "CitationAnnotationBatchResponse": {
+        "properties": {
+          "evidence_pack_id": {
+            "type": "string",
+            "title": "Evidence Pack Id"
+          },
+          "requested_item_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Requested Item Ids"
+          },
+          "created_count": {
+            "type": "integer",
+            "title": "Created Count"
+          },
+          "annotations": {
+            "items": {
+              "$ref": "#/components/schemas/CitationAnnotationRecord"
+            },
+            "type": "array",
+            "title": "Annotations"
+          }
+        },
+        "type": "object",
+        "required": [
+          "evidence_pack_id",
+          "requested_item_ids",
+          "created_count",
+          "annotations"
+        ],
+        "title": "CitationAnnotationBatchResponse"
       },
       "CitationAnnotationListResponse": {
         "properties": {
@@ -5124,6 +5320,43 @@
         "type": "object",
         "title": "KnowledgeUnitExportRequest"
       },
+      "KnowledgeUnitOrganizationBatchUpdateRequest": {
+        "properties": {
+          "folder_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Folder Id"
+          },
+          "tag_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Tag Ids"
+          },
+          "knowledge_unit_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 50,
+            "minItems": 1,
+            "title": "Knowledge Unit Ids"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "knowledge_unit_ids"
+        ],
+        "title": "KnowledgeUnitOrganizationBatchUpdateRequest"
+      },
       "KnowledgeUnitRecord": {
         "properties": {
           "id": {
@@ -5330,6 +5563,78 @@
           "memory_type"
         ],
         "title": "MemoryDraftRequest"
+      },
+      "OrganizationBatchUpdateResponse": {
+        "properties": {
+          "target_type": {
+            "type": "string",
+            "title": "Target Type"
+          },
+          "project_id": {
+            "type": "string",
+            "title": "Project Id"
+          },
+          "requested_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Requested Ids"
+          },
+          "updated_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Updated Ids"
+          },
+          "updated_count": {
+            "type": "integer",
+            "title": "Updated Count"
+          },
+          "folder_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Folder Id"
+          },
+          "tags": {
+            "items": {
+              "$ref": "#/components/schemas/TagRecord"
+            },
+            "type": "array",
+            "title": "Tags"
+          },
+          "synced_knowledge_unit_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Synced Knowledge Unit Ids"
+          },
+          "updated_at": {
+            "type": "string",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "target_type",
+          "project_id",
+          "requested_ids",
+          "updated_ids",
+          "updated_count",
+          "folder_id",
+          "tags",
+          "synced_knowledge_unit_ids",
+          "updated_at"
+        ],
+        "title": "OrganizationBatchUpdateResponse"
       },
       "OrganizationUpdateRequest": {
         "properties": {
@@ -6067,6 +6372,43 @@
           "chunks"
         ],
         "title": "SourceDetail"
+      },
+      "SourceOrganizationBatchUpdateRequest": {
+        "properties": {
+          "folder_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Folder Id"
+          },
+          "tag_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Tag Ids"
+          },
+          "source_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 50,
+            "minItems": 1,
+            "title": "Source Ids"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "source_ids"
+        ],
+        "title": "SourceOrganizationBatchUpdateRequest"
       },
       "SourceRecord": {
         "properties": {

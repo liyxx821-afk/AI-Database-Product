@@ -1,8 +1,10 @@
 import { create } from "zustand";
 import type {
   FolderRecord,
+  KnowledgeUnitOrganizationBatchUpdateRequest,
   OrganizationUpdateRequest,
   ProjectRecord,
+  SourceOrganizationBatchUpdateRequest,
   TagCreateRequest,
   TagRecord
 } from "@knowledgebase-dev/api-types";
@@ -14,7 +16,9 @@ import {
   listFolders,
   listProjects,
   listTags,
+  updateKnowledgeUnitsOrganizationBatch,
   updateKnowledgeUnitOrganization,
+  updateSourcesOrganizationBatch,
   updateSourceOrganization
 } from "../services/organizationApi";
 
@@ -41,9 +45,13 @@ type OrganizationStore = {
     sourceId: string,
     payload: OrganizationUpdateRequest
   ) => Promise<void>;
+  updateSourcesOrganizationBatch: (payload: SourceOrganizationBatchUpdateRequest) => Promise<void>;
   updateKnowledgeUnitOrganization: (
     knowledgeUnitId: string,
     payload: OrganizationUpdateRequest
+  ) => Promise<void>;
+  updateKnowledgeUnitsOrganizationBatch: (
+    payload: KnowledgeUnitOrganizationBatchUpdateRequest
   ) => Promise<void>;
 };
 
@@ -146,6 +154,22 @@ export const useOrganizationStore = create<OrganizationStore>((set, get) => ({
     await updateSourceOrganization(sourceId, payload);
     await get().refresh();
   },
+  updateSourcesOrganizationBatch: async (payload: SourceOrganizationBatchUpdateRequest) => {
+    if (!hasBridge()) {
+      set({ state: "degraded", errorCode: "desktop_bridge_unavailable" });
+      return;
+    }
+    set({ state: "loading", errorCode: null });
+    try {
+      await updateSourcesOrganizationBatch(payload);
+      await get().refresh();
+    } catch (error) {
+      set({
+        state: "recoverable_error",
+        errorCode: error instanceof Error ? error.message : "source_batch_organization_failed"
+      });
+    }
+  },
   updateKnowledgeUnitOrganization: async (
     knowledgeUnitId: string,
     payload: OrganizationUpdateRequest
@@ -156,5 +180,24 @@ export const useOrganizationStore = create<OrganizationStore>((set, get) => ({
     }
     await updateKnowledgeUnitOrganization(knowledgeUnitId, payload);
     await get().refresh();
+  },
+  updateKnowledgeUnitsOrganizationBatch: async (
+    payload: KnowledgeUnitOrganizationBatchUpdateRequest
+  ) => {
+    if (!hasBridge()) {
+      set({ state: "degraded", errorCode: "desktop_bridge_unavailable" });
+      return;
+    }
+    set({ state: "loading", errorCode: null });
+    try {
+      await updateKnowledgeUnitsOrganizationBatch(payload);
+      await get().refresh();
+    } catch (error) {
+      set({
+        state: "recoverable_error",
+        errorCode:
+          error instanceof Error ? error.message : "knowledge_unit_batch_organization_failed"
+      });
+    }
   }
 }));

@@ -362,6 +362,94 @@ def update_source_organization(
         }
 
 
+def update_sources_organization_batch(
+    source_ids: list[str],
+    folder_id: Optional[str],
+    tag_ids: list[str],
+) -> dict:
+    unique_source_ids = list(dict.fromkeys(source_ids))
+    if not unique_source_ids or len(unique_source_ids) > 50:
+        raise AppError(
+            "validation_error",
+            "Batch source organization requires 1-50 source ids.",
+            status_code=422,
+        )
+    timestamp = now_iso()
+    with db() as conn:
+        sources = [_require_source(conn, source_id) for source_id in unique_source_ids]
+        project_id = sources[0]["project_id"]
+        if any(source["project_id"] != project_id for source in sources):
+            raise AppError(
+                "project_mismatch",
+                "Batch source organization requires targets in the same project.",
+                status_code=422,
+            )
+        mirror_tag_id = _validate_folder_for_project(conn, project_id, folder_id)
+        valid_tag_ids = _require_tags(conn, project_id, tag_ids)
+        synced_knowledge_unit_ids: list[str] = []
+        for source in sources:
+            source_id = source["id"]
+            conn.execute(
+                """
+                UPDATE sources
+                SET primary_folder_id = ?
+                WHERE id = ?
+                """,
+                (folder_id, source_id),
+            )
+            _replace_source_tags(conn, source_id, valid_tag_ids, mirror_tag_id, timestamp)
+            ku_rows = conn.execute(
+                "SELECT id FROM knowledge_units WHERE source_id = ?",
+                (source_id,),
+            ).fetchall()
+            for row in ku_rows:
+                conn.execute(
+                    """
+                    UPDATE knowledge_units
+                    SET primary_folder_id = ?, updated_at = ?
+                    WHERE id = ?
+                    """,
+                    (folder_id, timestamp, row["id"]),
+                )
+                _replace_ku_synced_tags(
+                    conn,
+                    row["id"],
+                    valid_tag_ids,
+                    mirror_tag_id,
+                    timestamp,
+                )
+                synced_knowledge_unit_ids.append(row["id"])
+        conn.execute(
+            """
+            INSERT INTO audit_logs (id, event_type, payload_json, created_at)
+            VALUES (?, 'source_organization_batch_updated', ?, ?)
+            """,
+            (
+                new_id("audit"),
+                json_dumps(
+                    {
+                        "source_ids": unique_source_ids,
+                        "folder_id": folder_id,
+                        "tag_ids": valid_tag_ids,
+                        "synced_knowledge_unit_count": len(synced_knowledge_unit_ids),
+                    }
+                ),
+                timestamp,
+            ),
+        )
+        return {
+            "target_type": "source",
+            "project_id": project_id,
+            "requested_ids": unique_source_ids,
+            "updated_ids": unique_source_ids,
+            "updated_count": len(unique_source_ids),
+            "folder_id": folder_id,
+            "tags": _batch_tags(conn, project_id, valid_tag_ids, mirror_tag_id),
+            "synced_knowledge_unit_ids": synced_knowledge_unit_ids,
+            "updated_at": timestamp,
+        }
+
+
 def update_knowledge_unit_organization(
     knowledge_unit_id: str,
     folder_id: Optional[str],
@@ -431,6 +519,100 @@ def update_knowledge_unit_organization(
             "project_id": project_id,
             "folder_id": folder_id,
             "tags": knowledge_unit_tags(conn, knowledge_unit_id),
+            "synced_knowledge_unit_ids": [],
+            "updated_at": timestamp,
+        }
+
+
+def update_knowledge_units_organization_batch(
+    knowledge_unit_ids: list[str],
+    folder_id: Optional[str],
+    tag_ids: list[str],
+) -> dict:
+    unique_knowledge_unit_ids = list(dict.fromkeys(knowledge_unit_ids))
+    if not unique_knowledge_unit_ids or len(unique_knowledge_unit_ids) > 50:
+        raise AppError(
+            "validation_error",
+            "Batch knowledge unit organization requires 1-50 knowledge unit ids.",
+            status_code=422,
+        )
+    timestamp = now_iso()
+    with db() as conn:
+        knowledge_units = [
+            _require_knowledge_unit(conn, knowledge_unit_id)
+            for knowledge_unit_id in unique_knowledge_unit_ids
+        ]
+        project_id = knowledge_units[0]["project_id"]
+        if any(knowledge_unit["project_id"] != project_id for knowledge_unit in knowledge_units):
+            raise AppError(
+                "project_mismatch",
+                "Batch knowledge unit organization requires targets in the same project.",
+                status_code=422,
+            )
+        mirror_tag_id = _validate_folder_for_project(conn, project_id, folder_id)
+        valid_tag_ids = _require_tags(conn, project_id, tag_ids)
+        for knowledge_unit in knowledge_units:
+            knowledge_unit_id = knowledge_unit["id"]
+            conn.execute(
+                """
+                UPDATE knowledge_units
+                SET primary_folder_id = ?, updated_at = ?
+                WHERE id = ?
+                """,
+                (folder_id, timestamp, knowledge_unit_id),
+            )
+            conn.execute(
+                """
+                DELETE FROM knowledge_unit_tags
+                WHERE knowledge_unit_id = ? AND tag_source IN (?, ?)
+                """,
+                (knowledge_unit_id, USER_TAG_SOURCE, FOLDER_TAG_SOURCE),
+            )
+            if mirror_tag_id:
+                conn.execute(
+                    """
+                    INSERT OR IGNORE INTO knowledge_unit_tags (
+                      knowledge_unit_id, tag_id, tag_source, created_at
+                    )
+                    VALUES (?, ?, ?, ?)
+                    """,
+                    (knowledge_unit_id, mirror_tag_id, FOLDER_TAG_SOURCE, timestamp),
+                )
+            for tag_id in valid_tag_ids:
+                conn.execute(
+                    """
+                    INSERT OR IGNORE INTO knowledge_unit_tags (
+                      knowledge_unit_id, tag_id, tag_source, created_at
+                    )
+                    VALUES (?, ?, ?, ?)
+                    """,
+                    (knowledge_unit_id, tag_id, USER_TAG_SOURCE, timestamp),
+                )
+        conn.execute(
+            """
+            INSERT INTO audit_logs (id, event_type, payload_json, created_at)
+            VALUES (?, 'knowledge_unit_organization_batch_updated', ?, ?)
+            """,
+            (
+                new_id("audit"),
+                json_dumps(
+                    {
+                        "knowledge_unit_ids": unique_knowledge_unit_ids,
+                        "folder_id": folder_id,
+                        "tag_ids": valid_tag_ids,
+                    }
+                ),
+                timestamp,
+            ),
+        )
+        return {
+            "target_type": "knowledge_unit",
+            "project_id": project_id,
+            "requested_ids": unique_knowledge_unit_ids,
+            "updated_ids": unique_knowledge_unit_ids,
+            "updated_count": len(unique_knowledge_unit_ids),
+            "folder_id": folder_id,
+            "tags": _batch_tags(conn, project_id, valid_tag_ids, mirror_tag_id),
             "synced_knowledge_unit_ids": [],
             "updated_at": timestamp,
         }
@@ -578,6 +760,28 @@ def _require_tags(conn: sqlite3.Connection, project_id: str, tag_ids: Iterable[s
     for tag_id in unique_ids:
         _require_tag(conn, tag_id, project_id)
     return unique_ids
+
+
+def _batch_tags(
+    conn: sqlite3.Connection,
+    project_id: str,
+    tag_ids: list[str],
+    mirror_tag_id: Optional[str],
+) -> list[dict]:
+    combined_ids = list(dict.fromkeys(([mirror_tag_id] if mirror_tag_id else []) + tag_ids))
+    if not combined_ids:
+        return []
+    placeholders = ",".join("?" for _ in combined_ids)
+    rows = conn.execute(
+        f"""
+        SELECT *
+        FROM tags
+        WHERE project_id = ? AND id IN ({placeholders})
+        ORDER BY namespace ASC, name ASC
+        """,
+        (project_id, *combined_ids),
+    ).fetchall()
+    return [tag_record(row) for row in rows]
 
 
 def _require_source(conn: sqlite3.Connection, source_id: str) -> sqlite3.Row:

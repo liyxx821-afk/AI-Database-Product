@@ -2,7 +2,7 @@
 
 版本：v0.35
 日期：2026-05-17  
-状态：完整 P0 入库、P0-Z0a/Z0b 竖切、ProcessingJob、File Inspection、切片前准备层、结构化整理检查门、知识切片质量闭环、安全运维横切层、检查门映射单一来源、事件枚举单一来源、切片执行 profile fixture、AI 结构化整理 profile 与 D-079 存储映射 fixture、D-080 知识调用 / implicit_agent / D-081-D085 调用边界、profile schema、反馈策略与前端状态 fixture、D-098 Knowledge Workspace 页面契约 fixture、D-105 Citation Detail / Evidence Pack replay smoke、D-106 i18n settings smoke、D-107 feedback / memory smoke、D-108 feedback diagnostics smoke、D-109 desktop runtime smoke、D-110 feedback diagnostics export smoke、D-111 feedback filters / export history smoke、D-112 citation detail focus smoke、D-113 citation annotation / compare smoke、D-114 space/tag/metadata smoke、D-115 knowledge export smoke、D-116 knowledge export history smoke、D-117 packaged runtime smoke、向量检索与 RAG 验收策略 + provider fallback fixture + D-090 技术栈执行优化测试口径 + D-091 工程化验收门槛 + D-092 代码骨架前置契约测试口径 + D-093 桌面运行时硬化测试口径 + D-094 P0-Core 工程骨架开工测试口径
+状态：完整 P0 入库、P0-Z0a/Z0b 竖切、ProcessingJob、File Inspection、切片前准备层、结构化整理检查门、知识切片质量闭环、安全运维横切层、检查门映射单一来源、事件枚举单一来源、切片执行 profile fixture、AI 结构化整理 profile 与 D-079 存储映射 fixture、D-080 知识调用 / implicit_agent / D-081-D085 调用边界、profile schema、反馈策略与前端状态 fixture、D-098 Knowledge Workspace 页面契约 fixture、D-105 Citation Detail / Evidence Pack replay smoke、D-106 i18n settings smoke、D-107 feedback / memory smoke、D-108 feedback diagnostics smoke、D-109 desktop runtime smoke、D-110 feedback diagnostics export smoke、D-111 feedback filters / export history smoke、D-112 citation detail focus smoke、D-113 citation annotation / compare smoke、D-114 space/tag/metadata smoke、D-115 knowledge export smoke、D-116 knowledge export history smoke、D-117 packaged runtime smoke、D-118 batch actions smoke、向量检索与 RAG 验收策略 + provider fallback fixture + D-090 技术栈执行优化测试口径 + D-091 工程化验收门槛 + D-092 代码骨架前置契约测试口径 + D-093 桌面运行时硬化测试口径 + D-094 P0-Core 工程骨架开工测试口径
 
 ## 1. 文档目的
 
@@ -142,7 +142,7 @@ D-093 后，首批桌面工程必须补充以下测试：
 
 ### 2.9 D-094 P0-Core 工程骨架开工测试口径
 
-D-094 后，首批代码工程必须先通过 `smoke:p0-core`，再运行或开发业务 smoke。D-117 后，阶段顺序固定为 `smoke:p0-core` → `smoke:p0-desktop-runtime` → `smoke:p0-packaged-runtime` → `smoke:p0-i18n-settings` → `smoke:p0-file` → `smoke:p0-parse` → `smoke:p0-ku` → `smoke:p0-space-tag-metadata` → `smoke:p0-knowledge-export` → `smoke:p0-knowledge-export-history` → `smoke:p0-search-ask` → `smoke:p0-citation-detail` → `smoke:p0-citation-focus` → `smoke:p0-citation-annotate-compare` → `smoke:p0-feedback-memory` → `smoke:p0-feedback-diagnostics` → `smoke:p0-feedback-export` → `smoke:p0-feedback-filters-history` → `smoke:p0-z0a`：
+D-094 后，首批代码工程必须先通过 `smoke:p0-core`，再运行或开发业务 smoke。D-118 后，阶段顺序固定为 `smoke:p0-core` → `smoke:p0-desktop-runtime` → `smoke:p0-packaged-runtime` → `smoke:p0-i18n-settings` → `smoke:p0-file` → `smoke:p0-parse` → `smoke:p0-ku` → `smoke:p0-space-tag-metadata` → `smoke:p0-knowledge-export` → `smoke:p0-knowledge-export-history` → `smoke:p0-search-ask` → `smoke:p0-citation-detail` → `smoke:p0-citation-focus` → `smoke:p0-citation-annotate-compare` → `smoke:p0-batch-actions` → `smoke:p0-feedback-memory` → `smoke:p0-feedback-diagnostics` → `smoke:p0-feedback-export` → `smoke:p0-feedback-filters-history` → `smoke:p0-z0a`：
 
 | 测试项 | 期望 |
 |---|---|
@@ -155,7 +155,7 @@ D-094 后，首批代码工程必须先通过 `smoke:p0-core`，再运行或开�
 | Packaged runtime smoke | Electron 不启动 Vite preview，加载静态 renderer dist、artifact preload 和 artifact sidecar；sidecar 日志落在 app data logs |
 | Shutdown cleanup | 应用退出后 sidecar 和 worker 被清理，不残留后台进程或锁文件 |
 | Status bar mapping | runtime state 和 sidecar / DB / worker / provider / vector 子状态能映射到底部状态栏 |
-| Smoke order | `pnpm smoke:p0-core` 必须先于 `pnpm smoke:p0-desktop-runtime`，`pnpm smoke:p0-desktop-runtime` 必须先于 `pnpm smoke:p0-packaged-runtime`，`pnpm smoke:p0-packaged-runtime` 必须先于 `pnpm smoke:p0-i18n-settings`，`pnpm smoke:p0-i18n-settings` 必须先于 `pnpm smoke:p0-file`，`pnpm smoke:p0-file` 必须先于 `pnpm smoke:p0-parse`，`pnpm smoke:p0-parse` 必须先于 `pnpm smoke:p0-ku`，`pnpm smoke:p0-ku` 必须先于 `pnpm smoke:p0-space-tag-metadata`，`pnpm smoke:p0-space-tag-metadata` 必须先于 `pnpm smoke:p0-knowledge-export`，`pnpm smoke:p0-knowledge-export` 必须先于 `pnpm smoke:p0-knowledge-export-history`，`pnpm smoke:p0-knowledge-export-history` 必须先于 `pnpm smoke:p0-search-ask`，`pnpm smoke:p0-search-ask` 必须先于 `pnpm smoke:p0-citation-detail`，`pnpm smoke:p0-citation-detail` 必须先于 `pnpm smoke:p0-citation-focus`，`pnpm smoke:p0-citation-focus` 必须先于 `pnpm smoke:p0-citation-annotate-compare`，`pnpm smoke:p0-citation-annotate-compare` 必须先于 `pnpm smoke:p0-feedback-memory`，`pnpm smoke:p0-feedback-memory` 必须先于 `pnpm smoke:p0-feedback-diagnostics`，`pnpm smoke:p0-feedback-diagnostics` 必须先于 `pnpm smoke:p0-feedback-export`，`pnpm smoke:p0-feedback-export` 必须先于 `pnpm smoke:p0-feedback-filters-history`，`pnpm smoke:p0-feedback-filters-history` 必须先于 `pnpm smoke:p0-z0a` 通过 |
+| Smoke order | `pnpm smoke:p0-core` 必须先于 `pnpm smoke:p0-desktop-runtime`，`pnpm smoke:p0-desktop-runtime` 必须先于 `pnpm smoke:p0-packaged-runtime`，`pnpm smoke:p0-packaged-runtime` 必须先于 `pnpm smoke:p0-i18n-settings`，`pnpm smoke:p0-i18n-settings` 必须先于 `pnpm smoke:p0-file`，`pnpm smoke:p0-file` 必须先于 `pnpm smoke:p0-parse`，`pnpm smoke:p0-parse` 必须先于 `pnpm smoke:p0-ku`，`pnpm smoke:p0-ku` 必须先于 `pnpm smoke:p0-space-tag-metadata`，`pnpm smoke:p0-space-tag-metadata` 必须先于 `pnpm smoke:p0-knowledge-export`，`pnpm smoke:p0-knowledge-export` 必须先于 `pnpm smoke:p0-knowledge-export-history`，`pnpm smoke:p0-knowledge-export-history` 必须先于 `pnpm smoke:p0-search-ask`，`pnpm smoke:p0-search-ask` 必须先于 `pnpm smoke:p0-citation-detail`，`pnpm smoke:p0-citation-detail` 必须先于 `pnpm smoke:p0-citation-focus`，`pnpm smoke:p0-citation-focus` 必须先于 `pnpm smoke:p0-citation-annotate-compare`，`pnpm smoke:p0-citation-annotate-compare` 必须先于 `pnpm smoke:p0-batch-actions`，`pnpm smoke:p0-batch-actions` 必须先于 `pnpm smoke:p0-feedback-memory`，`pnpm smoke:p0-feedback-memory` 必须先于 `pnpm smoke:p0-feedback-diagnostics`，`pnpm smoke:p0-feedback-diagnostics` 必须先于 `pnpm smoke:p0-feedback-export`，`pnpm smoke:p0-feedback-export` 必须先于 `pnpm smoke:p0-feedback-filters-history`，`pnpm smoke:p0-feedback-filters-history` 必须先于 `pnpm smoke:p0-z0a` 通过 |
 | Business feature block | `smoke:p0-core` 通过前不得新增 upload parsing UI、RAG UI、真实 Provider 接入、OCR/ASR、图谱或用户聊天入口；初期可用 review checklist 执行，后续再自动化 |
 
 `smoke:p0-core` 最小链路固定为：
@@ -275,6 +275,32 @@ create multiple text imports
 → compare 2-3 evidence items
 → validate trace_path / differences / copy-safe summary
 → invalid annotation / compare item returns evidence_item_not_in_pack
+```
+
+### 2.12C D-118 Citation / Organization / Export Batch Actions 测试口径
+
+D-118 后，批量操作只复用既有对象，不新增表、不写 ranking signal。测试目标是证明批量 Source/KU organization、批量 citation annotation 和 KU 选择导出都可验证，且无 token / path 泄露。
+
+| 测试项 | 期望 |
+|---|---|
+| batch auth | 批量组织和批量批注 API 无 local token 被拒绝 |
+| source batch | 1-50 个 Source 可批量替换 folder/tags，并同步派生 KU 的 folder mirror 与 source-assignment tags |
+| KU batch | 1-50 个 KU 可批量替换自身 folder/user tags，不修改 Source 原始记录 |
+| annotation batch | 同一 Evidence Pack 内 1-20 个 evidence item 可创建同内容批注；跨 pack item 返回 `evidence_item_not_in_pack` |
+| selected export | `knowledge_unit_ids` 选择导出只包含指定 confirmed KU；默认不导出 pending_review |
+| no mutation | 批量批注不修改 Evidence Pack、Evidence Item、KU、Source、AIAnswer、Memory 或 ranking |
+
+`smoke:p0-batch-actions` 固定链路：
+
+```text
+create multiple text imports
+→ batch bind Source organization
+→ confirm KUs
+→ batch bind selected KU organization
+→ retrieval preview with organization filters
+→ batch annotate selected evidence items
+→ selected KU Markdown / JSON export
+→ verify no token/path leakage and invalid binding checks
 ```
 
 ### 2.13A D-114 Knowledge Space / Folder-Tag / Metadata Filters 测试口径

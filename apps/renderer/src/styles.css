@@ -427,6 +427,11 @@ button {
   gap: 6px;
 }
 
+.batch-selection-list {
+  max-height: 220px;
+  overflow: auto;
+}
+
 .compare-check {
   display: inline-flex;
   align-items: center;

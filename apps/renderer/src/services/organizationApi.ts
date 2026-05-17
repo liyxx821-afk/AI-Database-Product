@@ -1,8 +1,11 @@
 import type {
   FolderRecord,
+  KnowledgeUnitOrganizationBatchUpdateRequest,
+  OrganizationBatchUpdateResponse,
   OrganizationUpdateRequest,
   OrganizationUpdateResponse,
   ProjectRecord,
+  SourceOrganizationBatchUpdateRequest,
   TagCreateRequest,
   TagRecord
 } from "@knowledgebase-dev/api-types";
@@ -59,11 +62,29 @@ export async function updateSourceOrganization(
   });
 }
 
+export async function updateSourcesOrganizationBatch(
+  payload: SourceOrganizationBatchUpdateRequest
+): Promise<OrganizationBatchUpdateResponse> {
+  return apiFetch<OrganizationBatchUpdateResponse>("/sources/organization:batch", {
+    method: "PATCH",
+    body: JSON.stringify(payload)
+  });
+}
+
 export async function updateKnowledgeUnitOrganization(
   knowledgeUnitId: string,
   payload: OrganizationUpdateRequest
 ): Promise<OrganizationUpdateResponse> {
   return apiFetch<OrganizationUpdateResponse>(`/knowledge-units/${knowledgeUnitId}/organization`, {
+    method: "PATCH",
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function updateKnowledgeUnitsOrganizationBatch(
+  payload: KnowledgeUnitOrganizationBatchUpdateRequest
+): Promise<OrganizationBatchUpdateResponse> {
+  return apiFetch<OrganizationBatchUpdateResponse>("/knowledge-units/organization:batch", {
     method: "PATCH",
     body: JSON.stringify(payload)
   });

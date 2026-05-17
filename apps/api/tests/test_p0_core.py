@@ -316,6 +316,161 @@ def test_space_tag_metadata_filters(monkeypatch, tmp_path):
         assert invalid_folder_preview.json()["error"]["code"] == "folder_not_found"
 
 
+def test_batch_organization_and_selected_knowledge_export(monkeypatch, tmp_path):
+    monkeypatch.setenv("KB_APP_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("KB_LOCAL_TOKEN", "test-token")
+    headers = {"x-kb-local-token": "test-token"}
+    json_headers = {**headers, "content-type": "application/json"}
+    with TestClient(create_app()) as client:
+        unauthorized = client.patch("/api/sources/organization:batch", json={})
+        assert unauthorized.status_code == 401
+        assert unauthorized.json()["error"]["code"] == "sidecar_auth_failed"
+
+        folder = client.post(
+            "/api/folders",
+            headers=json_headers,
+            json={"project_id": "default-space", "name": "D118 Batch Folder"},
+        )
+        assert folder.status_code == 200
+        folder_body = folder.json()
+
+        tag = client.post(
+            "/api/tags",
+            headers=json_headers,
+            json={
+                "project_id": "default-space",
+                "name": "D118 Batch Topic",
+                "namespace": "topic",
+                "tag_type": "topic_tag",
+            },
+        )
+        assert tag.status_code == 200
+        tag_id = tag.json()["id"]
+
+        imports = []
+        for index in range(2):
+            imported = client.post(
+                "/api/text-imports",
+                headers=json_headers,
+                json={
+                    "title": f"D118 Batch Source {index}",
+                    "content": f"D118 batch organization selected export confirmed asset {index}.",
+                },
+            )
+            assert imported.status_code == 200
+            imports.append(imported.json())
+        source_ids = [item["source_id"] for item in imports]
+        ku_ids = [item["candidate_knowledge_unit_ids"][0] for item in imports]
+
+        duplicate_source_batch = client.patch(
+            "/api/sources/organization:batch",
+            headers=json_headers,
+            json={
+                "source_ids": [source_ids[0], source_ids[0]],
+                "folder_id": folder_body["id"],
+                "tag_ids": [tag_id],
+            },
+        )
+        assert duplicate_source_batch.status_code == 422
+        assert duplicate_source_batch.json()["error"]["code"] == "validation_error"
+
+        source_batch = client.patch(
+            "/api/sources/organization:batch",
+            headers=json_headers,
+            json={
+                "source_ids": source_ids,
+                "folder_id": folder_body["id"],
+                "tag_ids": [tag_id],
+            },
+        )
+        assert source_batch.status_code == 200
+        source_batch_body = source_batch.json()
+        assert source_batch_body["target_type"] == "source"
+        assert source_batch_body["updated_count"] == 2
+        assert set(source_batch_body["synced_knowledge_unit_ids"]) == set(ku_ids)
+        assert {record["id"] for record in source_batch_body["tags"]} == {
+            folder_body["mirror_tag_id"],
+            tag_id,
+        }
+
+        for imported in imports:
+            confirmed = client.post(
+                f"/api/review-tasks/{imported['review_task_ids'][0]}:confirm",
+                headers=headers,
+            )
+            assert confirmed.status_code == 200
+
+        filtered_kus = client.get(
+            "/api/knowledge-units",
+            headers=headers,
+            params={
+                "folder_id": folder_body["id"],
+                "tag_ids": tag_id,
+                "status": "confirmed",
+            },
+        )
+        assert filtered_kus.status_code == 200
+        assert {record["id"] for record in filtered_kus.json()} == set(ku_ids)
+
+        ku_tag = client.post(
+            "/api/tags",
+            headers=json_headers,
+            json={
+                "project_id": "default-space",
+                "name": "D118 Batch KU Selected",
+                "namespace": "custom",
+                "tag_type": "custom_tag",
+            },
+        )
+        assert ku_tag.status_code == 200
+        ku_batch = client.patch(
+            "/api/knowledge-units/organization:batch",
+            headers=json_headers,
+            json={
+                "knowledge_unit_ids": [ku_ids[0]],
+                "folder_id": folder_body["id"],
+                "tag_ids": [ku_tag.json()["id"]],
+            },
+        )
+        assert ku_batch.status_code == 200
+        assert ku_batch.json()["updated_ids"] == [ku_ids[0]]
+        assert ku_batch.json()["synced_knowledge_unit_ids"] == []
+
+        source_after_ku_batch = client.get(f"/api/sources/{source_ids[0]}", headers=headers)
+        assert source_after_ku_batch.status_code == 200
+        assert ku_tag.json()["id"] not in {
+            tag_record["id"] for tag_record in source_after_ku_batch.json()["tags"]
+        }
+
+        selected_export = client.post(
+            "/api/exports/knowledge-units",
+            headers=json_headers,
+            json={
+                "format": "json",
+                "knowledge_unit_ids": [ku_ids[0]],
+                "include_chunks": True,
+            },
+        )
+        assert selected_export.status_code == 200
+        selected_body = selected_export.json()
+        assert selected_body["record_count"] == 1
+        selected_content = json.loads(selected_body["content"])
+        assert [record["id"] for record in selected_content["knowledge_units"]] == [ku_ids[0]]
+        assert ku_ids[1] not in selected_body["content"]
+
+        invalid_ku_batch = client.patch(
+            "/api/knowledge-units/organization:batch",
+            headers=json_headers,
+            json={
+                "knowledge_unit_ids": [ku_ids[0], "ku_missing"],
+                "folder_id": folder_body["id"],
+                "tag_ids": [tag_id],
+            },
+        )
+        assert invalid_ku_batch.status_code == 404
+        assert invalid_ku_batch.json()["error"]["code"] == "knowledge_unit_not_found"
+
+
 def test_knowledge_unit_and_project_exports(monkeypatch, tmp_path):
     monkeypatch.setenv("KB_APP_DATA_DIR", str(tmp_path))
     monkeypatch.setenv("KB_LOCAL_TOKEN", "test-token")
@@ -824,6 +979,51 @@ def test_citation_annotations_and_compare(monkeypatch, tmp_path):
         assert invalid_empty.status_code == 422
         assert invalid_empty.json()["error"]["code"] == "validation_error"
 
+        batch_created = client.post(
+            f"/api/evidence-packs/{pack_id}/annotations:batch",
+            headers=headers,
+            json={
+                "evidence_item_ids": item_ids,
+                "annotation_type": "question",
+                "content": "shared batch annotation",
+            },
+        )
+        assert batch_created.status_code == 200
+        batch_body = batch_created.json()
+        assert batch_body["created_count"] == 2
+        assert batch_body["requested_item_ids"] == item_ids
+        assert {annotation["evidence_item_id"] for annotation in batch_body["annotations"]} == set(
+            item_ids
+        )
+        assert all(
+            annotation["metadata"]["source"] == "citation_detail_batch"
+            for annotation in batch_body["annotations"]
+        )
+
+        duplicate_batch = client.post(
+            f"/api/evidence-packs/{pack_id}/annotations:batch",
+            headers=headers,
+            json={
+                "evidence_item_ids": [item_ids[0], item_ids[0]],
+                "annotation_type": "note",
+                "content": "duplicate",
+            },
+        )
+        assert duplicate_batch.status_code == 422
+        assert duplicate_batch.json()["error"]["code"] == "validation_error"
+
+        invalid_batch = client.post(
+            f"/api/evidence-packs/{pack_id}/annotations:batch",
+            headers=headers,
+            json={
+                "evidence_item_ids": [item_ids[0], "eitem_not_in_pack"],
+                "annotation_type": "note",
+                "content": "bad batch binding",
+            },
+        )
+        assert invalid_batch.status_code == 404
+        assert invalid_batch.json()["error"]["code"] == "evidence_item_not_in_pack"
+
         compare = client.post(
             f"/api/evidence-packs/{pack_id}/compare",
             headers=headers,
@@ -881,7 +1081,7 @@ def test_citation_annotations_and_compare(monkeypatch, tmp_path):
         assert deleted.json()["deleted"] is True
         after_delete = client.get(f"/api/evidence-packs/{pack_id}/annotations", headers=headers)
         assert after_delete.status_code == 200
-        assert after_delete.json()["total"] == 0
+        assert after_delete.json()["total"] == 2
 
 
 def test_feedback_events_and_memory_draft_review(monkeypatch, tmp_path):

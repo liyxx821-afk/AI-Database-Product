@@ -22,6 +22,7 @@
     "smoke:p0-citation-detail": "node scripts/smoke-p0-citation-detail.mjs",
     "smoke:p0-citation-focus": "node scripts/smoke-p0-citation-focus.mjs",
     "smoke:p0-citation-annotate-compare": "node scripts/smoke-p0-citation-annotate-compare.mjs",
+    "smoke:p0-batch-actions": "node scripts/smoke-p0-batch-actions.mjs",
     "smoke:p0-feedback-memory": "node scripts/smoke-p0-feedback-memory.mjs",
     "smoke:p0-feedback-diagnostics": "node scripts/smoke-p0-feedback-diagnostics.mjs",
     "smoke:p0-feedback-export": "node scripts/smoke-p0-feedback-export.mjs",

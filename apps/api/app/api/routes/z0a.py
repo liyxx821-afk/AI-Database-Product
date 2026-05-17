@@ -7,6 +7,8 @@ from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 
 from app.api.schemas import (
+    CitationAnnotationBatchRequest,
+    CitationAnnotationBatchResponse,
     CitationAnnotationListResponse,
     CitationAnnotationPatchRequest,
     CitationAnnotationRecord,
@@ -32,6 +34,7 @@ from app.services.retrieval.evidence import (
     build_retrieval_preview,
     compare_evidence_items,
     create_citation_annotation,
+    create_citation_annotations_batch,
     delete_citation_annotation,
     get_evidence_pack,
     list_citation_annotations,
@@ -279,6 +282,22 @@ def create_evidence_pack_annotation(
     return create_citation_annotation(
         evidence_pack_id=evidence_pack_id,
         evidence_item_id=payload.evidence_item_id,
+        annotation_type=payload.annotation_type,
+        content=payload.content,
+    )
+
+
+@router.post(
+    "/evidence-packs/{evidence_pack_id}/annotations:batch",
+    response_model=CitationAnnotationBatchResponse,
+)
+def create_evidence_pack_annotations_batch(
+    evidence_pack_id: str,
+    payload: CitationAnnotationBatchRequest,
+) -> dict:
+    return create_citation_annotations_batch(
+        evidence_pack_id=evidence_pack_id,
+        evidence_item_ids=payload.evidence_item_ids,
         annotation_type=payload.annotation_type,
         content=payload.content,
     )

@@ -7,10 +7,13 @@ from fastapi import APIRouter
 from app.api.schemas import (
     FolderCreateRequest,
     FolderRecord,
+    KnowledgeUnitOrganizationBatchUpdateRequest,
+    OrganizationBatchUpdateResponse,
     OrganizationUpdateRequest,
     OrganizationUpdateResponse,
     ProjectCreateRequest,
     ProjectRecord,
+    SourceOrganizationBatchUpdateRequest,
     TagCreateRequest,
     TagRecord,
 )
@@ -22,7 +25,9 @@ from app.services.organization import (
     list_projects,
     list_tags,
     update_knowledge_unit_organization,
+    update_knowledge_units_organization_batch,
     update_source_organization,
+    update_sources_organization_batch,
 )
 
 router = APIRouter()
@@ -87,6 +92,17 @@ def patch_source_organization(
     return update_source_organization(source_id, payload.folder_id, payload.tag_ids)
 
 
+@router.patch("/sources/organization:batch", response_model=OrganizationBatchUpdateResponse)
+def patch_sources_organization_batch(
+    payload: SourceOrganizationBatchUpdateRequest,
+) -> dict:
+    return update_sources_organization_batch(
+        payload.source_ids,
+        payload.folder_id,
+        payload.tag_ids,
+    )
+
+
 @router.patch(
     "/knowledge-units/{knowledge_unit_id}/organization",
     response_model=OrganizationUpdateResponse,
@@ -97,6 +113,20 @@ def patch_knowledge_unit_organization(
 ) -> dict:
     return update_knowledge_unit_organization(
         knowledge_unit_id,
+        payload.folder_id,
+        payload.tag_ids,
+    )
+
+
+@router.patch(
+    "/knowledge-units/organization:batch",
+    response_model=OrganizationBatchUpdateResponse,
+)
+def patch_knowledge_units_organization_batch(
+    payload: KnowledgeUnitOrganizationBatchUpdateRequest,
+) -> dict:
+    return update_knowledge_units_organization_batch(
+        payload.knowledge_unit_ids,
         payload.folder_id,
         payload.tag_ids,
     )

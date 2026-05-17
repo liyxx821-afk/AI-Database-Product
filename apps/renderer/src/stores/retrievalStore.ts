@@ -1,6 +1,8 @@
 import { create } from "zustand";
 import type {
   CitationAnnotationListResponse,
+  CitationAnnotationBatchRequest,
+  CitationAnnotationBatchResponse,
   CitationAnnotationPatchRequest,
   CitationAnnotationRecord,
   CitationAnnotationRequest,
@@ -15,6 +17,7 @@ import {
   askEvidenceOnly,
   compareEvidenceItems,
   createCitationAnnotation,
+  createCitationAnnotationsBatch,
   deleteCitationAnnotation,
   getCitationAnnotations,
   getEvidencePack,
@@ -52,6 +55,10 @@ type RetrievalState = {
     evidencePackId: string,
     payload: CitationAnnotationRequest
   ) => Promise<CitationAnnotationRecord | undefined>;
+  createAnnotationsBatch: (
+    evidencePackId: string,
+    payload: CitationAnnotationBatchRequest
+  ) => Promise<CitationAnnotationBatchResponse | undefined>;
   updateAnnotation: (
     annotationId: string,
     payload: CitationAnnotationPatchRequest
@@ -247,6 +254,35 @@ export const useRetrievalStore = create<RetrievalState>((set) => ({
       return annotation;
     } catch (error) {
       const errorCode = error instanceof Error ? error.message : "citation_annotation_create_failed";
+      set({ annotationState: "recoverable_error", annotationErrorCode: errorCode });
+      return undefined;
+    }
+  },
+  async createAnnotationsBatch(evidencePackId: string, payload: CitationAnnotationBatchRequest) {
+    if (!hasBridge()) {
+      set({
+        annotationState: "degraded",
+        annotationErrorCode: "desktop_bridge_unavailable"
+      });
+      return undefined;
+    }
+    set({ annotationState: "loading", annotationErrorCode: undefined });
+    try {
+      const response = await createCitationAnnotationsBatch(evidencePackId, payload);
+      const focusItemId = response.annotations[0]?.evidence_item_id ?? payload.evidence_item_ids[0];
+      const annotations = await getCitationAnnotations(evidencePackId);
+      const detail = await getEvidencePack(evidencePackId, focusItemId);
+      set({
+        annotationState: "done",
+        annotationErrorCode: undefined,
+        annotations,
+        detail,
+        focusedEvidenceItemId: focusItemId
+      });
+      return response;
+    } catch (error) {
+      const errorCode =
+        error instanceof Error ? error.message : "citation_annotation_batch_create_failed";
       set({ annotationState: "recoverable_error", annotationErrorCode: errorCode });
       return undefined;
     }

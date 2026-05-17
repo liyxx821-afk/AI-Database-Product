@@ -1,5 +1,43 @@
 # 进度记录
 
+## 2026-05-17（D-118 Citation / Organization / Export Batch Actions Z0b-lite）
+
+### 已完成
+
+- 新增批量组织 API：`PATCH /api/sources/organization:batch` 与 `PATCH /api/knowledge-units/organization:batch`，复用单条组织绑定的替换语义，单次最多 50 个 Source / KU。
+- Source 批量组织更新会继续同步派生 KU 的 folder mirror 与 source-assignment tags；KU 批量组织更新只影响指定 KU，不修改 Source 原始记录。
+- 新增 `POST /api/evidence-packs/{id}/annotations:batch`，支持同一 Evidence Pack 内 1-20 个 evidence item 创建同内容批注，跨 pack item 继续返回 `evidence_item_not_in_pack`。
+- KU 选择导出复用既有 `POST /api/exports/knowledge-units` 的 `knowledge_unit_ids`，不新增导出 endpoint、不保存长期导出历史。
+- Renderer `/library` Organization 面板增加 Source / KU 多选、选择计数、清空选择和批量绑定 folder/tag 状态。
+- Renderer Citation Detail 面板增加 evidence item 多选和批量批注表单；Compare 仍保持 2-3 条只读对比。
+- Renderer `/outputs` Knowledge Export 面板增加当前组织过滤下的 KU 多选、全选当前列表、清空选择和选择导出状态。
+- 新增中英双语 i18n 文案，覆盖批量绑定、批量批注、选择导出、选择计数和状态提示；用户内容、批注、tag/folder 名、query、citation label、API enum 不翻译。
+- 新增 `scripts/smoke-p0-batch-actions.mjs` 与 `pnpm smoke:p0-batch-actions`；完整 smoke 顺序更新为 `smoke:p0-core` → `smoke:p0-desktop-runtime` → `smoke:p0-packaged-runtime` → `smoke:p0-i18n-settings` → `smoke:p0-file` → `smoke:p0-parse` → `smoke:p0-ku` → `smoke:p0-space-tag-metadata` → `smoke:p0-knowledge-export` → `smoke:p0-knowledge-export-history` → `smoke:p0-search-ask` → `smoke:p0-citation-detail` → `smoke:p0-citation-focus` → `smoke:p0-citation-annotate-compare` → `smoke:p0-batch-actions` → `smoke:p0-feedback-memory` → `smoke:p0-feedback-diagnostics` → `smoke:p0-feedback-export` → `smoke:p0-feedback-filters-history` → `smoke:p0-z0a`。
+- 已同步 README、`docs/development-plan.md`、`docs/data-model.md`、`docs/api-design.md`、`docs/api-implementation-plan.md`、`docs/testing-strategy.md`、`docs/technical-stack-and-prototype-plan.md`。
+
+### 验收
+
+- `pnpm generate:api-types` 通过，已更新 `packages/api-types/src/openapi.json` 与 `packages/api-types/src/generated.ts`。
+- `pnpm typecheck` 通过。
+- `pnpm api:ruff` 通过。
+- `pnpm api:test` 通过，13 个 API 测试通过。
+- `pnpm smoke:p0-batch-actions` 通过，输出 `SMOKE_P0_BATCH_ACTIONS_OK`。
+- 完整 smoke 顺序通过：
+  `pnpm smoke:p0-core`、`pnpm smoke:p0-desktop-runtime`、`pnpm smoke:p0-packaged-runtime`、`pnpm smoke:p0-i18n-settings`、`pnpm smoke:p0-file`、`pnpm smoke:p0-parse`、`pnpm smoke:p0-ku`、`pnpm smoke:p0-space-tag-metadata`、`pnpm smoke:p0-knowledge-export`、`pnpm smoke:p0-knowledge-export-history`、`pnpm smoke:p0-search-ask`、`pnpm smoke:p0-citation-detail`、`pnpm smoke:p0-citation-focus`、`pnpm smoke:p0-citation-annotate-compare`、`pnpm smoke:p0-batch-actions`、`pnpm smoke:p0-feedback-memory`、`pnpm smoke:p0-feedback-diagnostics`、`pnpm smoke:p0-feedback-export`、`pnpm smoke:p0-feedback-filters-history`、`pnpm smoke:p0-z0a`。
+- `pnpm --filter @knowledgebase-dev/renderer build` 通过。
+- `pnpm --filter @knowledgebase-dev/desktop-preload build` 通过。
+- `pnpm --filter @knowledgebase-dev/desktop-main build` 通过。
+- `git diff --check` 通过。
+- in-app browser 检查通过：`/library` 默认中文可见 Source / KU 批量组织控件；`/outputs` 默认中文可见 KU 选择导出控件；`/search`、`/ask` 可达，普通浏览器保持预期 bridge degraded。Citation 批量批注在 Evidence Detail 有数据时显示，已由 API 测试与 `smoke:p0-batch-actions` 覆盖。
+
+### 备注
+
+- D-118 不新增主路由、不新增数据库表，不修改 ranking、confirmed KU、Evidence Pack、AIAnswer、Memory 或 feedback 语义。
+- 批量 Source / KU 组织更新采用替换语义，不提供 merge/add/remove 模式。
+- 批量批注只创建新批注，不做批量编辑、批量删除或审计记录。
+- 选择导出是一次性浏览器下载，不新增长期导出历史；既有 knowledge export history 与 feedback export history 行为保持不变。
+- 本阶段不做真实 LLM、provider-backed RAG、GraphRAG、Text-to-SQL provider、关系推理或设计稿级 UI 优化。
+
 ## 2026-05-17（D-117 Packaged Runtime Static Renderer / Sidecar Artifact Spike Z0b-lite）
 
 ### 已完成

@@ -473,6 +473,72 @@ def create_citation_annotation(
     return _annotation_record(row)
 
 
+def create_citation_annotations_batch(
+    evidence_pack_id: str,
+    evidence_item_ids: List[str],
+    annotation_type: str,
+    content: str,
+) -> Dict[str, Any]:
+    unique_item_ids = list(dict.fromkeys(evidence_item_ids))
+    if not unique_item_ids or len(unique_item_ids) > 20:
+        raise AppError(
+            "validation_error",
+            "Batch citation annotation requires 1-20 evidence item ids.",
+            status_code=422,
+        )
+    trimmed_content = content.strip()
+    if not trimmed_content:
+        raise AppError("validation_error", "Annotation content is required.", status_code=422)
+    timestamp = now_iso()
+    created_rows = []
+    with db() as conn:
+        pack = conn.execute(
+            "SELECT id FROM evidence_packs WHERE id = ?",
+            (evidence_pack_id,),
+        ).fetchone()
+        if not pack:
+            raise AppError(
+                "evidence_pack_not_found",
+                "Evidence Pack was not found.",
+                status_code=404,
+            )
+        for evidence_item_id in unique_item_ids:
+            _load_item_for_pack(conn, evidence_pack_id, evidence_item_id)
+        for evidence_item_id in unique_item_ids:
+            annotation_id = new_id("canno")
+            conn.execute(
+                """
+                INSERT INTO citation_annotations (
+                  id, evidence_pack_id, evidence_item_id, annotation_type,
+                  content, metadata_json, created_at, updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    annotation_id,
+                    evidence_pack_id,
+                    evidence_item_id,
+                    annotation_type,
+                    trimmed_content,
+                    json_dumps({"source": "citation_detail_batch"}),
+                    timestamp,
+                    timestamp,
+                ),
+            )
+            created_rows.append(
+                conn.execute(
+                    "SELECT * FROM citation_annotations WHERE id = ?",
+                    (annotation_id,),
+                ).fetchone()
+            )
+    return {
+        "evidence_pack_id": evidence_pack_id,
+        "requested_item_ids": unique_item_ids,
+        "created_count": len(created_rows),
+        "annotations": [_annotation_record(row) for row in created_rows],
+    }
+
+
 def update_citation_annotation(
     annotation_id: str,
     annotation_type: Optional[str],

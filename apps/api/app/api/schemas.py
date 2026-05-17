@@ -165,6 +165,38 @@ class OrganizationUpdateResponse(BaseModel):
     updated_at: str
 
 
+class SourceOrganizationBatchUpdateRequest(OrganizationUpdateRequest):
+    source_ids: List[str] = Field(min_length=1, max_length=50)
+
+    @model_validator(mode="after")
+    def require_unique_sources(self) -> SourceOrganizationBatchUpdateRequest:
+        if len(set(self.source_ids)) != len(self.source_ids):
+            raise ValueError("source ids must be unique")
+        return self
+
+
+class KnowledgeUnitOrganizationBatchUpdateRequest(OrganizationUpdateRequest):
+    knowledge_unit_ids: List[str] = Field(min_length=1, max_length=50)
+
+    @model_validator(mode="after")
+    def require_unique_knowledge_units(self) -> KnowledgeUnitOrganizationBatchUpdateRequest:
+        if len(set(self.knowledge_unit_ids)) != len(self.knowledge_unit_ids):
+            raise ValueError("knowledge unit ids must be unique")
+        return self
+
+
+class OrganizationBatchUpdateResponse(BaseModel):
+    target_type: str
+    project_id: str
+    requested_ids: List[str]
+    updated_ids: List[str]
+    updated_count: int
+    folder_id: Optional[str]
+    tags: List[TagRecord]
+    synced_knowledge_unit_ids: List[str]
+    updated_at: str
+
+
 class SettingsResponse(BaseModel):
     language: LanguageCode
     persistence: str
@@ -671,6 +703,20 @@ class CitationAnnotationRequest(BaseModel):
     content: str = Field(min_length=1, max_length=2000)
 
 
+class CitationAnnotationBatchRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    evidence_item_ids: List[str] = Field(min_length=1, max_length=20)
+    annotation_type: CitationAnnotationType
+    content: str = Field(min_length=1, max_length=2000)
+
+    @model_validator(mode="after")
+    def require_unique_items(self) -> CitationAnnotationBatchRequest:
+        if len(set(self.evidence_item_ids)) != len(self.evidence_item_ids):
+            raise ValueError("evidence item ids must be unique")
+        return self
+
+
 class CitationAnnotationPatchRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -700,6 +746,13 @@ class CitationAnnotationListResponse(BaseModel):
     annotations: List[CitationAnnotationRecord]
     counts_by_type: Dict[str, int]
     total: int
+
+
+class CitationAnnotationBatchResponse(BaseModel):
+    evidence_pack_id: str
+    requested_item_ids: List[str]
+    created_count: int
+    annotations: List[CitationAnnotationRecord]
 
 
 class CitationCompareRequest(BaseModel):

@@ -1,5 +1,7 @@
 import type {
   CitationAnnotationListResponse,
+  CitationAnnotationBatchRequest,
+  CitationAnnotationBatchResponse,
   CitationAnnotationPatchRequest,
   CitationAnnotationRecord,
   CitationAnnotationRequest,
@@ -64,6 +66,19 @@ export async function createCitationAnnotation(
     method: "POST",
     body: JSON.stringify(payload)
   });
+}
+
+export async function createCitationAnnotationsBatch(
+  evidencePackId: string,
+  payload: CitationAnnotationBatchRequest
+): Promise<CitationAnnotationBatchResponse> {
+  return apiFetch<CitationAnnotationBatchResponse>(
+    `/evidence-packs/${evidencePackId}/annotations:batch`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload)
+    }
+  );
 }
 
 export async function updateCitationAnnotation(

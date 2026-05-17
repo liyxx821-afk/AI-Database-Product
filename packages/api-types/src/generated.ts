@@ -15,6 +15,17 @@ export type ApiSchemas = {
   "metadata": Record<string, unknown>;
   "created_at": string;
 };
+  "CitationAnnotationBatchRequest": {
+  "evidence_item_ids": string[];
+  "annotation_type": "note" | "question" | "risk" | "follow_up";
+  "content": string;
+};
+  "CitationAnnotationBatchResponse": {
+  "evidence_pack_id": string;
+  "requested_item_ids": string[];
+  "created_count": number;
+  "annotations": CitationAnnotationRecord[];
+};
   "CitationAnnotationListResponse": {
   "evidence_pack_id": string;
   "annotations": CitationAnnotationRecord[];
@@ -364,6 +375,11 @@ export type ApiSchemas = {
   "include_sources"?: boolean;
   "include_pending_review"?: boolean;
 };
+  "KnowledgeUnitOrganizationBatchUpdateRequest": {
+  "folder_id"?: string | null;
+  "tag_ids"?: string[];
+  "knowledge_unit_ids": string[];
+};
   "KnowledgeUnitRecord": {
   "id": string;
   "source_id": string;
@@ -399,6 +415,17 @@ export type ApiSchemas = {
   "memory_type": "preference" | "decision" | "style" | "conclusion" | "reusable_context";
   "permission"?: string;
   "project_id"?: string;
+};
+  "OrganizationBatchUpdateResponse": {
+  "target_type": string;
+  "project_id": string;
+  "requested_ids": string[];
+  "updated_ids": string[];
+  "updated_count": number;
+  "folder_id": string | null;
+  "tags": TagRecord[];
+  "synced_knowledge_unit_ids": string[];
+  "updated_at": string;
 };
   "OrganizationUpdateRequest": {
   "folder_id"?: string | null;
@@ -520,6 +547,11 @@ export type ApiSchemas = {
   "chunk_count": number;
   "created_at": string;
   "chunks": ChunkRecord[];
+};
+  "SourceOrganizationBatchUpdateRequest": {
+  "folder_id"?: string | null;
+  "tag_ids"?: string[];
+  "source_ids": string[];
 };
   "SourceRecord": {
   "id": string;
@@ -649,6 +681,19 @@ export type ChunkRecord = {
   "citation_label": string;
   "metadata": Record<string, unknown>;
   "created_at": string;
+};
+
+export type CitationAnnotationBatchRequest = {
+  "evidence_item_ids": string[];
+  "annotation_type": "note" | "question" | "risk" | "follow_up";
+  "content": string;
+};
+
+export type CitationAnnotationBatchResponse = {
+  "evidence_pack_id": string;
+  "requested_item_ids": string[];
+  "created_count": number;
+  "annotations": CitationAnnotationRecord[];
 };
 
 export type CitationAnnotationListResponse = {
@@ -1035,6 +1080,12 @@ export type KnowledgeUnitExportRequest = {
   "include_pending_review"?: boolean;
 };
 
+export type KnowledgeUnitOrganizationBatchUpdateRequest = {
+  "folder_id"?: string | null;
+  "tag_ids"?: string[];
+  "knowledge_unit_ids": string[];
+};
+
 export type KnowledgeUnitRecord = {
   "id": string;
   "source_id": string;
@@ -1072,6 +1123,18 @@ export type MemoryDraftRequest = {
   "memory_type": "preference" | "decision" | "style" | "conclusion" | "reusable_context";
   "permission"?: string;
   "project_id"?: string;
+};
+
+export type OrganizationBatchUpdateResponse = {
+  "target_type": string;
+  "project_id": string;
+  "requested_ids": string[];
+  "updated_ids": string[];
+  "updated_count": number;
+  "folder_id": string | null;
+  "tags": TagRecord[];
+  "synced_knowledge_unit_ids": string[];
+  "updated_at": string;
 };
 
 export type OrganizationUpdateRequest = {
@@ -1210,6 +1273,12 @@ export type SourceDetail = {
   "chunks": ChunkRecord[];
 };
 
+export type SourceOrganizationBatchUpdateRequest = {
+  "folder_id"?: string | null;
+  "tag_ids"?: string[];
+  "source_ids": string[];
+};
+
 export type SourceRecord = {
   "id": string;
   "project_id": string;
@@ -1345,7 +1414,9 @@ export type ApiPath =
   | "/api/folders"
   | "/api/tags"
   | "/api/sources/{source_id}/organization"
+  | "/api/sources/organization:batch"
   | "/api/knowledge-units/{knowledge_unit_id}/organization"
+  | "/api/knowledge-units/organization:batch"
   | "/api/uploads"
   | "/api/uploads/{upload_id}/parts/{part_no}"
   | "/api/uploads/{upload_id}:complete"
@@ -1381,6 +1452,7 @@ export type ApiPath =
   | "/api/retrieval/preview"
   | "/api/evidence-packs/{evidence_pack_id}"
   | "/api/evidence-packs/{evidence_pack_id}/annotations"
+  | "/api/evidence-packs/{evidence_pack_id}/annotations:batch"
   | "/api/citation-annotations/{annotation_id}"
   | "/api/evidence-packs/{evidence_pack_id}/compare"
 ;

@@ -2,7 +2,7 @@
 
 版本：v0.32-draft
 日期：2026-05-17  
-状态：P0 API 实施映射草案——四切片 + P0-Z0a/Z0b 竖切 + 切片前准备层 / 结构化整理检查门 / 知识切片质量闭环 / 安全运维横切层 / 检查门映射单一来源 / 事件枚举单一来源 / ProcessingJob / sensitive grant / evidence-only / 切片执行 profile / AI 结构化整理 profile / D-079 存储映射契约对齐 / D-080 知识调用 profile 与 implicit_agent / D-081-D085 调用边界、profile schema、Z0a 锚点与前端状态契约对齐 / D-092 OpenAPI 类型生成、trace chain 与 migration 波次命名 / D-093 桌面运行时 API 约束 / D-094 P0-Core 工程骨架 API 顺序 / D-098 页面到 API 组映射 / D-105 Citation Detail replay / D-106 Settings language config 持久化 / D-107 Feedback Events 与 Memory Draft Review / D-108 Feedback Diagnostics 只读复盘 / D-110 Feedback Diagnostics Export 脱敏导出 / D-111 Feedback Advanced Filters 与 Export History / D-112 Citation Detail Focus 与 Evidence Trace Interaction / D-113 Citation Annotation 与 Evidence Compare / D-114 OrganizationService 与 Folder-Tag metadata filters / D-115 KnowledgeExportService 与 Project ZIP export / D-116 KnowledgeExportHistory metadata replay
+状态：P0 API 实施映射草案——四切片 + P0-Z0a/Z0b 竖切 + 切片前准备层 / 结构化整理检查门 / 知识切片质量闭环 / 安全运维横切层 / 检查门映射单一来源 / 事件枚举单一来源 / ProcessingJob / sensitive grant / evidence-only / 切片执行 profile / AI 结构化整理 profile / D-079 存储映射契约对齐 / D-080 知识调用 profile 与 implicit_agent / D-081-D085 调用边界、profile schema、Z0a 锚点与前端状态契约对齐 / D-092 OpenAPI 类型生成、trace chain 与 migration 波次命名 / D-093 桌面运行时 API 约束 / D-094 P0-Core 工程骨架 API 顺序 / D-098 页面到 API 组映射 / D-105 Citation Detail replay / D-106 Settings language config 持久化 / D-107 Feedback Events 与 Memory Draft Review / D-108 Feedback Diagnostics 只读复盘 / D-110 Feedback Diagnostics Export 脱敏导出 / D-111 Feedback Advanced Filters 与 Export History / D-112 Citation Detail Focus 与 Evidence Trace Interaction / D-113 Citation Annotation 与 Evidence Compare / D-114 OrganizationService 与 Folder-Tag metadata filters / D-115 KnowledgeExportService 与 Project ZIP export / D-116 KnowledgeExportHistory metadata replay / D-118 Batch Actions
 
 ## 1. 文档目的
 
@@ -31,6 +31,8 @@ D-114 已新增 OrganizationService：Project / Folder / Tag route 统一负责�
 D-115 已新增 `POST /api/exports/knowledge-units` 与 `POST /api/exports/project`：KnowledgeExportService 只读 confirmed KU、Project/Folder/Tag、Source、Chunk 数据，返回 Markdown / JSON / ZIP 下载 envelope；后端不写用户本地路径，不保存长期导出历史，不包含 local token、SQLite path、app data path、完整本地路径或原始二进制文件。Renderer `/outputs` 只通过 typed exports API/store 触发 Blob download。
 
 D-116 已新增 `GET /api/exports/history` 与 `DELETE /api/exports/history/{id}`：KnowledgeExportService 每次成功导出后只向 `config.json.knowledge_export_history` 写入最近 20 条 metadata，包含 export kind、filename、format、record_count、generated_at、filters、summary、content_sha256 和 redaction flags；history 不保存 Markdown / JSON / ZIP 正文，不新增 SQLite 表。
+
+D-118 已新增 batch actions：OrganizationService 支持 Source/KU 批量替换式 folder/tag 绑定；CitationAnnotationService 支持同一 Evidence Pack 内 1-20 个 evidence item 批量创建同内容批注；KnowledgeExportService 继续复用 `knowledge_unit_ids` 做 KU 选择导出，不新增 export endpoint。
 
 目标：
 
@@ -367,7 +369,9 @@ QueryExplanationResponse
 | `POST /api/tags` | `TagService.createTag` | `TagRepository` | 创建 user/custom tag；folder mirror tag 仍由 FolderService 创建或复用 |
 | `GET /api/tags` | `TagService.listTags` | `TagRepository` | 支持 namespace / project filter |
 | `PATCH /api/sources/{source_id}/organization` | `OrganizationService.updateSourceOrganization` | `SourceRepository`, `FolderRepository`, `TagRepository`, `SourceTagRepository`, `KnowledgeUnitTagRepository` | 绑定 Source folder/tags，并同步派生 KU 的 folder mirror 与 source-assignment tags |
+| `PATCH /api/sources/organization:batch` | `OrganizationService.updateSourcesOrganizationBatch` | `SourceRepository`, `FolderRepository`, `TagRepository`, `SourceTagRepository`, `KnowledgeUnitTagRepository` | D-118：批量绑定 1-50 个 Source，复用单条替换语义，并同步派生 KU |
 | `PATCH /api/knowledge-units/{knowledge_unit_id}/organization` | `OrganizationService.updateKnowledgeUnitOrganization` | `KnowledgeUnitRepository`, `FolderRepository`, `TagRepository`, `KnowledgeUnitTagRepository` | 独立调整 KU folder/tags，不修改 Source 原始内容 |
+| `PATCH /api/knowledge-units/organization:batch` | `OrganizationService.updateKnowledgeUnitsOrganizationBatch` | `KnowledgeUnitRepository`, `FolderRepository`, `TagRepository`, `KnowledgeUnitTagRepository` | D-118：批量绑定 1-50 个 KU，只调整 KU 自身 folder/user tags |
 
 事务边界：
 
@@ -615,6 +619,7 @@ commit
 | `POST /api/retrieval/preview` | `RetrievalPreviewService.preview` | `QueryUnderstandingService`, `RetrievalStrategyService`, `TextToSqlTemplateService`, `KnowledgeUnitRepository`, `EmbeddingRepository`, `VectorStoreService`, `ProviderCapabilityService`, `RetrievalLogRepository`, `KnowledgeUnitTagRepository` | 规则 query understanding、strategy route、project/folder/tag filters、keyword/vector/hybrid merge、ranking/citation trace 摘要、检索解释、写 retrieval log |
 | `GET /api/evidence-packs/{evidence_pack_id}` | `EvidencePackService.getDetail` | `EvidencePackRepository`, `EvidenceItemRepository`, `KnowledgeUnitRepository`, `ChunkRepository`, `SourceRepository`, `RetrievalLogRepository`, `CitationAnnotationRepository` | D-113 Z0b-lite 已实现：按 ID 返回 Evidence Pack replay，支持 `focus_item_id`、`detail_summary`、annotation summary、KU/Chunk/Source trace path 和 copy-safe citation payload；非法 focus 返回 `evidence_item_not_in_pack` |
 | `GET/POST /api/evidence-packs/{evidence_pack_id}/annotations` | `CitationAnnotationService` | `EvidencePackRepository`, `EvidenceItemRepository`, `CitationAnnotationRepository` | D-113：列出 / 创建本地 citation 批注；annotation item 必须属于 pack；不写 feedback、不改 ranking |
+| `POST /api/evidence-packs/{evidence_pack_id}/annotations:batch` | `CitationAnnotationService.createBatch` | `EvidencePackRepository`, `EvidenceItemRepository`, `CitationAnnotationRepository` | D-118：同一 pack 内 1-20 个 evidence item 批量创建同内容批注；跨 pack item 返回 `evidence_item_not_in_pack` |
 | `PATCH/DELETE /api/citation-annotations/{annotation_id}` | `CitationAnnotationService` | `CitationAnnotationRepository` | D-113：更新或物理删除批注；只允许 `annotation_type` 和 `content` |
 | `POST /api/evidence-packs/{evidence_pack_id}/compare` | `EvidenceCompareService.compare` | `EvidenceItemRepository`, `KnowledgeUnitRepository`, `ChunkRepository`, `SourceRepository` | D-113：只读对比同一 pack 内 2-3 条 evidence items，返回 differences / copy-safe summary，不持久化 compare |
 | `POST /api/retrieval/evidence-only` | `EvidenceOnlyAnswerService.answer` | `RetrievalPreviewService`, `AIAnswerRepository` | D-104 Z0a 已实现，D-114 扩展 project/folder/tag filters：复用 retrieval preview / evidence assembly，不调用 LLM；无证据只返回 no evidence reason，不生成伪答案 |
@@ -756,7 +761,8 @@ commit
 
 - Knowledge export 是本地知识资产下载能力，不是备份/还原、云同步、系统级诊断包或 Obsidian 双向同步。
 - 导出允许包含用户选择的 KU 内容和可选 chunk/source 摘要，但必须脱敏 token、SQLite path、app data path 与完整本地路径；`source_path` 只能保留 basename 或置空。
-- D-115 / D-116 不新增 SQLite 表，不复用 feedback export history，也不让 `pending_review` 默认进入导出。
+- D-115 / D-116 / D-118 不新增 SQLite 表，不复用 feedback export history，也不让 `pending_review` 默认进入导出。
+- D-118 KU 选择导出只复用 `knowledge_unit_ids`；空数组表示按当前 filters 导出，不新增长期导出文件或历史规则。
 - Knowledge Export History 只持久化 `config.json` 中的脱敏 metadata、filters、summary 和 `content_sha256`；不得保存 export `content` / `content_base64`。
 
 约束：

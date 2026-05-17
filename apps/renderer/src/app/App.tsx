@@ -30,6 +30,8 @@ import {
 } from "lucide-react";
 import type {
   CitationAnnotationListResponse,
+  CitationAnnotationBatchRequest,
+  CitationAnnotationBatchResponse,
   CitationAnnotationPatchRequest,
   CitationAnnotationRecord,
   CitationAnnotationRequest,
@@ -539,8 +541,24 @@ function LibraryPage() {
           await organization.updateSourceOrganization(sourceId, { folder_id: folderId, tag_ids: tagIds });
           await refreshOrganizationBoundData();
         }}
+        onUpdateSourcesBatch={async (sourceIds, folderId, tagIds) => {
+          await organization.updateSourcesOrganizationBatch({
+            source_ids: sourceIds,
+            folder_id: folderId,
+            tag_ids: tagIds
+          });
+          await refreshOrganizationBoundData();
+        }}
         onUpdateKnowledgeUnit={async (knowledgeUnitId, folderId, tagIds) => {
           await organization.updateKnowledgeUnitOrganization(knowledgeUnitId, {
+            folder_id: folderId,
+            tag_ids: tagIds
+          });
+          await refreshOrganizationBoundData();
+        }}
+        onUpdateKnowledgeUnitsBatch={async (knowledgeUnitIds, folderId, tagIds) => {
+          await organization.updateKnowledgeUnitsOrganizationBatch({
+            knowledge_unit_ids: knowledgeUnitIds,
             folder_id: folderId,
             tag_ids: tagIds
           });
@@ -731,6 +749,7 @@ function SearchPage() {
           retrieval.detail?.id && retrieval.loadDetail(retrieval.detail.id, evidenceItemId)
         }
         onCreateAnnotation={retrieval.createAnnotation}
+        onCreateAnnotationsBatch={retrieval.createAnnotationsBatch}
         onUpdateAnnotation={retrieval.updateAnnotation}
         onDeleteAnnotation={retrieval.deleteAnnotation}
         onCompareItems={retrieval.compareItems}
@@ -1077,6 +1096,7 @@ function AskPage() {
           retrieval.detail?.id && retrieval.loadDetail(retrieval.detail.id, evidenceItemId)
         }
         onCreateAnnotation={retrieval.createAnnotation}
+        onCreateAnnotationsBatch={retrieval.createAnnotationsBatch}
         onUpdateAnnotation={retrieval.updateAnnotation}
         onDeleteAnnotation={retrieval.deleteAnnotation}
         onCompareItems={retrieval.compareItems}
@@ -1119,6 +1139,9 @@ function OutputsPage() {
   const [includeChunks, setIncludeChunks] = useState(false);
   const [includeSources, setIncludeSources] = useState(false);
   const [includePendingReview, setIncludePendingReview] = useState(false);
+  const [selectedExportKnowledgeUnitIds, setSelectedExportKnowledgeUnitIds] = useState<string[]>(
+    []
+  );
 
   useEffect(() => {
     feedbackMemory.refreshMemories();
@@ -1170,7 +1193,7 @@ function OutputsPage() {
       project_id: projectId,
       folder_id: organization.selectedFolderId,
       tag_ids: organization.selectedTagIds,
-      knowledge_unit_ids: [],
+      knowledge_unit_ids: selectedExportKnowledgeUnitIds,
       include_chunks: includeChunks,
       include_sources: includeSources,
       include_pending_review: includePendingReview
@@ -1191,6 +1214,7 @@ function OutputsPage() {
     organization.setSelectedProject(projectId);
     organization.setSelectedFolder(record.export_kind === "project" ? null : folderId);
     organization.setSelectedTagIds(record.export_kind === "project" ? [] : tagIds);
+    setSelectedExportKnowledgeUnitIds([]);
     setKnowledgeExportKind(record.export_kind);
     if (record.format === "markdown" || record.format === "json") {
       setKnowledgeExportFormat(record.format);
@@ -1258,6 +1282,7 @@ function OutputsPage() {
         includeChunks={includeChunks}
         includeSources={includeSources}
         includePendingReview={includePendingReview}
+        selectedKnowledgeUnitIds={selectedExportKnowledgeUnitIds}
         exportState={knowledgeExport.state}
         exportErrorCode={knowledgeExport.errorCode}
         lastExport={knowledgeExport.lastExport}
@@ -1274,6 +1299,7 @@ function OutputsPage() {
         onIncludeChunksChange={setIncludeChunks}
         onIncludeSourcesChange={setIncludeSources}
         onIncludePendingReviewChange={setIncludePendingReview}
+        onSelectedKnowledgeUnitIdsChange={setSelectedExportKnowledgeUnitIds}
         onExport={exportKnowledgeAssets}
         onRefreshHistory={knowledgeExport.refreshHistory}
         onDeleteHistory={knowledgeExport.deleteHistory}
@@ -1365,6 +1391,7 @@ function KnowledgeExportPanel({
   includeChunks,
   includeSources,
   includePendingReview,
+  selectedKnowledgeUnitIds,
   exportState,
   exportErrorCode,
   lastExport,
@@ -1381,6 +1408,7 @@ function KnowledgeExportPanel({
   onIncludeChunksChange,
   onIncludeSourcesChange,
   onIncludePendingReviewChange,
+  onSelectedKnowledgeUnitIdsChange,
   onExport,
   onRefreshHistory,
   onDeleteHistory,
@@ -1399,6 +1427,7 @@ function KnowledgeExportPanel({
   includeChunks: boolean;
   includeSources: boolean;
   includePendingReview: boolean;
+  selectedKnowledgeUnitIds: string[];
   exportState: "loading" | "empty" | "degraded" | "recoverable_error" | "done";
   exportErrorCode?: string;
   lastExport?: KnowledgeExportResponse;
@@ -1415,12 +1444,53 @@ function KnowledgeExportPanel({
   onIncludeChunksChange: (value: boolean) => void;
   onIncludeSourcesChange: (value: boolean) => void;
   onIncludePendingReviewChange: (value: boolean) => void;
+  onSelectedKnowledgeUnitIdsChange: (knowledgeUnitIds: string[]) => void;
   onExport: () => Promise<void>;
   onRefreshHistory: () => Promise<void>;
   onDeleteHistory: (historyId: string) => Promise<void>;
   onApplyHistory: (record: KnowledgeExportHistoryRecord) => void;
 }) {
   const t = useT();
+  const [exportKnowledgeUnits, setExportKnowledgeUnits] = useState<KnowledgeUnitRecord[]>([]);
+
+  useEffect(() => {
+    if (!hasBridge() || exportKind !== "knowledge_units") {
+      setExportKnowledgeUnits([]);
+      return;
+    }
+    listKnowledgeUnits(includePendingReview ? undefined : "confirmed", {
+      projectId: selectedProjectId,
+      folderId: selectedFolderId,
+      tagIds: selectedTagIds
+    })
+      .then((records) => {
+        setExportKnowledgeUnits(records);
+        const validIds = new Set(records.map((record) => record.id));
+        onSelectedKnowledgeUnitIdsChange(
+          selectedKnowledgeUnitIds.filter((knowledgeUnitId) => validIds.has(knowledgeUnitId))
+        );
+      })
+      .catch(() => setExportKnowledgeUnits([]));
+  }, [
+    exportKind,
+    includePendingReview,
+    selectedProjectId,
+    selectedFolderId,
+    selectedTagIds.join("|")
+  ]);
+
+  function toggleSelectedKnowledgeUnit(knowledgeUnitId: string) {
+    onSelectedKnowledgeUnitIdsChange(
+      selectedKnowledgeUnitIds.includes(knowledgeUnitId)
+        ? selectedKnowledgeUnitIds.filter((id) => id !== knowledgeUnitId)
+        : [...selectedKnowledgeUnitIds, knowledgeUnitId]
+    );
+  }
+
+  function selectAllKnowledgeUnits() {
+    onSelectedKnowledgeUnitIdsChange(exportKnowledgeUnits.map((knowledgeUnit) => knowledgeUnit.id));
+  }
+
   return (
     <section className="page-frame">
       <div className="section-title-row">
@@ -1513,6 +1583,55 @@ function KnowledgeExportPanel({
           <span>{t("knowledgeExport.includePending")}</span>
         </label>
       </div>
+      {exportKind === "knowledge_units" ? (
+        <section className="focused-citation">
+          <div className="section-title-row compact-title-row">
+            <h3>{t("knowledgeExport.selectKnowledgeUnits")}</h3>
+            <StatusPill
+              label={t("knowledgeExport.selected")}
+              value={`${selectedKnowledgeUnitIds.length}/${exportKnowledgeUnits.length}`}
+            />
+          </div>
+          <div className="inline-actions">
+            <button className="icon-command" type="button" onClick={selectAllKnowledgeUnits}>
+              <CheckCircle aria-hidden="true" size={16} />
+              <span>{t("knowledgeExport.selectAll")}</span>
+            </button>
+            <button
+              className="icon-command"
+              type="button"
+              onClick={() => onSelectedKnowledgeUnitIdsChange([])}
+            >
+              <XCircle aria-hidden="true" size={16} />
+              <span>{t("knowledgeExport.clearSelection")}</span>
+            </button>
+          </div>
+          <div className="file-table compact-table">
+            {exportKnowledgeUnits.length ? (
+              exportKnowledgeUnits.map((knowledgeUnit) => (
+                <div className="review-row" key={knowledgeUnit.id}>
+                  <label className="compare-check">
+                    <input
+                      type="checkbox"
+                      checked={selectedKnowledgeUnitIds.includes(knowledgeUnit.id)}
+                      onChange={() => toggleSelectedKnowledgeUnit(knowledgeUnit.id)}
+                    />
+                    <span>{knowledgeUnit.title}</span>
+                  </label>
+                  <StatusPill label="status" value={knowledgeUnit.status} />
+                  <StatusPill label="type" value={knowledgeUnit.type} />
+                  <div className="row-note evidence-excerpt">
+                    <FileText aria-hidden="true" size={15} />
+                    <span>{knowledgeUnit.id}</span>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <EmptyState message={t("knowledgeExport.noSelectableUnits")} />
+            )}
+          </div>
+        </section>
+      ) : null}
       {organizationErrorCode || exportErrorCode ? (
         <div className="row-note">
           <AlertCircle aria-hidden="true" size={15} />
@@ -2074,7 +2193,9 @@ function OrganizationPanel({
   onCreateFolder,
   onCreateTag,
   onUpdateSource,
-  onUpdateKnowledgeUnit
+  onUpdateSourcesBatch,
+  onUpdateKnowledgeUnit,
+  onUpdateKnowledgeUnitsBatch
 }: {
   projects: ProjectRecord[];
   folders: FolderRecord[];
@@ -2094,8 +2215,18 @@ function OrganizationPanel({
   onCreateFolder: (name: string) => Promise<void>;
   onCreateTag: (name: string) => Promise<void>;
   onUpdateSource: (sourceId: string, folderId: string | null, tagIds: string[]) => Promise<void>;
+  onUpdateSourcesBatch: (
+    sourceIds: string[],
+    folderId: string | null,
+    tagIds: string[]
+  ) => Promise<void>;
   onUpdateKnowledgeUnit: (
     knowledgeUnitId: string,
+    folderId: string | null,
+    tagIds: string[]
+  ) => Promise<void>;
+  onUpdateKnowledgeUnitsBatch: (
+    knowledgeUnitIds: string[],
     folderId: string | null,
     tagIds: string[]
   ) => Promise<void>;
@@ -2104,8 +2235,8 @@ function OrganizationPanel({
   const [projectName, setProjectName] = useState("");
   const [folderName, setFolderName] = useState("");
   const [tagName, setTagName] = useState("");
-  const [selectedSourceId, setSelectedSourceId] = useState("");
-  const [selectedKnowledgeUnitId, setSelectedKnowledgeUnitId] = useState("");
+  const [selectedSourceIds, setSelectedSourceIds] = useState<string[]>([]);
+  const [selectedKnowledgeUnitIds, setSelectedKnowledgeUnitIds] = useState<string[]>([]);
   const [knowledgeUnits, setKnowledgeUnits] = useState<KnowledgeUnitRecord[]>([]);
 
   useEffect(() => {
@@ -2120,6 +2251,40 @@ function OrganizationPanel({
 
   const currentFolderId = selectedFolderId || null;
 
+  useEffect(() => {
+    const visibleSourceIds = new Set(sources.map((source) => source.id));
+    setSelectedSourceIds((current) => current.filter((sourceId) => visibleSourceIds.has(sourceId)));
+  }, [sources]);
+
+  useEffect(() => {
+    const visibleKnowledgeUnitIds = new Set(
+      knowledgeUnits.map((knowledgeUnit) => knowledgeUnit.id)
+    );
+    setSelectedKnowledgeUnitIds((current) =>
+      current.filter((knowledgeUnitId) => visibleKnowledgeUnitIds.has(knowledgeUnitId))
+    );
+  }, [knowledgeUnits]);
+
+  function toggleSourceSelection(sourceId: string) {
+    setSelectedSourceIds((current) =>
+      current.includes(sourceId)
+        ? current.filter((id) => id !== sourceId)
+        : current.length >= 50
+          ? current
+          : [...current, sourceId]
+    );
+  }
+
+  function toggleKnowledgeUnitSelection(knowledgeUnitId: string) {
+    setSelectedKnowledgeUnitIds((current) =>
+      current.includes(knowledgeUnitId)
+        ? current.filter((id) => id !== knowledgeUnitId)
+        : current.length >= 50
+          ? current
+          : [...current, knowledgeUnitId]
+    );
+  }
+
   async function createNamed(kind: "project" | "folder" | "tag") {
     if (kind === "project" && projectName.trim()) {
       await onCreateProject(projectName.trim());
@@ -2133,6 +2298,26 @@ function OrganizationPanel({
       await onCreateTag(tagName.trim());
       setTagName("");
     }
+  }
+
+  async function applySourceBatch() {
+    if (!selectedSourceIds.length) return;
+    if (selectedSourceIds.length === 1) {
+      await onUpdateSource(selectedSourceIds[0], currentFolderId, selectedTagIds);
+    } else {
+      await onUpdateSourcesBatch(selectedSourceIds, currentFolderId, selectedTagIds);
+    }
+    setSelectedSourceIds([]);
+  }
+
+  async function applyKnowledgeUnitBatch() {
+    if (!selectedKnowledgeUnitIds.length) return;
+    if (selectedKnowledgeUnitIds.length === 1) {
+      await onUpdateKnowledgeUnit(selectedKnowledgeUnitIds[0], currentFolderId, selectedTagIds);
+    } else {
+      await onUpdateKnowledgeUnitsBatch(selectedKnowledgeUnitIds, currentFolderId, selectedTagIds);
+    }
+    setSelectedKnowledgeUnitIds([]);
   }
 
   return (
@@ -2202,56 +2387,72 @@ function OrganizationPanel({
         </label>
       </div>
       <div className="organization-grid">
-        <label className="memory-label">
+        <div className="memory-label">
           <span>{t("organization.bindSource")}</span>
-          <select
-            className="settings-select"
-            value={selectedSourceId}
-            onChange={(event) => setSelectedSourceId(event.target.value)}
-          >
-            <option value="">{t("organization.selectSource")}</option>
-            {sources.map((source) => (
-              <option key={source.id} value={source.id}>
-                {source.title}
-              </option>
-            ))}
-          </select>
+          <div className="file-table compact-table batch-selection-list">
+            {sources.length ? (
+              sources.map((source) => (
+                <label className="compare-check" key={source.id}>
+                  <input
+                    type="checkbox"
+                    checked={selectedSourceIds.includes(source.id)}
+                    disabled={!selectedSourceIds.includes(source.id) && selectedSourceIds.length >= 50}
+                    onChange={() => toggleSourceSelection(source.id)}
+                  />
+                  <span>{source.title}</span>
+                </label>
+              ))
+            ) : (
+              <EmptyState message={t("sources.noSources")} />
+            )}
+          </div>
           <button
             className="icon-command"
             type="button"
-            disabled={!selectedSourceId}
-            onClick={() => onUpdateSource(selectedSourceId, currentFolderId, selectedTagIds)}
+            disabled={!selectedSourceIds.length || state === "loading"}
+            onClick={applySourceBatch}
           >
             <FileCheck aria-hidden="true" size={16} />
-            <span>{t("organization.applyBinding")}</span>
+            <span>{t("organization.applyBatchBinding")}</span>
           </button>
-        </label>
-        <label className="memory-label">
+          <StatusPill label={t("organization.selected")} value={`${selectedSourceIds.length}/50`} />
+        </div>
+        <div className="memory-label">
           <span>{t("organization.bindKnowledgeUnit")}</span>
-          <select
-            className="settings-select"
-            value={selectedKnowledgeUnitId}
-            onChange={(event) => setSelectedKnowledgeUnitId(event.target.value)}
-          >
-            <option value="">{t("organization.selectKnowledgeUnit")}</option>
-            {knowledgeUnits.map((knowledgeUnit) => (
-              <option key={knowledgeUnit.id} value={knowledgeUnit.id}>
-                {knowledgeUnit.title}
-              </option>
-            ))}
-          </select>
+          <div className="file-table compact-table batch-selection-list">
+            {knowledgeUnits.length ? (
+              knowledgeUnits.map((knowledgeUnit) => (
+                <label className="compare-check" key={knowledgeUnit.id}>
+                  <input
+                    type="checkbox"
+                    checked={selectedKnowledgeUnitIds.includes(knowledgeUnit.id)}
+                    disabled={
+                      !selectedKnowledgeUnitIds.includes(knowledgeUnit.id) &&
+                      selectedKnowledgeUnitIds.length >= 50
+                    }
+                    onChange={() => toggleKnowledgeUnitSelection(knowledgeUnit.id)}
+                  />
+                  <span>{knowledgeUnit.title}</span>
+                </label>
+              ))
+            ) : (
+              <EmptyState message={t("organization.noKnowledgeUnits")} />
+            )}
+          </div>
           <button
             className="icon-command"
             type="button"
-            disabled={!selectedKnowledgeUnitId}
-            onClick={() =>
-              onUpdateKnowledgeUnit(selectedKnowledgeUnitId, currentFolderId, selectedTagIds)
-            }
+            disabled={!selectedKnowledgeUnitIds.length || state === "loading"}
+            onClick={applyKnowledgeUnitBatch}
           >
             <FileCheck aria-hidden="true" size={16} />
-            <span>{t("organization.applyBinding")}</span>
+            <span>{t("organization.applyBatchBinding")}</span>
           </button>
-        </label>
+          <StatusPill
+            label={t("organization.selected")}
+            value={`${selectedKnowledgeUnitIds.length}/50`}
+          />
+        </div>
       </div>
       {errorCode ? (
         <div className="row-note">
@@ -2523,6 +2724,7 @@ function CitationDetailPanel({
   focusedEvidenceItemId,
   onFocusItem,
   onCreateAnnotation,
+  onCreateAnnotationsBatch,
   onUpdateAnnotation,
   onDeleteAnnotation,
   onCompareItems,
@@ -2543,6 +2745,10 @@ function CitationDetailPanel({
     evidencePackId: string,
     payload: CitationAnnotationRequest
   ) => Promise<CitationAnnotationRecord | undefined>;
+  onCreateAnnotationsBatch?: (
+    evidencePackId: string,
+    payload: CitationAnnotationBatchRequest
+  ) => Promise<CitationAnnotationBatchResponse | undefined>;
   onUpdateAnnotation?: (
     annotationId: string,
     payload: CitationAnnotationPatchRequest
@@ -2560,6 +2766,7 @@ function CitationDetailPanel({
   const [annotationContent, setAnnotationContent] = useState("");
   const [editingAnnotationId, setEditingAnnotationId] = useState<string>();
   const [compareSelection, setCompareSelection] = useState<string[]>([]);
+  const [batchAnnotationSelection, setBatchAnnotationSelection] = useState<string[]>([]);
   const explanation = detail?.query_explanation ?? {};
   const visibleItems = useMemo(() => {
     const needle = filter.trim().toLowerCase();
@@ -2638,6 +2845,7 @@ function CitationDetailPanel({
 
   useEffect(() => {
     setCompareSelection([]);
+    setBatchAnnotationSelection([]);
     onClearComparison?.();
   }, [detail?.id]);
 
@@ -2681,6 +2889,31 @@ function CitationDetailPanel({
       setAnnotationContent("");
       setAnnotationType("note");
     }
+  }
+
+  async function submitBatchAnnotation() {
+    if (!detail || !batchAnnotationSelection.length || !annotationContent.trim()) return;
+    const saved = await onCreateAnnotationsBatch?.(detail.id, {
+      evidence_item_ids: batchAnnotationSelection,
+      annotation_type: annotationType,
+      content: annotationContent.trim()
+    });
+    if (saved) {
+      setBatchAnnotationSelection([]);
+      setEditingAnnotationId(undefined);
+      setAnnotationContent("");
+      setAnnotationType("note");
+    }
+  }
+
+  function toggleBatchAnnotationSelection(evidenceItemId: string) {
+    setBatchAnnotationSelection((current) => {
+      if (current.includes(evidenceItemId)) {
+        return current.filter((id) => id !== evidenceItemId);
+      }
+      if (current.length >= 20) return current;
+      return [...current, evidenceItemId];
+    });
   }
 
   function toggleCompareSelection(evidenceItemId: string) {
@@ -2916,6 +3149,24 @@ function CitationDetailPanel({
                           : t("citation.saveAnnotation")}
                       </span>
                     </button>
+                    <button
+                      className="icon-command"
+                      type="button"
+                      disabled={
+                        !annotationContent.trim() ||
+                        !batchAnnotationSelection.length ||
+                        Boolean(editingAnnotationId) ||
+                        annotationState === "loading"
+                      }
+                      onClick={submitBatchAnnotation}
+                    >
+                      <Save aria-hidden="true" size={16} />
+                      <span>{t("citation.saveBatchAnnotation")}</span>
+                    </button>
+                    <StatusPill
+                      label={t("citation.batchSelected")}
+                      value={`${batchAnnotationSelection.length}/20`}
+                    />
                     {editingAnnotationId ? (
                       <button
                         className="icon-command"
@@ -3067,6 +3318,18 @@ function CitationDetailPanel({
                       onChange={() => toggleCompareSelection(item.id)}
                     />
                     <span>{t("citation.compareSelect")}</span>
+                  </label>
+                  <label className="compare-check">
+                    <input
+                      type="checkbox"
+                      checked={batchAnnotationSelection.includes(item.id)}
+                      disabled={
+                        !batchAnnotationSelection.includes(item.id) &&
+                        batchAnnotationSelection.length >= 20
+                      }
+                      onChange={() => toggleBatchAnnotationSelection(item.id)}
+                    />
+                    <span>{t("citation.batchAnnotateSelect")}</span>
                   </label>
                   <StatusPill label="source" value={item.source_origin ?? "unknown"} />
                   <StatusPill label="score" value={item.rank_score.toFixed(2)} />
