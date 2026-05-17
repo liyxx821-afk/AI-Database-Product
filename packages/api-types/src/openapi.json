@@ -756,14 +756,14 @@
         "summary": "Submit Feedback Route",
         "operationId": "submit_feedback_route_api_feedback_post",
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/FeedbackRequest"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
@@ -782,6 +782,155 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "summary": "List Feedback Events Route",
+        "operationId": "list_feedback_events_route_api_feedback_get",
+        "parameters": [
+          {
+            "name": "feedback_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "click",
+                    "useful",
+                    "not_useful",
+                    "favorite",
+                    "bad_citation",
+                    "missing_source",
+                    "downrank_source"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Feedback Type"
+            }
+          },
+          {
+            "name": "target_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Target Type"
+            }
+          },
+          {
+            "name": "evidence_pack_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Evidence Pack Id"
+            }
+          },
+          {
+            "name": "ai_answer_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ai Answer Id"
+            }
+          },
+          {
+            "name": "evidence_item_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Evidence Item Id"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 50,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/FeedbackEventRecord"
+                  },
+                  "title": "Response List Feedback Events Route Api Feedback Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/feedback/summary": {
+      "get": {
+        "summary": "Feedback Summary Route",
+        "operationId": "feedback_summary_route_api_feedback_summary_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeedbackDiagnosticsSummary"
                 }
               }
             }
@@ -1751,6 +1900,182 @@
           "created_at"
         ],
         "title": "EvidencePackDetail"
+      },
+      "FeedbackDiagnosticsSummary": {
+        "properties": {
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "by_type": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "By Type"
+          },
+          "by_target_type": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "By Target Type"
+          },
+          "positive_count": {
+            "type": "integer",
+            "title": "Positive Count"
+          },
+          "negative_count": {
+            "type": "integer",
+            "title": "Negative Count"
+          },
+          "last_event_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Event At"
+          },
+          "feedback_policy": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Feedback Policy"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total",
+          "by_type",
+          "by_target_type",
+          "positive_count",
+          "negative_count",
+          "last_event_at",
+          "feedback_policy"
+        ],
+        "title": "FeedbackDiagnosticsSummary"
+      },
+      "FeedbackEventRecord": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "feedback_type": {
+            "type": "string",
+            "enum": [
+              "click",
+              "useful",
+              "not_useful",
+              "favorite",
+              "bad_citation",
+              "missing_source",
+              "downrank_source"
+            ],
+            "title": "Feedback Type"
+          },
+          "target_type": {
+            "type": "string",
+            "title": "Target Type"
+          },
+          "target_id": {
+            "type": "string",
+            "title": "Target Id"
+          },
+          "evidence_pack_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence Pack Id"
+          },
+          "ai_answer_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ai Answer Id"
+          },
+          "evidence_item_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence Item Id"
+          },
+          "comment": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Comment"
+          },
+          "ranking_effect": {
+            "type": "string",
+            "title": "Ranking Effect"
+          },
+          "query": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Query"
+          },
+          "citation_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Citation Label"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "feedback_type",
+          "target_type",
+          "target_id",
+          "evidence_pack_id",
+          "ai_answer_id",
+          "evidence_item_id",
+          "comment",
+          "ranking_effect",
+          "query",
+          "citation_label",
+          "created_at"
+        ],
+        "title": "FeedbackEventRecord"
       },
       "FeedbackRequest": {
         "properties": {

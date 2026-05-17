@@ -169,6 +169,12 @@ button {
   line-height: 1;
 }
 
+.metric .metric-compact {
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
 .section-title-row {
   display: flex;
   align-items: center;

@@ -80,6 +80,29 @@ export type ApiSchemas = {
   "items": EvidenceItemRecord[];
   "created_at": string;
 };
+  "FeedbackDiagnosticsSummary": {
+  "total": number;
+  "by_type": Record<string, unknown>;
+  "by_target_type": Record<string, unknown>;
+  "positive_count": number;
+  "negative_count": number;
+  "last_event_at": string | null;
+  "feedback_policy": Record<string, unknown>;
+};
+  "FeedbackEventRecord": {
+  "id": string;
+  "feedback_type": "click" | "useful" | "not_useful" | "favorite" | "bad_citation" | "missing_source" | "downrank_source";
+  "target_type": string;
+  "target_id": string;
+  "evidence_pack_id": string | null;
+  "ai_answer_id": string | null;
+  "evidence_item_id": string | null;
+  "comment": string | null;
+  "ranking_effect": string;
+  "query": string | null;
+  "citation_label": string | null;
+  "created_at": string;
+};
   "FeedbackRequest": {
   "feedback_type": "click" | "useful" | "not_useful" | "favorite" | "bad_citation" | "missing_source" | "downrank_source";
   "evidence_pack_id"?: string | null;
@@ -489,6 +512,31 @@ export type EvidencePackDetail = {
   "created_at": string;
 };
 
+export type FeedbackDiagnosticsSummary = {
+  "total": number;
+  "by_type": Record<string, unknown>;
+  "by_target_type": Record<string, unknown>;
+  "positive_count": number;
+  "negative_count": number;
+  "last_event_at": string | null;
+  "feedback_policy": Record<string, unknown>;
+};
+
+export type FeedbackEventRecord = {
+  "id": string;
+  "feedback_type": "click" | "useful" | "not_useful" | "favorite" | "bad_citation" | "missing_source" | "downrank_source";
+  "target_type": string;
+  "target_id": string;
+  "evidence_pack_id": string | null;
+  "ai_answer_id": string | null;
+  "evidence_item_id": string | null;
+  "comment": string | null;
+  "ranking_effect": string;
+  "query": string | null;
+  "citation_label": string | null;
+  "created_at": string;
+};
+
 export type FeedbackRequest = {
   "feedback_type": "click" | "useful" | "not_useful" | "favorite" | "bad_citation" | "missing_source" | "downrank_source";
   "evidence_pack_id"?: string | null;
@@ -866,6 +914,7 @@ export type ApiPath =
   | "/api/knowledge-units"
   | "/api/knowledge-units/{knowledge_unit_id}"
   | "/api/feedback"
+  | "/api/feedback/summary"
   | "/api/memory-drafts"
   | "/api/memory-drafts/{memory_id}"
   | "/api/text-imports"

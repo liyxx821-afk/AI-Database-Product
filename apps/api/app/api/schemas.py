@@ -351,6 +351,31 @@ class FeedbackResponse(BaseModel):
     created_at: str
 
 
+class FeedbackEventRecord(BaseModel):
+    id: str
+    feedback_type: FeedbackType
+    target_type: str
+    target_id: str
+    evidence_pack_id: Optional[str]
+    ai_answer_id: Optional[str]
+    evidence_item_id: Optional[str]
+    comment: Optional[str]
+    ranking_effect: str
+    query: Optional[str]
+    citation_label: Optional[str]
+    created_at: str
+
+
+class FeedbackDiagnosticsSummary(BaseModel):
+    total: int
+    by_type: Dict[str, int]
+    by_target_type: Dict[str, int]
+    positive_count: int
+    negative_count: int
+    last_event_at: Optional[str]
+    feedback_policy: Dict[str, Any]
+
+
 class MemoryDraftRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

@@ -26,6 +26,8 @@ import {
 import type {
   EvidenceItemRecord,
   EvidencePackDetail,
+  FeedbackDiagnosticsSummary,
+  FeedbackEventRecord,
   FeedbackRequest,
   FileRecord,
   MemoryDraftRecord,
@@ -71,6 +73,9 @@ type UploadQueueItem = {
   uploadId?: string;
   fileId?: string | null;
 };
+
+type FeedbackFilterValue = FeedbackRequest["feedback_type"] | "all";
+type FeedbackTargetFilterValue = "evidence_pack" | "ai_answer" | "evidence_item" | "all";
 
 const routes: RouteConfig[] = [
   { path: "/dashboard", labelKey: "route.dashboard", icon: Gauge, summaryKey: "route.dashboard.summary" },
@@ -857,10 +862,20 @@ function AskPage() {
 function OutputsPage() {
   const t = useT();
   const feedbackMemory = useFeedbackMemoryStore();
+  const [feedbackTypeFilter, setFeedbackTypeFilter] = useState<FeedbackFilterValue>("all");
+  const [targetTypeFilter, setTargetTypeFilter] = useState<FeedbackTargetFilterValue>("all");
 
   useEffect(() => {
     feedbackMemory.refreshMemories();
+    feedbackMemory.refreshFeedbackDiagnostics();
   }, []);
+
+  async function refreshDiagnostics() {
+    await feedbackMemory.refreshFeedbackDiagnostics({
+      feedback_type: feedbackTypeFilter === "all" ? undefined : feedbackTypeFilter,
+      target_type: targetTypeFilter === "all" ? undefined : targetTypeFilter
+    });
+  }
 
   return (
     <section className="page-grid">
@@ -894,6 +909,17 @@ function OutputsPage() {
         ) : null}
         <MemoryDraftList memories={feedbackMemory.memories} state={feedbackMemory.memoryState} />
       </section>
+      <FeedbackDiagnosticsPanel
+        events={feedbackMemory.feedbackEvents}
+        summary={feedbackMemory.feedbackSummary}
+        state={feedbackMemory.diagnosticsState}
+        errorCode={feedbackMemory.diagnosticsErrorCode}
+        feedbackTypeFilter={feedbackTypeFilter}
+        targetTypeFilter={targetTypeFilter}
+        onFeedbackTypeChange={setFeedbackTypeFilter}
+        onTargetTypeChange={setTargetTypeFilter}
+        onRefresh={refreshDiagnostics}
+      />
     </section>
   );
 }
@@ -927,6 +953,154 @@ function MemoryDraftList({
         <EmptyState message={state === "degraded" ? t("empty.bridgeUnavailable") : t("memory.noDrafts")} />
       )}
     </div>
+  );
+}
+
+function FeedbackDiagnosticsPanel({
+  events,
+  summary,
+  state,
+  errorCode,
+  feedbackTypeFilter,
+  targetTypeFilter,
+  onFeedbackTypeChange,
+  onTargetTypeChange,
+  onRefresh
+}: {
+  events: FeedbackEventRecord[];
+  summary?: FeedbackDiagnosticsSummary;
+  state: "loading" | "empty" | "degraded" | "recoverable_error" | "done";
+  errorCode?: string;
+  feedbackTypeFilter: FeedbackFilterValue;
+  targetTypeFilter: FeedbackTargetFilterValue;
+  onFeedbackTypeChange: (value: FeedbackFilterValue) => void;
+  onTargetTypeChange: (value: FeedbackTargetFilterValue) => void;
+  onRefresh: () => Promise<void>;
+}) {
+  const t = useT();
+  const feedbackTypes: FeedbackFilterValue[] = [
+    "all",
+    "click",
+    "useful",
+    "not_useful",
+    "favorite",
+    "bad_citation",
+    "missing_source",
+    "downrank_source"
+  ];
+  const targetTypes: FeedbackTargetFilterValue[] = [
+    "all",
+    "evidence_pack",
+    "ai_answer",
+    "evidence_item"
+  ];
+  return (
+    <section className="page-frame">
+      <div className="section-title-row">
+        <h2>{t("feedback.diagnostics")}</h2>
+        <div className="inline-actions">
+          <span className={`state-chip state-${state}`}>{state}</span>
+          <button className="icon-command" type="button" onClick={onRefresh}>
+            <RefreshCw aria-hidden="true" size={16} />
+            <span>{t("action.refresh")}</span>
+          </button>
+        </div>
+      </div>
+      <p className="section-note">{t("feedback.diagnosticsBody")}</p>
+      <div className="settings-row">
+        <label className="memory-label">
+          <span>{t("feedback.filterType")}</span>
+          <select
+            className="settings-select"
+            value={feedbackTypeFilter}
+            onChange={(event) => onFeedbackTypeChange(event.target.value as FeedbackFilterValue)}
+          >
+            {feedbackTypes.map((feedbackType) => (
+              <option key={feedbackType} value={feedbackType}>
+                {feedbackType === "all" ? t("feedback.allTypes") : feedbackType}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="memory-label">
+          <span>{t("feedback.filterTarget")}</span>
+          <select
+            className="settings-select"
+            value={targetTypeFilter}
+            onChange={(event) => onTargetTypeChange(event.target.value as FeedbackTargetFilterValue)}
+          >
+            {targetTypes.map((targetType) => (
+              <option key={targetType} value={targetType}>
+                {targetType === "all" ? t("feedback.allTargets") : targetType}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+      {errorCode ? (
+        <div className="row-note">
+          <AlertCircle aria-hidden="true" size={15} />
+          <span>{errorCode}</span>
+        </div>
+      ) : null}
+      <div className="metric-row">
+        <Metric label={t("feedback.total")} value={summary?.total ?? 0} />
+        <Metric label={t("feedback.positive")} value={summary?.positive_count ?? 0} />
+        <Metric label={t("feedback.negative")} value={summary?.negative_count ?? 0} />
+        <div className="metric">
+          <span>{t("feedback.lastEvent")}</span>
+          <strong className="metric-compact">{summary?.last_event_at ?? t("empty.none")}</strong>
+        </div>
+      </div>
+      <div className="panel-grid">
+        <article className="panel">
+          <h3>{t("feedback.byType")}</h3>
+          <p>{formatCounts(summary?.by_type)}</p>
+        </article>
+        <article className="panel">
+          <h3>{t("feedback.byTarget")}</h3>
+          <p>{formatCounts(summary?.by_target_type)}</p>
+        </article>
+        <article className="panel">
+          <h3>{t("feedback.policy")}</h3>
+          <p>{formatMaybe(summary?.feedback_policy)}</p>
+        </article>
+      </div>
+      <div className="file-table">
+        {events.length ? (
+          events.map((event) => (
+            <div className="review-row" key={event.id}>
+              <div>
+                <strong>{event.feedback_type}</strong>
+                <span>{event.id}</span>
+              </div>
+              <StatusPill label="target" value={event.target_type} />
+              <StatusPill label={t("feedback.rankingEffect")} value={event.ranking_effect} />
+              <StatusPill label={t("feedback.citation")} value={event.citation_label ?? "none"} />
+              <StatusPill label="created" value={event.created_at} />
+              <div className="row-note evidence-excerpt">
+                <MessageSquare aria-hidden="true" size={15} />
+                <span>
+                  {t("feedback.query")}: {event.query ?? t("empty.none")}
+                </span>
+              </div>
+              {event.comment ? (
+                <div className="row-note evidence-excerpt">
+                  <FileText aria-hidden="true" size={15} />
+                  <span>
+                    {t("feedback.comment")}: {event.comment}
+                  </span>
+                </div>
+              ) : null}
+            </div>
+          ))
+        ) : (
+          <EmptyState
+            message={state === "degraded" ? t("empty.bridgeUnavailable") : t("feedback.noEvents")}
+          />
+        )}
+      </div>
+    </section>
   );
 }
 
@@ -1354,6 +1528,13 @@ function formatMaybe(value: unknown) {
   if (typeof value === "number" || typeof value === "boolean") return String(value);
   if (value == null) return "not_ready";
   return JSON.stringify(value);
+}
+
+function formatCounts(value?: Record<string, unknown>) {
+  if (!value || !Object.keys(value).length) return "none";
+  return Object.entries(value)
+    .map(([key, count]) => `${key}: ${count}`)
+    .join(" · ");
 }
 
 function memoryTypeKey(memoryType: MemoryDraftRecord["memory_type"]): MessageKey {

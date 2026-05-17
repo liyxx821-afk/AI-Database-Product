@@ -1,5 +1,40 @@
 # 进度记录
 
+## 2026-05-17（D-108 Feedback Diagnostics / Event Replay Z0b-lite）
+
+### 已完成
+
+- 新增 `GET /api/feedback`：按 `created_at desc` 返回 append-only 反馈事件，支持 `feedback_type`、`target_type`、`evidence_pack_id`、`ai_answer_id`、`evidence_item_id` 和 `limit` 过滤。
+- 新增 `GET /api/feedback/summary`：返回 total、by_type、by_target_type、positive_count、negative_count、last_event_at 和当前 `feedback_policy`。
+- 诊断记录从 `feedback_events.metadata_json.feedback_signal` / `feedback_policy` 还原 `ranking_effect` 和 policy，并通过既有 `ai_answers`、`evidence_packs`、`evidence_items`、`retrieval_logs` join 补足 query 与 citation label。
+- 保持 D-108 边界：诊断读取不写 `retrieval_feedback`，不影响 ranking，不修改 confirmed KU、Source、Evidence Pack、AIAnswer 或 Memory。
+- Renderer 扩展 `feedbackMemoryApi` / `feedbackMemoryStore`，新增反馈事件列表、聚合摘要、过滤参数、refresh 和 diagnostics 状态。
+- Renderer `/outputs` 增加 Feedback Diagnostics 面板，显示摘要计数、类型分布、目标分布、事件列表、过滤控件和 empty / degraded / recoverable_error / done 状态；`/ask` 仍只负责提交 feedback。
+- 新增中英双语 i18n 文案，覆盖 Feedback Diagnostics、过滤控件、摘要字段、事件列表字段和空态；用户 comment、query、citation label、API enum/status code 不翻译。
+- 新增 `scripts/smoke-p0-feedback-diagnostics.mjs` 与 `pnpm smoke:p0-feedback-diagnostics`；完整 smoke 顺序更新为 `smoke:p0-core` → `smoke:p0-i18n-settings` → `smoke:p0-file` → `smoke:p0-parse` → `smoke:p0-ku` → `smoke:p0-search-ask` → `smoke:p0-citation-detail` → `smoke:p0-feedback-memory` → `smoke:p0-feedback-diagnostics` → `smoke:p0-z0a`。
+- 已同步 README、`docs/development-plan.md`、`docs/api-design.md`、`docs/api-implementation-plan.md`、`docs/data-model.md`、`docs/testing-strategy.md`、`docs/technical-stack-and-prototype-plan.md`。
+
+### 验收
+
+- `pnpm generate:api-types` 通过，已更新 `packages/api-types/src/openapi.json` 与 `packages/api-types/src/generated.ts`。
+- `pnpm typecheck` 通过。
+- `pnpm api:ruff` 通过。
+- `pnpm api:test` 通过，9 个 API 测试通过。
+- 完整 smoke 顺序通过：
+  `pnpm smoke:p0-core`、`pnpm smoke:p0-i18n-settings`、`pnpm smoke:p0-file`、`pnpm smoke:p0-parse`、`pnpm smoke:p0-ku`、`pnpm smoke:p0-search-ask`、`pnpm smoke:p0-citation-detail`、`pnpm smoke:p0-feedback-memory`、`pnpm smoke:p0-feedback-diagnostics`、`pnpm smoke:p0-z0a`。
+- `pnpm --filter @knowledgebase-dev/renderer build` 通过。
+- `pnpm --filter @knowledgebase-dev/desktop-preload build` 通过。
+- `pnpm --filter @knowledgebase-dev/desktop-main build` 通过。
+- `git diff --check` 通过。
+- 本地 renderer 已重启到 `http://127.0.0.1:5173/`；`/outputs`、`/ask`、`/settings`、`/library` 路由 HTTP smoke 返回 200。
+- in-app browser 检查通过：`/outputs` 默认中文显示“反馈诊断”、全部类型 / 全部目标过滤控件和 bridge degraded；`/settings` 切换英文后，SPA 内 `/outputs` 显示 “Feedback Diagnostics / All types / All targets”；最终已回到 `/ask`。
+
+### 备注
+
+- D-108 只做诊断读取和低保真展示，不做 feedback-driven ranking、不写 `retrieval_feedback`、不接 provider-backed RAG、真实 LLM、Text-to-SQL provider 或 GraphRAG。
+- 普通浏览器无 Electron preload 时 `/outputs` Feedback Diagnostics 显示 degraded；真实持久化与查询以 Electron bridge / API smoke 为准。
+- 下一阶段可继续推进 Citation detail 深层交互、feedback 诊断导出、pseudo-packaged sidecar 或 Electron GUI smoke。
+
 ## 2026-05-17（D-107 Feedback Events / Memory Draft Review Z0b-lite）
 
 ### 已完成

@@ -1,11 +1,21 @@
 from __future__ import annotations
 
+import json
 from typing import Any, Dict, Optional
 
 from app.api.schemas import FeedbackRequest, MemoryDraftRequest
 from app.core.errors import AppError
 from app.db.sqlite import db, json_dumps
 from app.services.ingestion.text_import import new_id, now_iso
+
+VALID_TARGET_TYPES = {"evidence_pack", "ai_answer", "evidence_item"}
+POSITIVE_FEEDBACK_TYPES = {"click", "useful", "favorite"}
+NEGATIVE_FEEDBACK_TYPES = {
+    "not_useful",
+    "bad_citation",
+    "missing_source",
+    "downrank_source",
+}
 
 
 def submit_feedback(payload: FeedbackRequest) -> Dict[str, Any]:
@@ -64,6 +74,95 @@ def submit_feedback(payload: FeedbackRequest) -> Dict[str, Any]:
         "evidence_item_id": payload.evidence_item_id,
         "feedback_policy": feedback_policy(),
         "created_at": timestamp,
+    }
+
+
+def list_feedback_events(
+    *,
+    feedback_type: Optional[str] = None,
+    target_type: Optional[str] = None,
+    evidence_pack_id: Optional[str] = None,
+    ai_answer_id: Optional[str] = None,
+    evidence_item_id: Optional[str] = None,
+    limit: int = 50,
+) -> list[Dict[str, Any]]:
+    if target_type and target_type not in VALID_TARGET_TYPES:
+        raise AppError(
+            "invalid_feedback_filter",
+            "Unsupported feedback target type.",
+            status_code=422,
+        )
+    safe_limit = min(max(limit, 1), 100)
+    where: list[str] = []
+    params: list[Any] = []
+    if feedback_type:
+        where.append("f.feedback_type = ?")
+        params.append(feedback_type)
+    if target_type:
+        where.append("f.target_type = ?")
+        params.append(target_type)
+    if evidence_pack_id:
+        where.append("f.evidence_pack_id = ?")
+        params.append(evidence_pack_id)
+    if ai_answer_id:
+        where.append("f.ai_answer_id = ?")
+        params.append(ai_answer_id)
+    if evidence_item_id:
+        where.append("f.evidence_item_id = ?")
+        params.append(evidence_item_id)
+
+    query = """
+        SELECT
+          f.*,
+          rl.query AS retrieval_query,
+          ei.citation_label AS evidence_citation_label
+        FROM feedback_events f
+        LEFT JOIN evidence_items ei ON ei.id = f.evidence_item_id
+        LEFT JOIN ai_answers aa ON aa.id = f.ai_answer_id
+        LEFT JOIN evidence_packs ep
+          ON ep.id = COALESCE(f.evidence_pack_id, aa.evidence_pack_id, ei.evidence_pack_id)
+        LEFT JOIN retrieval_logs rl ON rl.id = COALESCE(aa.retrieval_log_id, ep.retrieval_log_id)
+    """
+    if where:
+        query += " WHERE " + " AND ".join(where)
+    query += " ORDER BY f.created_at DESC, f.id DESC LIMIT ?"
+    params.append(safe_limit)
+
+    with db() as conn:
+        rows = conn.execute(query, tuple(params)).fetchall()
+    return [_feedback_event_row(row) for row in rows]
+
+
+def feedback_summary() -> Dict[str, Any]:
+    with db() as conn:
+        rows = conn.execute(
+            """
+            SELECT feedback_type, target_type, metadata_json, created_at
+            FROM feedback_events
+            ORDER BY created_at DESC, id DESC
+            """
+        ).fetchall()
+    by_type: dict[str, int] = {}
+    by_target_type: dict[str, int] = {}
+    positive_count = 0
+    negative_count = 0
+    for row in rows:
+        feedback_type = row["feedback_type"]
+        target_type = row["target_type"]
+        by_type[feedback_type] = by_type.get(feedback_type, 0) + 1
+        by_target_type[target_type] = by_target_type.get(target_type, 0) + 1
+        if feedback_type in POSITIVE_FEEDBACK_TYPES:
+            positive_count += 1
+        if feedback_type in NEGATIVE_FEEDBACK_TYPES:
+            negative_count += 1
+    return {
+        "total": len(rows),
+        "by_type": by_type,
+        "by_target_type": by_target_type,
+        "positive_count": positive_count,
+        "negative_count": negative_count,
+        "last_event_at": rows[0]["created_at"] if rows else None,
+        "feedback_policy": _summary_feedback_policy(rows),
     }
 
 
@@ -248,3 +347,42 @@ def _memory_row(row) -> Dict[str, Any]:
         "created_at": row["created_at"],
         "updated_at": row["updated_at"],
     }
+
+
+def _feedback_event_row(row) -> Dict[str, Any]:
+    metadata = _metadata(row["metadata_json"])
+    signal = metadata.get("feedback_signal", {})
+    ranking_effect = signal.get("ranking_effect")
+    if not isinstance(ranking_effect, str):
+        ranking_effect = _ranking_effect(row["feedback_type"])
+    return {
+        "id": row["id"],
+        "feedback_type": row["feedback_type"],
+        "target_type": row["target_type"],
+        "target_id": row["target_id"],
+        "evidence_pack_id": row["evidence_pack_id"],
+        "ai_answer_id": row["ai_answer_id"],
+        "evidence_item_id": row["evidence_item_id"],
+        "comment": row["comment"],
+        "ranking_effect": ranking_effect,
+        "query": row["retrieval_query"],
+        "citation_label": row["evidence_citation_label"],
+        "created_at": row["created_at"],
+    }
+
+
+def _summary_feedback_policy(rows) -> Dict[str, Any]:
+    for row in rows:
+        metadata = _metadata(row["metadata_json"])
+        policy = metadata.get("feedback_policy")
+        if isinstance(policy, dict):
+            return policy
+    return feedback_policy()
+
+
+def _metadata(raw: str) -> dict[str, Any]:
+    try:
+        value = json.loads(raw)
+    except json.JSONDecodeError:
+        return {}
+    return value if isinstance(value, dict) else {}

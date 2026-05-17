@@ -1,5 +1,7 @@
 import { create } from "zustand";
 import type {
+  FeedbackDiagnosticsSummary,
+  FeedbackEventRecord,
   FeedbackRequest,
   FeedbackResponse,
   MemoryDraftRecord,
@@ -8,8 +10,11 @@ import type {
 import { hasBridge } from "../services/apiClient";
 import {
   createMemoryDraft,
+  getFeedbackSummary,
+  listFeedbackEvents,
   listMemoryDrafts,
-  submitFeedback
+  submitFeedback,
+  type FeedbackDiagnosticsFilters
 } from "../services/feedbackMemoryApi";
 
 type ViewState = "loading" | "empty" | "degraded" | "recoverable_error" | "done";
@@ -17,18 +22,25 @@ type ViewState = "loading" | "empty" | "degraded" | "recoverable_error" | "done"
 type FeedbackMemoryState = {
   feedbackState: ViewState;
   memoryState: ViewState;
+  diagnosticsState: ViewState;
   feedbackErrorCode?: string;
   memoryErrorCode?: string;
+  diagnosticsErrorCode?: string;
   lastFeedback?: FeedbackResponse;
+  feedbackEvents: FeedbackEventRecord[];
+  feedbackSummary?: FeedbackDiagnosticsSummary;
   memories: MemoryDraftRecord[];
   submitFeedback: (payload: FeedbackRequest) => Promise<void>;
   createMemoryDraft: (payload: MemoryDraftRequest) => Promise<MemoryDraftRecord | undefined>;
   refreshMemories: () => Promise<void>;
+  refreshFeedbackDiagnostics: (filters?: FeedbackDiagnosticsFilters) => Promise<void>;
 };
 
 export const useFeedbackMemoryStore = create<FeedbackMemoryState>((set, get) => ({
   feedbackState: "empty",
   memoryState: "empty",
+  diagnosticsState: "empty",
+  feedbackEvents: [],
   memories: [],
   async submitFeedback(payload: FeedbackRequest) {
     if (!hasBridge()) {
@@ -95,6 +107,35 @@ export const useFeedbackMemoryStore = create<FeedbackMemoryState>((set, get) => 
       set({
         memoryState: "recoverable_error",
         memoryErrorCode: error instanceof Error ? error.message : "memory_draft_list_failed"
+      });
+    }
+  },
+  async refreshFeedbackDiagnostics(filters: FeedbackDiagnosticsFilters = {}) {
+    if (!hasBridge()) {
+      set({
+        feedbackEvents: [],
+        feedbackSummary: undefined,
+        diagnosticsState: "degraded",
+        diagnosticsErrorCode: "desktop_bridge_unavailable"
+      });
+      return;
+    }
+    set({ diagnosticsState: "loading", diagnosticsErrorCode: undefined });
+    try {
+      const [events, summary] = await Promise.all([
+        listFeedbackEvents(filters),
+        getFeedbackSummary()
+      ]);
+      set({
+        feedbackEvents: events,
+        feedbackSummary: summary,
+        diagnosticsState: events.length ? "done" : "empty",
+        diagnosticsErrorCode: undefined
+      });
+    } catch (error) {
+      set({
+        diagnosticsState: "recoverable_error",
+        diagnosticsErrorCode: error instanceof Error ? error.message : "feedback_diagnostics_failed"
       });
     }
   }

@@ -1,8 +1,8 @@
 # API 设计草案
 
-版本：v0.23-draft
+版本：v0.24-draft
 日期：2026-05-17  
-状态：P0 API 边界草案——完整上传/文件处理/File Inspection/切片前准备层/切片执行 profile/AI 结构化整理 profile/D-079 structuring summary 子字段/结构化整理检查门/知识切片质量闭环/AI/RAG API + D-080 知识调用 profile / implicit_agent / D-081 Z0a-Z2 持久化边界 / D-082 InvocationProfileSchema / D-083 前端状态与反馈策略 / D-085 Z0a 调用锚点、feedback 与 citation 边界修正 + D-098 页面到现有 API 组映射 + D-105 Citation Detail / Evidence Pack replay 实现边界 + D-106 Settings language 持久化边界 + D-107 Feedback Events / Memory Draft Review Z0b-lite + 安全运维横切层 + 检查门映射单一来源 + 事件枚举单一来源 + P0-Z0a/ProcessingJob/sensitive grant 契约收紧
+状态：P0 API 边界草案——完整上传/文件处理/File Inspection/切片前准备层/切片执行 profile/AI 结构化整理 profile/D-079 structuring summary 子字段/结构化整理检查门/知识切片质量闭环/AI/RAG API + D-080 知识调用 profile / implicit_agent / D-081 Z0a-Z2 持久化边界 / D-082 InvocationProfileSchema / D-083 前端状态与反馈策略 / D-085 Z0a 调用锚点、feedback 与 citation 边界修正 + D-098 页面到现有 API 组映射 + D-105 Citation Detail / Evidence Pack replay 实现边界 + D-106 Settings language 持久化边界 + D-107 Feedback Events / Memory Draft Review Z0b-lite + D-108 Feedback Diagnostics / Event Replay Z0b-lite + 安全运维横切层 + 检查门映射单一来源 + 事件枚举单一来源 + P0-Z0a/ProcessingJob/sensitive grant 契约收紧
 
 ## 1. 文档目的
 
@@ -1459,7 +1459,66 @@ D-107 边界：当前实现只写 append-only `feedback_events` 作为 UI/诊断
 - 当前写入 `feedback_events.metadata_json.feedback_signal` 和 `feedback_policy`；Z2 才写 `retrieval_feedback` 并关联 Invocation / Evidence / Answer。
 - 反馈只用于后续排序建议和诊断；不得自动修改 confirmed Knowledge Unit、confirmed relation、source truth、Evidence Pack 或 AIAnswer。
 
-### 13.2 保存为 Memory Draft
+### 13.2 反馈诊断读取
+
+```text
+GET /api/feedback
+GET /api/feedback/summary
+```
+
+D-108 边界：当前实现只读取 append-only `feedback_events`，用于 `/outputs` 内的 Feedback Diagnostics 面板复盘事件、目标绑定、query / citation 上下文和聚合摘要。它不写 `retrieval_feedback`，不影响 ranking，也不得修改 confirmed KU、Source、Evidence Pack、AIAnswer 或 Memory。
+
+`GET /api/feedback` query 参数：
+
+```text
+feedback_type?: click | useful | not_useful | favorite | bad_citation | missing_source | downrank_source
+target_type?: evidence_pack | ai_answer | evidence_item
+evidence_pack_id?: string
+ai_answer_id?: string
+evidence_item_id?: string
+limit?: number // 默认 50，最大 100
+```
+
+返回记录至少包含：
+
+```json
+{
+  "id": "feedback_id",
+  "feedback_type": "bad_citation",
+  "target_type": "evidence_item",
+  "target_id": "evidence_item_id",
+  "evidence_pack_id": "evidence_pack_id",
+  "ai_answer_id": "ai_answer_id",
+  "evidence_item_id": "evidence_item_id",
+  "comment": "引用不够准确",
+  "ranking_effect": "negative_weight_suggestion",
+  "query": "用户问题",
+  "citation_label": "[S1:C1]",
+  "created_at": "2026-05-17T00:00:00Z"
+}
+```
+
+`GET /api/feedback/summary` 返回：
+
+```json
+{
+  "total": 3,
+  "by_type": { "useful": 1, "bad_citation": 1, "missing_source": 1 },
+  "by_target_type": { "evidence_item": 3 },
+  "positive_count": 1,
+  "negative_count": 2,
+  "last_event_at": "2026-05-17T00:00:00Z",
+  "feedback_policy": {
+    "storage_mode": "local_only",
+    "ranking_effect": "suggestion_only",
+    "mutates_confirmed_knowledge": false
+  }
+}
+```
+
+后端从 `feedback_events.metadata_json.feedback_signal` / `feedback_policy` 还原诊断字段，并通过既有 `ai_answers`、`evidence_packs`、`evidence_items`、`retrieval_logs` join 补足 query 与 citation label。Renderer 不自行拼接证据链。
+
+### 13.3 保存为 Memory Draft
 
 ```text
 POST /api/memory-drafts
@@ -1487,7 +1546,7 @@ D-107 行为：
 - Review confirm 后 memory 标记为 `confirmed / user_confirmed=true`；Review ignore 后标记为 `archived`。
 - 不直接成为 Confirmed Memory，也不自动创建 confirmed Knowledge Unit。
 
-### 13.3 保存为 Candidate Knowledge Unit
+### 13.4 保存为 Candidate Knowledge Unit
 
 ```text
 POST /api/knowledge-units:from-answer

@@ -334,6 +334,144 @@ def test_feedback_events_and_memory_draft_review(monkeypatch, tmp_path):
         assert memory_count == 2
 
 
+def test_feedback_diagnostics_list_summary_and_filters(monkeypatch, tmp_path):
+    monkeypatch.setenv("KB_APP_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("KB_LOCAL_TOKEN", "test-token")
+    headers = {"x-kb-local-token": "test-token"}
+    with TestClient(create_app()) as client:
+        unauthorized = client.get("/api/feedback")
+        assert unauthorized.status_code == 401
+        assert unauthorized.json()["error"]["code"] == "sidecar_auth_failed"
+
+        imported = client.post(
+            "/api/text-imports",
+            headers=headers,
+            json={
+                "title": "Feedback diagnostics source",
+                "content": (
+                    "Feedback Diagnostics should replay event targets, query context, "
+                    "and citation labels without mutating retrieval artifacts."
+                ),
+            },
+        )
+        assert imported.status_code == 200
+        imported_body = imported.json()
+        assert imported_body["review_task_ids"]
+
+        confirmed = client.post(
+            f"/api/review-tasks/{imported_body['review_task_ids'][0]}:confirm",
+            headers=headers,
+        )
+        assert confirmed.status_code == 200
+
+        answer = client.post(
+            "/api/retrieval/evidence-only",
+            headers=headers,
+            json={"query": "Feedback Diagnostics Citation"},
+        )
+        assert answer.status_code == 200
+        answer_body = answer.json()
+        evidence_item_id = answer_body["evidence_item_ids"][0]
+
+        for feedback_type, comment in [
+            ("useful", "useful event"),
+            ("bad_citation", "bad citation event"),
+            ("missing_source", "missing source event"),
+        ]:
+            feedback = client.post(
+                "/api/feedback",
+                headers=headers,
+                json={
+                    "feedback_type": feedback_type,
+                    "evidence_pack_id": answer_body["evidence_pack_id"],
+                    "ai_answer_id": answer_body["answer_id"],
+                    "evidence_item_id": evidence_item_id,
+                    "comment": comment,
+                },
+            )
+            assert feedback.status_code == 200
+
+        events = client.get("/api/feedback", headers=headers)
+        assert events.status_code == 200
+        event_body = events.json()
+        assert [event["feedback_type"] for event in event_body] == [
+            "missing_source",
+            "bad_citation",
+            "useful",
+        ]
+        assert all(event["target_type"] == "evidence_item" for event in event_body)
+        assert all(event["query"] == "Feedback Diagnostics Citation" for event in event_body)
+        assert all(event["citation_label"] for event in event_body)
+        assert event_body[0]["ranking_effect"] == "negative_weight_suggestion"
+
+        by_type = client.get("/api/feedback?feedback_type=bad_citation", headers=headers)
+        assert by_type.status_code == 200
+        assert [event["feedback_type"] for event in by_type.json()] == ["bad_citation"]
+
+        by_target = client.get("/api/feedback?target_type=evidence_item", headers=headers)
+        assert by_target.status_code == 200
+        assert len(by_target.json()) == 3
+
+        by_pack = client.get(
+            f"/api/feedback?evidence_pack_id={answer_body['evidence_pack_id']}",
+            headers=headers,
+        )
+        assert by_pack.status_code == 200
+        assert len(by_pack.json()) == 3
+
+        by_answer = client.get(
+            f"/api/feedback?ai_answer_id={answer_body['answer_id']}",
+            headers=headers,
+        )
+        assert by_answer.status_code == 200
+        assert len(by_answer.json()) == 3
+
+        by_item = client.get(
+            f"/api/feedback?evidence_item_id={evidence_item_id}",
+            headers=headers,
+        )
+        assert by_item.status_code == 200
+        assert len(by_item.json()) == 3
+
+        summary = client.get("/api/feedback/summary", headers=headers)
+        assert summary.status_code == 200
+        summary_body = summary.json()
+        assert summary_body["total"] == 3
+        assert summary_body["by_type"] == {
+            "missing_source": 1,
+            "bad_citation": 1,
+            "useful": 1,
+        }
+        assert summary_body["by_target_type"] == {"evidence_item": 3}
+        assert summary_body["positive_count"] == 1
+        assert summary_body["negative_count"] == 2
+        assert summary_body["last_event_at"] == event_body[0]["created_at"]
+        assert summary_body["feedback_policy"]["mutates_confirmed_knowledge"] is False
+
+        invalid_target = client.get("/api/feedback?target_type=unknown", headers=headers)
+        assert invalid_target.status_code == 422
+        assert invalid_target.json()["error"]["code"] == "invalid_feedback_filter"
+
+        with db() as conn:
+            retrieval_feedback_table = conn.execute(
+                """
+                SELECT name FROM sqlite_master
+                WHERE type = 'table' AND name = 'retrieval_feedback'
+                """
+            ).fetchone()
+            event_count = conn.execute("SELECT COUNT(*) FROM feedback_events").fetchone()[0]
+            ku_count = conn.execute("SELECT COUNT(*) FROM knowledge_units").fetchone()[0]
+            pack_count = conn.execute("SELECT COUNT(*) FROM evidence_packs").fetchone()[0]
+            answer_count = conn.execute("SELECT COUNT(*) FROM ai_answers").fetchone()[0]
+            memory_count = conn.execute("SELECT COUNT(*) FROM memories").fetchone()[0]
+        assert retrieval_feedback_table is None
+        assert event_count == 3
+        assert ku_count == 1
+        assert pack_count == 1
+        assert answer_count == 1
+        assert memory_count == 0
+
+
 def test_p0_file_upload_complete_and_inspection(monkeypatch, tmp_path):
     monkeypatch.setenv("KB_APP_DATA_DIR", str(tmp_path))
     monkeypatch.setenv("KB_LOCAL_TOKEN", "test-token")

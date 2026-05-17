@@ -1,8 +1,8 @@
-# 数据模型 v0.22-draft
+# 数据模型 v0.23-draft
 
-版本：v0.22-draft
+版本：v0.23-draft
 日期：2026-05-17  
-状态：草案——完整 P0 入库与知识处理平台 + 切片前准备层 / 切片执行 profile / AI 结构化整理 profile / D-079 结构化整理子字段与存储映射 / D-080 知识调用 profile 与隐式 Agent / D-081 调用持久化边界 / D-082 InvocationProfileSchema v1 / D-083 前端状态与反馈策略 / D-085 Z0a 调用锚点、反馈和 citation 边界修正 / D-092 trace chain 与 Evidence Pack 失败态 / D-104 Retrieval Preview 复用既有调用对象 / D-107 feedback_events 与 memories Z0b-lite 物理表 / 知识切片质量闭环 / 安全运维横切层 / 检查门映射单一来源 / 事件枚举单一来源 / P0-Z0a/Z0b 最小迁移 / ProcessingJob / sensitive grant / evidence-only 契约收紧
+状态：草案——完整 P0 入库与知识处理平台 + 切片前准备层 / 切片执行 profile / AI 结构化整理 profile / D-079 结构化整理子字段与存储映射 / D-080 知识调用 profile 与隐式 Agent / D-081 调用持久化边界 / D-082 InvocationProfileSchema v1 / D-083 前端状态与反馈策略 / D-085 Z0a 调用锚点、反馈和 citation 边界修正 / D-092 trace chain 与 Evidence Pack 失败态 / D-104 Retrieval Preview 复用既有调用对象 / D-107 feedback_events 与 memories Z0b-lite 物理表 / D-108 feedback_events 诊断读取与 Event Replay / 知识切片质量闭环 / 安全运维横切层 / 检查门映射单一来源 / 事件枚举单一来源 / P0-Z0a/Z0b 最小迁移 / ProcessingJob / sensitive grant / evidence-only 契约收紧
 
 ## 1. 文档目的
 
@@ -1890,15 +1890,16 @@ P0-Z0a 约束：
 | ai_answer_id | uuid nullable | AIAnswer |
 | feedback_type | text | useful / wrong / missing_source / bad_citation / too_broad / too_narrow / click / favorite / not_useful / downrank_source |
 | comment | text nullable | 用户说明 |
-| metadata_json | jsonb | D-080 / D-085 扩展：`feedback_signal`、`feedback_policy`、ranking_effect、frontend_event_source |
+| metadata_json | jsonb | D-080 / D-085 / D-108 扩展：`feedback_signal`、`feedback_policy`、ranking_effect、frontend_event_source；诊断读取从这里还原 policy/effect |
 | created_at | timestamptz | 创建时间 |
 
-D-107 反馈 / Memory 边界：
+D-107 / D-108 反馈 / Memory 边界：
 
 - `feedback_events`：D-107 已实现 append-only 用户行为 / UI 诊断事件，允许记录 click / favorite / useful / not_useful / bad_citation / missing_source / downrank_source，但只能影响后续排序建议或诊断，不自动改写 confirmed Knowledge Unit、confirmed relation、source truth、Evidence Pack 或 AIAnswer。
+- D-108 不新增表；`GET /api/feedback` 与 `GET /api/feedback/summary` 只读取 `feedback_events`，并通过既有 `ai_answers`、`evidence_packs`、`evidence_items`、`retrieval_logs` 补足 query / citation context。读取诊断不得修改 `feedback_events`、`knowledge_units`、`evidence_packs`、`ai_answers` 或 `memories`。
 - `memories`：D-107 已实现 pending-review Memory Draft；confirm / ignore 只改变 memory 状态，不创建 confirmed KU，也不加入 retrieval results。
 - `retrieval_feedback`：Z2 起的检索反馈持久化对象，必须能关联 Invocation / Evidence / Answer，并携带 `feedback_policy`、作用域、权重上限和是否参与 ranking suggestion。
-- D-107 不新增 `invocation_requests`、`retrieval_plans`、真实 LLM answer、GraphRAG 或 provider-backed RAG。
+- D-107 / D-108 不新增 `invocation_requests`、`retrieval_plans`、真实 LLM answer、GraphRAG、provider-backed RAG 或 `retrieval_feedback`。
 
 ---
 
