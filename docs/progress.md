@@ -1,5 +1,30 @@
 # 进度记录
 
+## 2026-05-18（知识导出校验路径优化）
+
+### 审查结论
+
+- `/outputs` 已支持 KU 选择导出后，`KnowledgeExportService` 的 `tag_ids` 与 `knowledge_unit_ids` 校验仍按 id 逐条查询；功能正确，但在一次选择较多 KU 或组合多个 tag 过滤时会出现不必要的 N+1 查询。
+- 该问题不影响 API schema、导出格式或前端交互，但属于 D-115 / D-118 交叉路径的可维护性和性能隐患。
+
+### 已优化
+
+- `apps/api/app/services/exports.py` 中 `_require_tags` 改为一次性批量读取同 project 下的 tag id，再按原请求顺序返回去重后的 id。
+- `_require_knowledge_units` 改为一次性批量读取同 project 下的 KU id，保留 `knowledge_unit_not_found` error envelope 和去重语义。
+- 未修改 OpenAPI schema、导出 payload、导出历史结构或 Renderer 行为。
+
+### 验收
+
+- `pnpm api:ruff` 通过。
+- `pnpm api:test` 通过，13 个 API 测试通过。
+- `pnpm smoke:p0-knowledge-export` 通过。
+- `pnpm smoke:p0-batch-actions` 通过。
+- `git diff --check` 通过。
+
+### 备注
+
+- 本轮是代码审查后的局部性能 / 可维护性优化，不新增产品功能、主路由、数据库表或 smoke 命令。
+
 ## 2026-05-17（D-118 代码审查与批量操作优化）
 
 ### 审查结论

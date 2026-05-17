@@ -831,13 +831,20 @@ def _require_tags(
     tag_ids: Iterable[str],
 ) -> list[str]:
     unique_ids = list(dict.fromkeys(tag_ids))
-    for tag_id in unique_ids:
-        row = conn.execute(
-            "SELECT id FROM tags WHERE id = ? AND project_id = ?",
-            (tag_id, project_id),
-        ).fetchone()
-        if not row:
-            raise AppError("tag_not_found", "Tag was not found.", status_code=404)
+    if not unique_ids:
+        return []
+    placeholders = ",".join("?" for _ in unique_ids)
+    rows = conn.execute(
+        f"""
+        SELECT id
+        FROM tags
+        WHERE project_id = ? AND id IN ({placeholders})
+        """,
+        (project_id, *unique_ids),
+    ).fetchall()
+    found_ids = {row["id"] for row in rows}
+    if any(tag_id not in found_ids for tag_id in unique_ids):
+        raise AppError("tag_not_found", "Tag was not found.", status_code=404)
     return unique_ids
 
 
@@ -847,15 +854,22 @@ def _require_knowledge_units(
     knowledge_unit_ids: Iterable[str],
 ) -> list[str]:
     unique_ids = list(dict.fromkeys(knowledge_unit_ids))
-    for knowledge_unit_id in unique_ids:
-        row = conn.execute(
-            "SELECT id FROM knowledge_units WHERE id = ? AND project_id = ?",
-            (knowledge_unit_id, project_id),
-        ).fetchone()
-        if not row:
-            raise AppError(
-                "knowledge_unit_not_found",
-                "Knowledge Unit was not found.",
-                status_code=404,
-            )
+    if not unique_ids:
+        return []
+    placeholders = ",".join("?" for _ in unique_ids)
+    rows = conn.execute(
+        f"""
+        SELECT id
+        FROM knowledge_units
+        WHERE project_id = ? AND id IN ({placeholders})
+        """,
+        (project_id, *unique_ids),
+    ).fetchall()
+    found_ids = {row["id"] for row in rows}
+    if any(knowledge_unit_id not in found_ids for knowledge_unit_id in unique_ids):
+        raise AppError(
+            "knowledge_unit_not_found",
+            "Knowledge Unit was not found.",
+            status_code=404,
+        )
     return unique_ids
