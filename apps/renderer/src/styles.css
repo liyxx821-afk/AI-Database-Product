@@ -408,6 +408,39 @@ button {
   overflow-wrap: anywhere;
 }
 
+.annotation-box {
+  display: grid;
+  gap: 12px;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+
+.annotation-content {
+  margin: 0;
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.compact-table {
+  gap: 6px;
+}
+
+.compare-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.compare-check input {
+  width: 16px;
+  height: 16px;
+  accent-color: #111111;
+}
+
 .memory-form {
   display: grid;
   gap: 10px;

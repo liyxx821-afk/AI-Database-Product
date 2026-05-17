@@ -2,7 +2,7 @@
 
 版本：v0.27-draft
 日期：2026-05-17  
-状态：P0 API 边界草案——完整上传/文件处理/File Inspection/切片前准备层/切片执行 profile/AI 结构化整理 profile/D-079 structuring summary 子字段/结构化整理检查门/知识切片质量闭环/AI/RAG API + D-080 知识调用 profile / implicit_agent / D-081 Z0a-Z2 持久化边界 / D-082 InvocationProfileSchema / D-083 前端状态与反馈策略 / D-085 Z0a 调用锚点、feedback 与 citation 边界修正 + D-098 页面到现有 API 组映射 + D-105 Citation Detail / Evidence Pack replay 实现边界 + D-106 Settings language 持久化边界 + D-107 Feedback Events / Memory Draft Review Z0b-lite + D-108 Feedback Diagnostics / Event Replay Z0b-lite + D-110 Feedback Diagnostics Export Z0b-lite + D-111 Feedback Diagnostics Advanced Filters / Export History Z0b-lite + D-112 Citation Detail Focus / Evidence Trace Interaction Z0b-lite + 安全运维横切层 + 检查门映射单一来源 + 事件枚举单一来源 + P0-Z0a/ProcessingJob/sensitive grant 契约收紧
+状态：P0 API 边界草案——完整上传/文件处理/File Inspection/切片前准备层/切片执行 profile/AI 结构化整理 profile/D-079 structuring summary 子字段/结构化整理检查门/知识切片质量闭环/AI/RAG API + D-080 知识调用 profile / implicit_agent / D-081 Z0a-Z2 持久化边界 / D-082 InvocationProfileSchema / D-083 前端状态与反馈策略 / D-085 Z0a 调用锚点、feedback 与 citation 边界修正 + D-098 页面到现有 API 组映射 + D-105 Citation Detail / Evidence Pack replay 实现边界 + D-106 Settings language 持久化边界 + D-107 Feedback Events / Memory Draft Review Z0b-lite + D-108 Feedback Diagnostics / Event Replay Z0b-lite + D-110 Feedback Diagnostics Export Z0b-lite + D-111 Feedback Diagnostics Advanced Filters / Export History Z0b-lite + D-112 Citation Detail Focus / Evidence Trace Interaction Z0b-lite + D-113 Citation Annotation / Evidence Compare Z0b-lite + 安全运维横切层 + 检查门映射单一来源 + 事件枚举单一来源 + P0-Z0a/ProcessingJob/sensitive grant 契约收紧
 
 ## 1. 文档目的
 
@@ -1091,6 +1091,12 @@ D-112 Z0b-lite 扩展口径：
 - 每个 item 的 `citation_trace` 包含 `evidence_pack_id`、`evidence_item_id`、KU / Chunk / Source `trace_path` 和 copy-safe citation payload；Renderer 不自行 join KU / Chunk / Source。
 - 复制 payload 不包含 source excerpt、answer text、local token、DB path 或完整本地路径。
 
+D-113 Z0b-lite 扩展口径：
+
+- `detail_summary` 增加 `annotation_count` 和 `annotation_counts`，由后端按 `citation_annotations` 聚合。
+- Citation annotation 是本地复盘记录，不等同于 feedback，不写 `feedback_events`，不影响 ranking 或 confirmed knowledge。
+- Evidence compare 是 response-only 只读能力，不保存 compare result，不记录复制行为。
+
 响应：
 
 ```json
@@ -1121,7 +1127,9 @@ D-112 Z0b-lite 扩展口径：
     "rank_score_min": 1.0,
     "rank_score_max": 1.0,
     "focused_item_id": "eitem_xxx",
-    "no_evidence_reason": null
+    "no_evidence_reason": null,
+    "annotation_count": 1,
+    "annotation_counts": {"note": 1}
   },
   "items": [
     {
@@ -1171,6 +1179,24 @@ D-112 Z0b-lite 扩展口径：
   "created_at": "2026-05-17T00:00:00+00:00"
 }
 ```
+
+### 10.2.1 Citation Annotation / Evidence Compare（D-113）
+
+```text
+GET /api/evidence-packs/{evidence_pack_id}/annotations
+POST /api/evidence-packs/{evidence_pack_id}/annotations
+PATCH /api/citation-annotations/{annotation_id}
+DELETE /api/citation-annotations/{annotation_id}
+POST /api/evidence-packs/{evidence_pack_id}/compare
+```
+
+约束：
+
+- `POST annotations` body：`evidence_item_id`、`annotation_type=note|question|risk|follow_up`、`content`。
+- `PATCH annotations` 只允许更新 `annotation_type` 和 `content`；空 content 或未知字段返回 validation error。
+- annotation 的 evidence item 必须属于目标 Evidence Pack；否则返回 `evidence_item_not_in_pack`。
+- compare body：`evidence_item_ids`，只接受同一 pack 内 2-3 条 item。
+- compare response 返回 item-level rank/source/chunk/KU/trace path、`differences` 和 `copy_safe_summary`；不包含 source excerpt、answer text、local token、DB path 或完整本地路径。
 
 P0 检索顺序：
 

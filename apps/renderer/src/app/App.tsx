@@ -25,9 +25,15 @@ import {
   ThumbsUp,
   Upload,
   XCircle,
+  Trash2,
   type LucideIcon
 } from "lucide-react";
 import type {
+  CitationAnnotationListResponse,
+  CitationAnnotationPatchRequest,
+  CitationAnnotationRecord,
+  CitationAnnotationRequest,
+  CitationCompareResponse,
   EvidenceItemRecord,
   EvidencePackDetail,
   FeedbackDiagnosticsSummary,
@@ -597,10 +603,21 @@ function SearchPage() {
         detail={retrieval.detail}
         state={retrieval.detailState}
         errorCode={retrieval.detailErrorCode}
+        annotations={retrieval.annotations}
+        annotationState={retrieval.annotationState}
+        annotationErrorCode={retrieval.annotationErrorCode}
+        comparison={retrieval.comparison}
+        compareState={retrieval.compareState}
+        compareErrorCode={retrieval.compareErrorCode}
         focusedEvidenceItemId={retrieval.focusedEvidenceItemId}
         onFocusItem={(evidenceItemId) =>
           retrieval.detail?.id && retrieval.loadDetail(retrieval.detail.id, evidenceItemId)
         }
+        onCreateAnnotation={retrieval.createAnnotation}
+        onUpdateAnnotation={retrieval.updateAnnotation}
+        onDeleteAnnotation={retrieval.deleteAnnotation}
+        onCompareItems={retrieval.compareItems}
+        onClearComparison={retrieval.clearComparison}
       />
 
       <PageFrame
@@ -900,10 +917,21 @@ function AskPage() {
         detail={retrieval.detail}
         state={retrieval.detailState}
         errorCode={retrieval.detailErrorCode}
+        annotations={retrieval.annotations}
+        annotationState={retrieval.annotationState}
+        annotationErrorCode={retrieval.annotationErrorCode}
+        comparison={retrieval.comparison}
+        compareState={retrieval.compareState}
+        compareErrorCode={retrieval.compareErrorCode}
         focusedEvidenceItemId={retrieval.focusedEvidenceItemId}
         onFocusItem={(evidenceItemId) =>
           retrieval.detail?.id && retrieval.loadDetail(retrieval.detail.id, evidenceItemId)
         }
+        onCreateAnnotation={retrieval.createAnnotation}
+        onUpdateAnnotation={retrieval.updateAnnotation}
+        onDeleteAnnotation={retrieval.deleteAnnotation}
+        onCompareItems={retrieval.compareItems}
+        onClearComparison={retrieval.clearComparison}
       />
 
       <PageFrame
@@ -1688,19 +1716,52 @@ function CitationDetailPanel({
   detail,
   state,
   errorCode,
+  annotations,
+  annotationState = "empty",
+  annotationErrorCode,
+  comparison,
+  compareState = "empty",
+  compareErrorCode,
   focusedEvidenceItemId,
-  onFocusItem
+  onFocusItem,
+  onCreateAnnotation,
+  onUpdateAnnotation,
+  onDeleteAnnotation,
+  onCompareItems,
+  onClearComparison
 }: {
   detail?: EvidencePackDetail;
   state: "loading" | "empty" | "degraded" | "recoverable_error" | "done";
   errorCode?: string;
+  annotations?: CitationAnnotationListResponse;
+  annotationState?: "loading" | "empty" | "degraded" | "recoverable_error" | "done";
+  annotationErrorCode?: string;
+  comparison?: CitationCompareResponse;
+  compareState?: "loading" | "empty" | "degraded" | "recoverable_error" | "done";
+  compareErrorCode?: string;
   focusedEvidenceItemId?: string;
   onFocusItem?: (evidenceItemId: string) => void;
+  onCreateAnnotation?: (
+    evidencePackId: string,
+    payload: CitationAnnotationRequest
+  ) => Promise<CitationAnnotationRecord | undefined>;
+  onUpdateAnnotation?: (
+    annotationId: string,
+    payload: CitationAnnotationPatchRequest
+  ) => Promise<CitationAnnotationRecord | undefined>;
+  onDeleteAnnotation?: (annotationId: string) => Promise<void>;
+  onCompareItems?: (evidencePackId: string, evidenceItemIds: string[]) => Promise<void>;
+  onClearComparison?: () => void;
 }) {
   const t = useT();
   const [filter, setFilter] = useState("");
   const [sort, setSort] = useState<"rank_desc" | "source_asc">("rank_desc");
   const [copyState, setCopyState] = useState("");
+  const [annotationType, setAnnotationType] =
+    useState<CitationAnnotationRequest["annotation_type"]>("note");
+  const [annotationContent, setAnnotationContent] = useState("");
+  const [editingAnnotationId, setEditingAnnotationId] = useState<string>();
+  const [compareSelection, setCompareSelection] = useState<string[]>([]);
   const explanation = detail?.query_explanation ?? {};
   const visibleItems = useMemo(() => {
     const needle = filter.trim().toLowerCase();
@@ -1764,10 +1825,23 @@ function CitationDetailPanel({
         `knowledge_unit=${focusedItem.knowledge_unit_title ?? focusedItem.knowledge_unit_id ?? "unknown"}`
       ].join(" | ")
     : "";
+  const focusedAnnotations = focusedItem
+    ? (annotations?.annotations ?? []).filter(
+        (annotation) => annotation.evidence_item_id === focusedItem.id
+      )
+    : [];
 
   useEffect(() => {
     setCopyState("");
+    setAnnotationContent("");
+    setAnnotationType("note");
+    setEditingAnnotationId(undefined);
   }, [detail?.id, focusedEvidenceItemId]);
+
+  useEffect(() => {
+    setCompareSelection([]);
+    onClearComparison?.();
+  }, [detail?.id]);
 
   function focusRelative(delta: number) {
     if (!visibleItems.length || focusedIndex < 0) return;
@@ -1783,6 +1857,47 @@ function CitationDetailPanel({
     } catch {
       setCopyState(t("citation.copyFailed"));
     }
+  }
+
+  function startEditAnnotation(annotation: CitationAnnotationRecord) {
+    setEditingAnnotationId(annotation.id);
+    setAnnotationType(annotation.annotation_type);
+    setAnnotationContent(annotation.content);
+  }
+
+  async function submitAnnotation() {
+    if (!detail || !focusedItem || !annotationContent.trim()) return;
+    const payload = {
+      evidence_item_id: focusedItem.id,
+      annotation_type: annotationType,
+      content: annotationContent.trim()
+    };
+    const saved = editingAnnotationId
+      ? await onUpdateAnnotation?.(editingAnnotationId, {
+          annotation_type: annotationType,
+          content: annotationContent.trim()
+        })
+      : await onCreateAnnotation?.(detail.id, payload);
+    if (saved) {
+      setEditingAnnotationId(undefined);
+      setAnnotationContent("");
+      setAnnotationType("note");
+    }
+  }
+
+  function toggleCompareSelection(evidenceItemId: string) {
+    setCompareSelection((current) => {
+      if (current.includes(evidenceItemId)) {
+        return current.filter((id) => id !== evidenceItemId);
+      }
+      if (current.length >= 3) return current;
+      return [...current, evidenceItemId];
+    });
+  }
+
+  async function runCompare() {
+    if (!detail || compareSelection.length < 2) return;
+    await onCompareItems?.(detail.id, compareSelection);
   }
 
   return (
@@ -1954,8 +2069,185 @@ function CitationDetailPanel({
                   {copyState ? <p>{copyState}</p> : null}
                 </article>
               </div>
+              <div className="annotation-box">
+                <div className="section-title-row compact-title-row">
+                  <h3>{t("citation.annotations")}</h3>
+                  <span className={`state-chip state-${annotationState}`}>{annotationState}</span>
+                </div>
+                {annotationErrorCode ? (
+                  <div className="row-note">
+                    <AlertCircle aria-hidden="true" size={15} />
+                    <span>{annotationErrorCode}</span>
+                  </div>
+                ) : null}
+                <div className="memory-form">
+                  <label className="memory-label">
+                    <span>{t("citation.annotationType")}</span>
+                    <select
+                      className="settings-select"
+                      value={annotationType}
+                      onChange={(event) =>
+                        setAnnotationType(
+                          event.target.value as CitationAnnotationRequest["annotation_type"]
+                        )
+                      }
+                    >
+                      <option value="note">{t("citation.annotation.note")}</option>
+                      <option value="question">{t("citation.annotation.question")}</option>
+                      <option value="risk">{t("citation.annotation.risk")}</option>
+                      <option value="follow_up">{t("citation.annotation.followUp")}</option>
+                    </select>
+                  </label>
+                  <textarea
+                    className="memory-textarea"
+                    value={annotationContent}
+                    placeholder={t("citation.annotationPlaceholder")}
+                    onChange={(event) => setAnnotationContent(event.target.value)}
+                  />
+                  <div className="inline-actions">
+                    <button
+                      className="icon-command"
+                      type="button"
+                      disabled={!annotationContent.trim() || annotationState === "loading"}
+                      onClick={submitAnnotation}
+                    >
+                      <Save aria-hidden="true" size={16} />
+                      <span>
+                        {editingAnnotationId
+                          ? t("citation.updateAnnotation")
+                          : t("citation.saveAnnotation")}
+                      </span>
+                    </button>
+                    {editingAnnotationId ? (
+                      <button
+                        className="icon-command"
+                        type="button"
+                        onClick={() => {
+                          setEditingAnnotationId(undefined);
+                          setAnnotationContent("");
+                          setAnnotationType("note");
+                        }}
+                      >
+                        <XCircle aria-hidden="true" size={16} />
+                        <span>{t("citation.cancelEdit")}</span>
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+                <div className="file-table compact-table">
+                  {focusedAnnotations.length ? (
+                    focusedAnnotations.map((annotation) => (
+                      <div className="review-row" key={annotation.id}>
+                        <div>
+                          <strong>{annotation.annotation_type}</strong>
+                          <span>{annotation.updated_at}</span>
+                        </div>
+                        <p className="annotation-content">{annotation.content}</p>
+                        <div className="inline-actions">
+                          <button
+                            className="icon-command"
+                            type="button"
+                            onClick={() => startEditAnnotation(annotation)}
+                          >
+                            <FileText aria-hidden="true" size={16} />
+                            <span>{t("citation.editAnnotation")}</span>
+                          </button>
+                          <button
+                            className="icon-command"
+                            type="button"
+                            disabled={annotationState === "loading"}
+                            onClick={() => onDeleteAnnotation?.(annotation.id)}
+                          >
+                            <Trash2 aria-hidden="true" size={16} />
+                            <span>{t("citation.deleteAnnotation")}</span>
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <EmptyState message={t("citation.noAnnotations")} />
+                  )}
+                </div>
+              </div>
             </section>
           ) : null}
+          <section className="focused-citation">
+            <div className="section-title-row compact-title-row">
+              <h3>{t("citation.compare")}</h3>
+              <span className={`state-chip state-${compareState}`}>{compareState}</span>
+            </div>
+            <div className="inline-actions">
+              <button
+                className="icon-command"
+                type="button"
+                disabled={compareSelection.length < 2 || compareState === "loading"}
+                onClick={runCompare}
+              >
+                <GitBranch aria-hidden="true" size={16} />
+                <span>{t("citation.runCompare")}</span>
+              </button>
+              <button
+                className="icon-command"
+                type="button"
+                onClick={() => {
+                  setCompareSelection([]);
+                  onClearComparison?.();
+                }}
+              >
+                <XCircle aria-hidden="true" size={16} />
+                <span>{t("feedback.resetFilters")}</span>
+              </button>
+              <StatusPill label="selected" value={`${compareSelection.length}/3`} />
+            </div>
+            {compareErrorCode ? (
+              <div className="row-note">
+                <AlertCircle aria-hidden="true" size={15} />
+                <span>{compareErrorCode}</span>
+              </div>
+            ) : null}
+            {comparison ? (
+              <>
+                <div className="panel-grid">
+                  <article className="panel">
+                    <h3>{t("citation.compareSummary")}</h3>
+                    <p>{comparison.copy_safe_summary}</p>
+                  </article>
+                  <article className="panel">
+                    <h3>{t("citation.compareDifferences")}</h3>
+                    <p>{formatMaybe(comparison.differences)}</p>
+                  </article>
+                  <article className="panel">
+                    <h3>{t("citation.copy")}</h3>
+                    <button
+                      className="icon-command"
+                      type="button"
+                      onClick={() =>
+                        copyText(t("citation.copyCompare"), comparison.copy_safe_summary)
+                      }
+                    >
+                      <Clipboard aria-hidden="true" size={16} />
+                      <span>{t("citation.copyCompare")}</span>
+                    </button>
+                  </article>
+                </div>
+                <div className="file-table compact-table">
+                  {comparison.items.map((item) => (
+                    <div className="review-row" key={item.id}>
+                      <div>
+                        <strong>{item.citation_label}</strong>
+                        <span>{item.id}</span>
+                      </div>
+                      <StatusPill label="score" value={item.rank_score.toFixed(2)} />
+                      <StatusPill label="source" value={item.source_title ?? item.source_id ?? "none"} />
+                      <StatusPill label="ku" value={item.knowledge_unit_title ?? item.knowledge_unit_id ?? "none"} />
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <EmptyState message={t("citation.noCompare")} />
+            )}
+          </section>
           <div className="file-table">
             {visibleItems.length ? (
               visibleItems.map((item) => (
@@ -1967,6 +2259,17 @@ function CitationDetailPanel({
                     <strong>{item.knowledge_unit_title ?? item.citation_label}</strong>
                     <span>{item.knowledge_unit_status ?? "unknown"} · {item.knowledge_unit_type ?? "unknown"}</span>
                   </div>
+                  <label className="compare-check">
+                    <input
+                      type="checkbox"
+                      checked={compareSelection.includes(item.id)}
+                      disabled={
+                        !compareSelection.includes(item.id) && compareSelection.length >= 3
+                      }
+                      onChange={() => toggleCompareSelection(item.id)}
+                    />
+                    <span>{t("citation.compareSelect")}</span>
+                  </label>
                   <StatusPill label="source" value={item.source_origin ?? "unknown"} />
                   <StatusPill label="score" value={item.rank_score.toFixed(2)} />
                   <button

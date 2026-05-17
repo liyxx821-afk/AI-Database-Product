@@ -165,6 +165,26 @@ def _copy_safe_citation_payload(item: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def _annotation_record(row: Any) -> Dict[str, Any]:
+    return {
+        "id": row["id"],
+        "evidence_pack_id": row["evidence_pack_id"],
+        "evidence_item_id": row["evidence_item_id"],
+        "annotation_type": row["annotation_type"],
+        "content": row["content"],
+        "metadata": json.loads(row["metadata_json"]),
+        "created_at": row["created_at"],
+        "updated_at": row["updated_at"],
+    }
+
+
+def _annotation_counts(rows: List[Any]) -> Dict[str, int]:
+    counts: Dict[str, int] = {}
+    for row in rows:
+        counts[row["annotation_type"]] = int(row["count"])
+    return counts
+
+
 def _build_evidence_pack_response(
     evidence_pack_id: str,
     focus_item_id: Optional[str] = None,
@@ -211,12 +231,22 @@ def _build_evidence_pack_response(
             """,
             (evidence_pack_id,),
         ).fetchall()
+        annotation_count_rows = conn.execute(
+            """
+            SELECT annotation_type, COUNT(*) AS count
+            FROM citation_annotations
+            WHERE evidence_pack_id = ?
+            GROUP BY annotation_type
+            """,
+            (evidence_pack_id,),
+        ).fetchall()
     if focus_item_id and not any(item["id"] == focus_item_id for item in items):
         raise AppError(
             "evidence_item_not_in_pack",
             "Evidence item is not part of this Evidence Pack.",
             status_code=404,
         )
+    annotation_counts = _annotation_counts(annotation_count_rows)
     query_explanation = json.loads(pack["filters_json"])
     citation_labels = [item["citation_label"] for item in items]
     rank_scores = [float(item["rank_score"]) for item in items]
@@ -251,6 +281,8 @@ def _build_evidence_pack_response(
             "rank_score_max": max(rank_scores) if rank_scores else None,
             "focused_item_id": focus_item_id,
             "no_evidence_reason": pack["failure_type"] if not items else None,
+            "annotation_count": sum(annotation_counts.values()),
+            "annotation_counts": annotation_counts,
         },
         "items": [
             {
@@ -288,6 +320,275 @@ def _build_evidence_pack_response(
             for item in items
         ],
         "created_at": pack["created_at"],
+    }
+
+
+def _load_item_for_pack(conn: Any, evidence_pack_id: str, evidence_item_id: str) -> Any:
+    item = conn.execute(
+        """
+        SELECT *
+        FROM evidence_items
+        WHERE id = ?
+          AND evidence_pack_id = ?
+        """,
+        (evidence_item_id, evidence_pack_id),
+    ).fetchone()
+    if not item:
+        raise AppError(
+            "evidence_item_not_in_pack",
+            "Evidence item is not part of this Evidence Pack.",
+            status_code=404,
+        )
+    return item
+
+
+def list_citation_annotations(evidence_pack_id: str) -> Dict[str, Any]:
+    with db() as conn:
+        pack = conn.execute(
+            "SELECT id FROM evidence_packs WHERE id = ?",
+            (evidence_pack_id,),
+        ).fetchone()
+        if not pack:
+            raise AppError(
+                "evidence_pack_not_found",
+                "Evidence Pack was not found.",
+                status_code=404,
+            )
+        rows = conn.execute(
+            """
+            SELECT *
+            FROM citation_annotations
+            WHERE evidence_pack_id = ?
+            ORDER BY updated_at DESC, created_at DESC
+            """,
+            (evidence_pack_id,),
+        ).fetchall()
+    records = [_annotation_record(row) for row in rows]
+    counts: Dict[str, int] = {}
+    for record in records:
+        counts[record["annotation_type"]] = counts.get(record["annotation_type"], 0) + 1
+    return {
+        "evidence_pack_id": evidence_pack_id,
+        "annotations": records,
+        "counts_by_type": counts,
+        "total": len(records),
+    }
+
+
+def create_citation_annotation(
+    evidence_pack_id: str,
+    evidence_item_id: str,
+    annotation_type: str,
+    content: str,
+) -> Dict[str, Any]:
+    trimmed_content = content.strip()
+    if not trimmed_content:
+        raise AppError("validation_error", "Annotation content is required.", status_code=422)
+    timestamp = now_iso()
+    annotation_id = new_id("canno")
+    with db() as conn:
+        pack = conn.execute(
+            "SELECT id FROM evidence_packs WHERE id = ?",
+            (evidence_pack_id,),
+        ).fetchone()
+        if not pack:
+            raise AppError(
+                "evidence_pack_not_found",
+                "Evidence Pack was not found.",
+                status_code=404,
+            )
+        _load_item_for_pack(conn, evidence_pack_id, evidence_item_id)
+        conn.execute(
+            """
+            INSERT INTO citation_annotations (
+              id, evidence_pack_id, evidence_item_id, annotation_type,
+              content, metadata_json, created_at, updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                annotation_id,
+                evidence_pack_id,
+                evidence_item_id,
+                annotation_type,
+                trimmed_content,
+                json_dumps({"source": "citation_detail"}),
+                timestamp,
+                timestamp,
+            ),
+        )
+        row = conn.execute(
+            "SELECT * FROM citation_annotations WHERE id = ?",
+            (annotation_id,),
+        ).fetchone()
+    return _annotation_record(row)
+
+
+def update_citation_annotation(
+    annotation_id: str,
+    annotation_type: Optional[str],
+    content: Optional[str],
+) -> Dict[str, Any]:
+    updates: Dict[str, str] = {}
+    if annotation_type is not None:
+        updates["annotation_type"] = annotation_type
+    if content is not None:
+        trimmed_content = content.strip()
+        if not trimmed_content:
+            raise AppError("validation_error", "Annotation content is required.", status_code=422)
+        updates["content"] = trimmed_content
+    if not updates:
+        raise AppError("validation_error", "Annotation change is required.", status_code=422)
+    timestamp = now_iso()
+    with db() as conn:
+        current = conn.execute(
+            "SELECT * FROM citation_annotations WHERE id = ?",
+            (annotation_id,),
+        ).fetchone()
+        if not current:
+            raise AppError(
+                "citation_annotation_not_found",
+                "Citation annotation was not found.",
+                status_code=404,
+            )
+        conn.execute(
+            """
+            UPDATE citation_annotations
+            SET annotation_type = ?, content = ?, updated_at = ?
+            WHERE id = ?
+            """,
+            (
+                updates.get("annotation_type", current["annotation_type"]),
+                updates.get("content", current["content"]),
+                timestamp,
+                annotation_id,
+            ),
+        )
+        row = conn.execute(
+            "SELECT * FROM citation_annotations WHERE id = ?",
+            (annotation_id,),
+        ).fetchone()
+    return _annotation_record(row)
+
+
+def delete_citation_annotation(annotation_id: str) -> Dict[str, Any]:
+    with db() as conn:
+        current = conn.execute(
+            "SELECT * FROM citation_annotations WHERE id = ?",
+            (annotation_id,),
+        ).fetchone()
+        if not current:
+            raise AppError(
+                "citation_annotation_not_found",
+                "Citation annotation was not found.",
+                status_code=404,
+            )
+        conn.execute("DELETE FROM citation_annotations WHERE id = ?", (annotation_id,))
+    return {"id": annotation_id, "deleted": True}
+
+
+def compare_evidence_items(evidence_pack_id: str, evidence_item_ids: List[str]) -> Dict[str, Any]:
+    if len(evidence_item_ids) < 2 or len(evidence_item_ids) > 3:
+        raise AppError(
+            "validation_error",
+            "Compare requires two or three evidence items.",
+            status_code=422,
+        )
+    if len(set(evidence_item_ids)) != len(evidence_item_ids):
+        raise AppError(
+            "validation_error",
+            "Compare evidence items must be unique.",
+            status_code=422,
+        )
+    placeholders = ",".join("?" for _ in evidence_item_ids)
+    with db() as conn:
+        pack = conn.execute(
+            "SELECT id FROM evidence_packs WHERE id = ?",
+            (evidence_pack_id,),
+        ).fetchone()
+        if not pack:
+            raise AppError(
+                "evidence_pack_not_found",
+                "Evidence Pack was not found.",
+                status_code=404,
+            )
+        rows = conn.execute(
+            f"""
+            SELECT
+              ei.*,
+              ku.title AS knowledge_unit_title,
+              ku.status AS knowledge_unit_status,
+              ku.type AS knowledge_unit_type,
+              c.citation_label AS chunk_citation_label,
+              s.title AS source_title,
+              s.source_origin,
+              s.source_type
+            FROM evidence_items ei
+            LEFT JOIN knowledge_units ku ON ku.id = ei.knowledge_unit_id
+            LEFT JOIN chunks c ON c.id = ei.chunk_id
+            LEFT JOIN sources s ON s.id = ei.source_id
+            WHERE ei.evidence_pack_id = ?
+              AND ei.id IN ({placeholders})
+            ORDER BY ei.rank_score DESC, ei.created_at ASC
+            """,
+            (evidence_pack_id, *evidence_item_ids),
+        ).fetchall()
+    found_ids = {row["id"] for row in rows}
+    if found_ids != set(evidence_item_ids):
+        raise AppError(
+            "evidence_item_not_in_pack",
+            "One or more evidence items are not part of this Evidence Pack.",
+            status_code=404,
+        )
+    items = [
+        {
+            "id": row["id"],
+            "citation_label": row["citation_label"],
+            "rank_score": row["rank_score"],
+            "knowledge_unit_id": row["knowledge_unit_id"],
+            "knowledge_unit_title": row["knowledge_unit_title"],
+            "knowledge_unit_status": row["knowledge_unit_status"],
+            "knowledge_unit_type": row["knowledge_unit_type"],
+            "chunk_id": row["chunk_id"],
+            "chunk_citation_label": row["chunk_citation_label"],
+            "source_id": row["source_id"],
+            "source_title": row["source_title"],
+            "source_origin": row["source_origin"],
+            "source_type": row["source_type"],
+            "trace_path": _citation_trace_path(dict(row)),
+            "copy_payload": _copy_safe_citation_payload(dict(row)),
+        }
+        for row in rows
+    ]
+    source_titles = {item["source_title"] or item["source_id"] for item in items}
+    chunk_labels = {item["chunk_citation_label"] or item["chunk_id"] for item in items}
+    knowledge_titles = {
+        item["knowledge_unit_title"] or item["knowledge_unit_id"] for item in items
+    }
+    rank_scores = [float(item["rank_score"]) for item in items]
+    copy_safe_summary = " | ".join(
+        [
+            f"{item['citation_label']}:"
+            f"source={item['source_title'] or item['source_id'] or 'unknown'};"
+            f"chunk={item['chunk_citation_label'] or item['chunk_id'] or 'unknown'};"
+            f"ku={item['knowledge_unit_title'] or item['knowledge_unit_id'] or 'unknown'}"
+            for item in items
+        ]
+    )
+    return {
+        "evidence_pack_id": evidence_pack_id,
+        "item_count": len(items),
+        "items": items,
+        "differences": {
+            "source_count": len(source_titles),
+            "chunk_count": len(chunk_labels),
+            "knowledge_unit_count": len(knowledge_titles),
+            "rank_score_min": min(rank_scores) if rank_scores else None,
+            "rank_score_max": max(rank_scores) if rank_scores else None,
+            "same_source": len(source_titles) == 1,
+            "same_knowledge_unit": len(knowledge_titles) == 1,
+        },
+        "copy_safe_summary": copy_safe_summary,
     }
 
 

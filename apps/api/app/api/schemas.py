@@ -59,6 +59,7 @@ FeedbackRankingEffect = Literal[
 ]
 FeedbackSortOrder = Literal["created_desc", "created_asc"]
 MemoryType = Literal["preference", "decision", "style", "conclusion", "reusable_context"]
+CitationAnnotationType = Literal["note", "question", "risk", "follow_up"]
 
 
 class SettingsResponse(BaseModel):
@@ -468,6 +469,8 @@ class EvidencePackDetailSummary(BaseModel):
     rank_score_max: Optional[float]
     focused_item_id: Optional[str]
     no_evidence_reason: Optional[str]
+    annotation_count: int = 0
+    annotation_counts: Dict[str, int] = Field(default_factory=dict)
 
 
 class EvidencePackDetail(BaseModel):
@@ -497,6 +500,83 @@ class RetrievalPreviewResponse(BaseModel):
     citation_trace_summary: str
     provider_status: str
     fallback_reason: Optional[str]
+
+
+class CitationAnnotationRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    evidence_item_id: str = Field(min_length=1)
+    annotation_type: CitationAnnotationType
+    content: str = Field(min_length=1, max_length=2000)
+
+
+class CitationAnnotationPatchRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    annotation_type: Optional[CitationAnnotationType] = None
+    content: Optional[str] = Field(default=None, min_length=1, max_length=2000)
+
+    @model_validator(mode="after")
+    def require_change(self) -> CitationAnnotationPatchRequest:
+        if self.annotation_type is None and self.content is None:
+            raise ValueError("annotation change is required")
+        return self
+
+
+class CitationAnnotationRecord(BaseModel):
+    id: str
+    evidence_pack_id: str
+    evidence_item_id: str
+    annotation_type: CitationAnnotationType
+    content: str
+    metadata: Dict[str, Any]
+    created_at: str
+    updated_at: str
+
+
+class CitationAnnotationListResponse(BaseModel):
+    evidence_pack_id: str
+    annotations: List[CitationAnnotationRecord]
+    counts_by_type: Dict[str, int]
+    total: int
+
+
+class CitationCompareRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    evidence_item_ids: List[str] = Field(min_length=2, max_length=3)
+
+    @model_validator(mode="after")
+    def require_unique_items(self) -> CitationCompareRequest:
+        if len(set(self.evidence_item_ids)) != len(self.evidence_item_ids):
+            raise ValueError("evidence items must be unique")
+        return self
+
+
+class CitationCompareItem(BaseModel):
+    id: str
+    citation_label: str
+    rank_score: float
+    knowledge_unit_id: Optional[str]
+    knowledge_unit_title: Optional[str]
+    knowledge_unit_status: Optional[str]
+    knowledge_unit_type: Optional[str]
+    chunk_id: Optional[str]
+    chunk_citation_label: Optional[str]
+    source_id: Optional[str]
+    source_title: Optional[str]
+    source_origin: Optional[str]
+    source_type: Optional[str]
+    trace_path: List[Dict[str, Any]]
+    copy_payload: Dict[str, Any]
+
+
+class CitationCompareResponse(BaseModel):
+    evidence_pack_id: str
+    item_count: int
+    items: List[CitationCompareItem]
+    differences: Dict[str, Any]
+    copy_safe_summary: str
 
 
 class WorkspaceSummaryResponse(BaseModel):

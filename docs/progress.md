@@ -1,5 +1,39 @@
 # 进度记录
 
+## 2026-05-17（D-113 Citation Annotation / Evidence Compare Z0b-lite）
+
+### 已完成
+
+- 新增 `citation_annotations` 最小表：`id`、`evidence_pack_id`、`evidence_item_id`、`annotation_type`、`content`、`metadata_json`、`created_at`、`updated_at`。
+- 新增 citation annotation API：`GET /api/evidence-packs/{id}/annotations`、`POST /api/evidence-packs/{id}/annotations`、`PATCH /api/citation-annotations/{id}`、`DELETE /api/citation-annotations/{id}`。
+- 新增 `POST /api/evidence-packs/{id}/compare`：只接受同一 Evidence Pack 内 2-3 条 evidence item，返回 rank、source、chunk、KU、trace path、differences 和 copy-safe summary。
+- 扩展 `GET /api/evidence-packs/{id}` 的 `detail_summary`，返回 annotation count / counts by type。
+- Renderer `retrievalApi` / `retrievalStore` 增加 annotation list / create / update / delete、compare load state 和 comparison result。
+- `/search` 与 `/ask` 复用的 Citation Detail 面板新增 focused item 批注区、编辑 / 删除、compare 选择、对比结果和复制 compare summary；普通浏览器无 Electron preload 时继续显示 bridge degraded。
+- 新增中英双语 i18n 文案，覆盖 citation annotations、annotation types、evidence compare、compare summary 和复制对比；用户批注、query、excerpt、citation label、API enum/status code 不翻译。
+- 新增 `scripts/smoke-p0-citation-annotate-compare.mjs` 与 `pnpm smoke:p0-citation-annotate-compare`；完整 smoke 顺序更新为 `smoke:p0-core` → `smoke:p0-desktop-runtime` → `smoke:p0-i18n-settings` → `smoke:p0-file` → `smoke:p0-parse` → `smoke:p0-ku` → `smoke:p0-search-ask` → `smoke:p0-citation-detail` → `smoke:p0-citation-focus` → `smoke:p0-citation-annotate-compare` → `smoke:p0-feedback-memory` → `smoke:p0-feedback-diagnostics` → `smoke:p0-feedback-export` → `smoke:p0-feedback-filters-history` → `smoke:p0-z0a`。
+- 已同步 README、`docs/development-plan.md`、`docs/data-model.md`、`docs/api-design.md`、`docs/api-implementation-plan.md`、`docs/testing-strategy.md`、`docs/technical-stack-and-prototype-plan.md`。
+
+### 验收
+
+- `pnpm generate:api-types` 通过，已更新 `packages/api-types/src/openapi.json` 与 `packages/api-types/src/generated.ts`。
+- `pnpm typecheck` 通过。
+- `pnpm api:ruff` 通过。
+- `pnpm api:test` 通过，10 个 API 测试通过。
+- `pnpm smoke:p0-citation-annotate-compare` 通过，输出 `SMOKE_P0_CITATION_ANNOTATE_COMPARE_OK`。
+- 完整 smoke 顺序通过：
+  `pnpm smoke:p0-core`、`pnpm smoke:p0-desktop-runtime`、`pnpm smoke:p0-i18n-settings`、`pnpm smoke:p0-file`、`pnpm smoke:p0-parse`、`pnpm smoke:p0-ku`、`pnpm smoke:p0-search-ask`、`pnpm smoke:p0-citation-detail`、`pnpm smoke:p0-citation-focus`、`pnpm smoke:p0-citation-annotate-compare`、`pnpm smoke:p0-feedback-memory`、`pnpm smoke:p0-feedback-diagnostics`、`pnpm smoke:p0-feedback-export`、`pnpm smoke:p0-feedback-filters-history`、`pnpm smoke:p0-z0a`。
+- `pnpm --filter @knowledgebase-dev/renderer build` 通过。
+- `pnpm --filter @knowledgebase-dev/desktop-preload build` 通过。
+- `pnpm --filter @knowledgebase-dev/desktop-main build` 通过。
+- `git diff --check` 通过。
+- in-app browser 检查通过：`/ask` 与 `/search` 默认中文、普通浏览器显示 bridge degraded、Citation Detail 空态可见；`/settings` 切换英文后显示 “Settings / Interface language / Desktop bridge is unavailable”，最后已切回中文并停在 `/ask`。
+
+### 备注
+
+- D-113 不新增主路由，不接真实 LLM / provider-backed RAG / reranker / GraphRAG，不修改 Evidence Pack、KU、Source、AIAnswer、Memory 或 ranking。
+- 批注是 citation / evidence item 的本地复盘记录，不写入 `feedback_events`；compare result 不持久化，不记录复制行为。
+
 ## 2026-05-17（D-112 Citation Detail Focus / Evidence Trace Interaction Z0b-lite）
 
 ### 已完成

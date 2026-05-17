@@ -15,6 +15,58 @@ export type ApiSchemas = {
   "metadata": Record<string, unknown>;
   "created_at": string;
 };
+  "CitationAnnotationListResponse": {
+  "evidence_pack_id": string;
+  "annotations": CitationAnnotationRecord[];
+  "counts_by_type": Record<string, unknown>;
+  "total": number;
+};
+  "CitationAnnotationPatchRequest": {
+  "annotation_type"?: "note" | "question" | "risk" | "follow_up" | null;
+  "content"?: string | null;
+};
+  "CitationAnnotationRecord": {
+  "id": string;
+  "evidence_pack_id": string;
+  "evidence_item_id": string;
+  "annotation_type": "note" | "question" | "risk" | "follow_up";
+  "content": string;
+  "metadata": Record<string, unknown>;
+  "created_at": string;
+  "updated_at": string;
+};
+  "CitationAnnotationRequest": {
+  "evidence_item_id": string;
+  "annotation_type": "note" | "question" | "risk" | "follow_up";
+  "content": string;
+};
+  "CitationCompareItem": {
+  "id": string;
+  "citation_label": string;
+  "rank_score": number;
+  "knowledge_unit_id": string | null;
+  "knowledge_unit_title": string | null;
+  "knowledge_unit_status": string | null;
+  "knowledge_unit_type": string | null;
+  "chunk_id": string | null;
+  "chunk_citation_label": string | null;
+  "source_id": string | null;
+  "source_title": string | null;
+  "source_origin": string | null;
+  "source_type": string | null;
+  "trace_path": Record<string, unknown>[];
+  "copy_payload": Record<string, unknown>;
+};
+  "CitationCompareRequest": {
+  "evidence_item_ids": string[];
+};
+  "CitationCompareResponse": {
+  "evidence_pack_id": string;
+  "item_count": number;
+  "items": CitationCompareItem[];
+  "differences": Record<string, unknown>;
+  "copy_safe_summary": string;
+};
   "DiagnosticsResponse": {
   "created_at": string;
   "redacted": boolean;
@@ -90,6 +142,8 @@ export type ApiSchemas = {
   "rank_score_max": number | null;
   "focused_item_id": string | null;
   "no_evidence_reason": string | null;
+  "annotation_count"?: number;
+  "annotation_counts"?: Record<string, unknown>;
 };
   "FeedbackDiagnosticsExportResponse": {
   "filename": string;
@@ -476,6 +530,65 @@ export type ChunkRecord = {
   "created_at": string;
 };
 
+export type CitationAnnotationListResponse = {
+  "evidence_pack_id": string;
+  "annotations": CitationAnnotationRecord[];
+  "counts_by_type": Record<string, unknown>;
+  "total": number;
+};
+
+export type CitationAnnotationPatchRequest = {
+  "annotation_type"?: "note" | "question" | "risk" | "follow_up" | null;
+  "content"?: string | null;
+};
+
+export type CitationAnnotationRecord = {
+  "id": string;
+  "evidence_pack_id": string;
+  "evidence_item_id": string;
+  "annotation_type": "note" | "question" | "risk" | "follow_up";
+  "content": string;
+  "metadata": Record<string, unknown>;
+  "created_at": string;
+  "updated_at": string;
+};
+
+export type CitationAnnotationRequest = {
+  "evidence_item_id": string;
+  "annotation_type": "note" | "question" | "risk" | "follow_up";
+  "content": string;
+};
+
+export type CitationCompareItem = {
+  "id": string;
+  "citation_label": string;
+  "rank_score": number;
+  "knowledge_unit_id": string | null;
+  "knowledge_unit_title": string | null;
+  "knowledge_unit_status": string | null;
+  "knowledge_unit_type": string | null;
+  "chunk_id": string | null;
+  "chunk_citation_label": string | null;
+  "source_id": string | null;
+  "source_title": string | null;
+  "source_origin": string | null;
+  "source_type": string | null;
+  "trace_path": Record<string, unknown>[];
+  "copy_payload": Record<string, unknown>;
+};
+
+export type CitationCompareRequest = {
+  "evidence_item_ids": string[];
+};
+
+export type CitationCompareResponse = {
+  "evidence_pack_id": string;
+  "item_count": number;
+  "items": CitationCompareItem[];
+  "differences": Record<string, unknown>;
+  "copy_safe_summary": string;
+};
+
 export type DiagnosticsResponse = {
   "created_at": string;
   "redacted": boolean;
@@ -557,6 +670,8 @@ export type EvidencePackDetailSummary = {
   "rank_score_max": number | null;
   "focused_item_id": string | null;
   "no_evidence_reason": string | null;
+  "annotation_count"?: number;
+  "annotation_counts"?: Record<string, unknown>;
 };
 
 export type FeedbackDiagnosticsExportResponse = {
@@ -1002,4 +1117,7 @@ export type ApiPath =
   | "/api/retrieval/evidence-only"
   | "/api/retrieval/preview"
   | "/api/evidence-packs/{evidence_pack_id}"
+  | "/api/evidence-packs/{evidence_pack_id}/annotations"
+  | "/api/citation-annotations/{annotation_id}"
+  | "/api/evidence-packs/{evidence_pack_id}/compare"
 ;

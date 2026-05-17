@@ -7,6 +7,12 @@ from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 
 from app.api.schemas import (
+    CitationAnnotationListResponse,
+    CitationAnnotationPatchRequest,
+    CitationAnnotationRecord,
+    CitationAnnotationRequest,
+    CitationCompareRequest,
+    CitationCompareResponse,
     EvidenceOnlyRequest,
     EvidenceOnlyResponse,
     EvidencePackDetail,
@@ -24,7 +30,12 @@ from app.services.ingestion.text_import import import_text, now_iso
 from app.services.retrieval.evidence import (
     build_evidence_only_answer,
     build_retrieval_preview,
+    compare_evidence_items,
+    create_citation_annotation,
+    delete_citation_annotation,
     get_evidence_pack,
+    list_citation_annotations,
+    update_citation_annotation,
 )
 
 router = APIRouter()
@@ -237,3 +248,54 @@ def retrieval_preview(payload: RetrievalPreviewRequest) -> dict:
 @router.get("/evidence-packs/{evidence_pack_id}", response_model=EvidencePackDetail)
 def evidence_pack_detail(evidence_pack_id: str, focus_item_id: Optional[str] = None) -> dict:
     return get_evidence_pack(evidence_pack_id, focus_item_id)
+
+
+@router.get(
+    "/evidence-packs/{evidence_pack_id}/annotations",
+    response_model=CitationAnnotationListResponse,
+)
+def evidence_pack_annotations(evidence_pack_id: str) -> dict:
+    return list_citation_annotations(evidence_pack_id)
+
+
+@router.post(
+    "/evidence-packs/{evidence_pack_id}/annotations",
+    response_model=CitationAnnotationRecord,
+)
+def create_evidence_pack_annotation(
+    evidence_pack_id: str,
+    payload: CitationAnnotationRequest,
+) -> dict:
+    return create_citation_annotation(
+        evidence_pack_id=evidence_pack_id,
+        evidence_item_id=payload.evidence_item_id,
+        annotation_type=payload.annotation_type,
+        content=payload.content,
+    )
+
+
+@router.patch(
+    "/citation-annotations/{annotation_id}",
+    response_model=CitationAnnotationRecord,
+)
+def patch_citation_annotation(
+    annotation_id: str,
+    payload: CitationAnnotationPatchRequest,
+) -> dict:
+    return update_citation_annotation(annotation_id, payload.annotation_type, payload.content)
+
+
+@router.delete("/citation-annotations/{annotation_id}")
+def remove_citation_annotation(annotation_id: str) -> dict:
+    return delete_citation_annotation(annotation_id)
+
+
+@router.post(
+    "/evidence-packs/{evidence_pack_id}/compare",
+    response_model=CitationCompareResponse,
+)
+def compare_evidence_pack_items(
+    evidence_pack_id: str,
+    payload: CitationCompareRequest,
+) -> dict:
+    return compare_evidence_items(evidence_pack_id, payload.evidence_item_ids)

@@ -214,6 +214,187 @@ def test_z0a_text_import_review_and_evidence(monkeypatch, tmp_path):
         )
 
 
+def test_citation_annotations_and_compare(monkeypatch, tmp_path):
+    monkeypatch.setenv("KB_APP_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("KB_LOCAL_TOKEN", "test-token")
+    headers = {"x-kb-local-token": "test-token"}
+    with TestClient(create_app()) as client:
+        unauthorized = client.get("/api/evidence-packs/epack_missing/annotations")
+        assert unauthorized.status_code == 401
+        assert unauthorized.json()["error"]["code"] == "sidecar_auth_failed"
+
+        imports = []
+        for title, content in [
+            (
+                "Citation Annotation Alpha",
+                "Citation annotation compare alpha evidence keeps Source Chunk Knowledge binding.",
+            ),
+            (
+                "Citation Annotation Beta",
+                "Citation annotation compare beta evidence keeps Source Chunk Knowledge binding.",
+            ),
+        ]:
+            imported = client.post(
+                "/api/text-imports",
+                headers=headers,
+                json={"title": title, "content": content},
+            )
+            assert imported.status_code == 200
+            imports.append(imported.json())
+
+        pending_preview = client.post(
+            "/api/retrieval/preview",
+            headers=headers,
+            json={"query": "Citation annotation compare Source Chunk"},
+        )
+        assert pending_preview.status_code == 200
+        assert pending_preview.json()["evidence_item_ids"] == []
+
+        for imported in imports:
+            confirmed = client.post(
+                f"/api/review-tasks/{imported['review_task_ids'][0]}:confirm",
+                headers=headers,
+            )
+            assert confirmed.status_code == 200
+
+        preview = client.post(
+            "/api/retrieval/preview",
+            headers=headers,
+            json={"query": "Citation annotation compare Source Chunk"},
+        )
+        assert preview.status_code == 200
+        preview_body = preview.json()
+        assert len(preview_body["evidence_item_ids"]) >= 2
+        pack_id = preview_body["evidence_pack_id"]
+        item_ids = preview_body["evidence_item_ids"][:2]
+
+        empty_annotations = client.get(
+            f"/api/evidence-packs/{pack_id}/annotations",
+            headers=headers,
+        )
+        assert empty_annotations.status_code == 200
+        assert empty_annotations.json()["total"] == 0
+
+        created = client.post(
+            f"/api/evidence-packs/{pack_id}/annotations",
+            headers=headers,
+            json={
+                "evidence_item_id": item_ids[0],
+                "annotation_type": "note",
+                "content": "  first local citation note  ",
+            },
+        )
+        assert created.status_code == 200
+        created_body = created.json()
+        assert created_body["content"] == "first local citation note"
+        assert created_body["annotation_type"] == "note"
+        assert created_body["metadata"]["source"] == "citation_detail"
+
+        detail_with_annotation = client.get(f"/api/evidence-packs/{pack_id}", headers=headers)
+        assert detail_with_annotation.status_code == 200
+        detail_summary = detail_with_annotation.json()["detail_summary"]
+        assert detail_summary["annotation_count"] == 1
+        assert detail_summary["annotation_counts"]["note"] == 1
+
+        updated = client.patch(
+            f"/api/citation-annotations/{created_body['id']}",
+            headers=headers,
+            json={"annotation_type": "risk", "content": "needs source comparison"},
+        )
+        assert updated.status_code == 200
+        assert updated.json()["annotation_type"] == "risk"
+        assert updated.json()["content"] == "needs source comparison"
+
+        annotations = client.get(f"/api/evidence-packs/{pack_id}/annotations", headers=headers)
+        assert annotations.status_code == 200
+        annotations_body = annotations.json()
+        assert annotations_body["total"] == 1
+        assert annotations_body["counts_by_type"]["risk"] == 1
+
+        invalid_annotation = client.post(
+            f"/api/evidence-packs/{pack_id}/annotations",
+            headers=headers,
+            json={
+                "evidence_item_id": "eitem_not_in_pack",
+                "annotation_type": "note",
+                "content": "bad binding",
+            },
+        )
+        assert invalid_annotation.status_code == 404
+        assert invalid_annotation.json()["error"]["code"] == "evidence_item_not_in_pack"
+
+        invalid_empty = client.post(
+            f"/api/evidence-packs/{pack_id}/annotations",
+            headers=headers,
+            json={
+                "evidence_item_id": item_ids[0],
+                "annotation_type": "note",
+                "content": "   ",
+            },
+        )
+        assert invalid_empty.status_code == 422
+        assert invalid_empty.json()["error"]["code"] == "validation_error"
+
+        compare = client.post(
+            f"/api/evidence-packs/{pack_id}/compare",
+            headers=headers,
+            json={"evidence_item_ids": item_ids},
+        )
+        assert compare.status_code == 200
+        compare_body = compare.json()
+        assert compare_body["item_count"] == 2
+        assert compare_body["differences"]["source_count"] >= 1
+        assert compare_body["differences"]["knowledge_unit_count"] >= 1
+        assert compare_body["copy_safe_summary"]
+        assert "alpha evidence" not in compare_body["copy_safe_summary"]
+        for item in compare_body["items"]:
+            assert item["knowledge_unit_status"] == "confirmed"
+            assert [node["type"] for node in item["trace_path"]] == [
+                "evidence_pack",
+                "evidence_item",
+                "knowledge_unit",
+                "chunk",
+                "source",
+            ]
+            assert item["copy_payload"]["evidence_item_id"] == item["id"]
+
+        invalid_compare = client.post(
+            f"/api/evidence-packs/{pack_id}/compare",
+            headers=headers,
+            json={"evidence_item_ids": [item_ids[0], "eitem_not_in_pack"]},
+        )
+        assert invalid_compare.status_code == 404
+        assert invalid_compare.json()["error"]["code"] == "evidence_item_not_in_pack"
+
+        before_counts = {}
+        with db() as conn:
+            for table in [
+                "evidence_packs",
+                "evidence_items",
+                "knowledge_units",
+                "sources",
+                "ai_answers",
+                "memories",
+            ]:
+                before_counts[table] = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+        repeated_compare = client.post(
+            f"/api/evidence-packs/{pack_id}/compare",
+            headers=headers,
+            json={"evidence_item_ids": item_ids},
+        )
+        assert repeated_compare.status_code == 200
+        with db() as conn:
+            for table, before_count in before_counts.items():
+                assert conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0] == before_count
+
+        deleted = client.delete(f"/api/citation-annotations/{created_body['id']}", headers=headers)
+        assert deleted.status_code == 200
+        assert deleted.json()["deleted"] is True
+        after_delete = client.get(f"/api/evidence-packs/{pack_id}/annotations", headers=headers)
+        assert after_delete.status_code == 200
+        assert after_delete.json()["total"] == 0
+
+
 def test_feedback_events_and_memory_draft_review(monkeypatch, tmp_path):
     monkeypatch.setenv("KB_APP_DATA_DIR", str(tmp_path))
     monkeypatch.setenv("KB_LOCAL_TOKEN", "test-token")

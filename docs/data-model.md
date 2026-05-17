@@ -1,8 +1,8 @@
-# 数据模型 v0.23-draft
+# 数据模型 v0.24-draft
 
-版本：v0.23-draft
+版本：v0.24-draft
 日期：2026-05-17  
-状态：草案——完整 P0 入库与知识处理平台 + 切片前准备层 / 切片执行 profile / AI 结构化整理 profile / D-079 结构化整理子字段与存储映射 / D-080 知识调用 profile 与隐式 Agent / D-081 调用持久化边界 / D-082 InvocationProfileSchema v1 / D-083 前端状态与反馈策略 / D-085 Z0a 调用锚点、反馈和 citation 边界修正 / D-092 trace chain 与 Evidence Pack 失败态 / D-104 Retrieval Preview 复用既有调用对象 / D-107 feedback_events 与 memories Z0b-lite 物理表 / D-108 feedback_events 诊断读取与 Event Replay / 知识切片质量闭环 / 安全运维横切层 / 检查门映射单一来源 / 事件枚举单一来源 / P0-Z0a/Z0b 最小迁移 / ProcessingJob / sensitive grant / evidence-only 契约收紧
+状态：草案——完整 P0 入库与知识处理平台 + 切片前准备层 / 切片执行 profile / AI 结构化整理 profile / D-079 结构化整理子字段与存储映射 / D-080 知识调用 profile 与隐式 Agent / D-081 调用持久化边界 / D-082 InvocationProfileSchema v1 / D-083 前端状态与反馈策略 / D-085 Z0a 调用锚点、反馈和 citation 边界修正 / D-092 trace chain 与 Evidence Pack 失败态 / D-104 Retrieval Preview 复用既有调用对象 / D-107 feedback_events 与 memories Z0b-lite 物理表 / D-108 feedback_events 诊断读取与 Event Replay / D-113 citation_annotations 批注与 evidence compare 只读边界 / 知识切片质量闭环 / 安全运维横切层 / 检查门映射单一来源 / 事件枚举单一来源 / P0-Z0a/Z0b 最小迁移 / ProcessingJob / sensitive grant / evidence-only 契约收紧
 
 ## 1. 文档目的
 
@@ -1820,7 +1820,24 @@ P0 不强制完整数据库加密、ClamAV daemon、Docker Sandbox、企业审�
 | notes | text nullable | 说明 |
 | metadata_json | jsonb | D-080 扩展：`citation_trace_profile`、source reliability、text span |
 
-### 7.5 ai_answers
+### 7.5 citation_annotations
+
+D-113 提前实现 `citation_annotations` 作为 Z0b-lite 本地复盘对象。它只保存用户对 citation / evidence item 的检查批注，不等同于 feedback，不写 `feedback_events`，不影响 ranking，也不修改 Evidence Pack、Evidence Item、KU、Source、AIAnswer 或 Memory。
+
+| 字段 | 类型建议 | 说明 |
+|---|---|---|
+| id | uuid/text | Citation Annotation ID |
+| evidence_pack_id | uuid/text | 所属 Evidence Pack |
+| evidence_item_id | uuid/text | 被批注的 Evidence Item；必须属于同一 Evidence Pack |
+| annotation_type | text | note / question / risk / follow_up |
+| content | text | 用户批注内容；不能为空 |
+| metadata_json | jsonb | 扩展字段；P0 记录 `source=citation_detail` |
+| created_at | timestamptz | 创建时间 |
+| updated_at | timestamptz | 更新时间 |
+
+D-113 evidence compare 不新增表。`POST /api/evidence-packs/{id}/compare` 只读取同一 pack 内 2-3 条 `evidence_items`，通过既有 KU / Chunk / Source join 生成 differences 和 copy-safe summary，不保存 compare result，也不记录复制行为。
+
+### 7.6 ai_answers
 
 | 字段 | 类型建议 | 说明 |
 |---|---|---|
@@ -1846,7 +1863,7 @@ P0-Z0a 约束：
 - 若 Evidence Pack 的 `failure_type` 为 `no_retrieval_result / insufficient_evidence / permission_blocked / citation_binding_failed`，不得写入伪答案；D-104 兼容 endpoint 可写入仅包含 no evidence reason 的 `evidence_only_answer` 记录。`vector_degraded` 只有在关键词 / metadata / citation 证据仍充分时才允许生成带 evidence items 的 `evidence_only_answer`。
 - `rag_answer` 只在 P0-Z2 或 Provider 可用的增强路径中启用，且必须记录 `provider_key`、`provider_version`、`capability_status` 和 fallback 行为。
 
-### 7.6 answer_citations
+### 7.7 answer_citations
 
 `answer_citations` 是 P0-Z0b 起的持久化 citation 明细对象。P0-Z0a 响应不得要求返回持久化 `citation_id`；应返回 `evidence_item_ids`、`citation_labels` 和内联 `citation_trace_summary`，确保 Source / Chunk / Knowledge Unit 可追踪即可。
 
@@ -1863,7 +1880,7 @@ P0-Z0a 约束：
 | source_location | text nullable | 来源位置 |
 | created_at | timestamptz | 创建时间 |
 
-### 7.7 memories
+### 7.8 memories
 
 | 字段 | 类型建议 | 说明 |
 |---|---|---|
@@ -1880,7 +1897,7 @@ P0-Z0a 约束：
 | updated_at | timestamptz | 更新时间 |
 | metadata_json | jsonb | 扩展字段 |
 
-### 7.8 retrieval_feedback
+### 7.9 retrieval_feedback
 
 | 字段 | 类型建议 | 说明 |
 |---|---|---|
@@ -1899,7 +1916,8 @@ D-107 / D-108 反馈 / Memory 边界：
 - D-108 不新增表；`GET /api/feedback` 与 `GET /api/feedback/summary` 只读取 `feedback_events`，并通过既有 `ai_answers`、`evidence_packs`、`evidence_items`、`retrieval_logs` 补足 query / citation context。读取诊断不得修改 `feedback_events`、`knowledge_units`、`evidence_packs`、`ai_answers` 或 `memories`。
 - `memories`：D-107 已实现 pending-review Memory Draft；confirm / ignore 只改变 memory 状态，不创建 confirmed KU，也不加入 retrieval results。
 - `retrieval_feedback`：Z2 起的检索反馈持久化对象，必须能关联 Invocation / Evidence / Answer，并携带 `feedback_policy`、作用域、权重上限和是否参与 ranking suggestion。
-- D-107 / D-108 不新增 `invocation_requests`、`retrieval_plans`、真实 LLM answer、GraphRAG、provider-backed RAG 或 `retrieval_feedback`。
+- D-113 的 `citation_annotations` 只服务 Citation Detail 本地复盘；不得作为 feedback/ranking signal，也不得让批注内容进入检索证据。
+- D-107 / D-108 / D-113 不新增 `invocation_requests`、`retrieval_plans`、真实 LLM answer、GraphRAG、provider-backed RAG 或 `retrieval_feedback`。
 
 ---
 

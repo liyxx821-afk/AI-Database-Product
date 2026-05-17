@@ -371,6 +371,19 @@ CREATE TABLE IF NOT EXISTS evidence_items (
   FOREIGN KEY(evidence_pack_id) REFERENCES evidence_packs(id)
 );
 
+CREATE TABLE IF NOT EXISTS citation_annotations (
+  id TEXT PRIMARY KEY,
+  evidence_pack_id TEXT NOT NULL,
+  evidence_item_id TEXT NOT NULL,
+  annotation_type TEXT NOT NULL,
+  content TEXT NOT NULL,
+  metadata_json TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  FOREIGN KEY(evidence_pack_id) REFERENCES evidence_packs(id),
+  FOREIGN KEY(evidence_item_id) REFERENCES evidence_items(id)
+);
+
 CREATE TABLE IF NOT EXISTS ai_answers (
   id TEXT PRIMARY KEY,
   retrieval_log_id TEXT NOT NULL,

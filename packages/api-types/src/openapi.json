@@ -2033,6 +2033,229 @@
           }
         }
       }
+    },
+    "/api/evidence-packs/{evidence_pack_id}/annotations": {
+      "get": {
+        "summary": "Evidence Pack Annotations",
+        "operationId": "evidence_pack_annotations_api_evidence_packs__evidence_pack_id__annotations_get",
+        "parameters": [
+          {
+            "name": "evidence_pack_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Evidence Pack Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CitationAnnotationListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Create Evidence Pack Annotation",
+        "operationId": "create_evidence_pack_annotation_api_evidence_packs__evidence_pack_id__annotations_post",
+        "parameters": [
+          {
+            "name": "evidence_pack_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Evidence Pack Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CitationAnnotationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CitationAnnotationRecord"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/citation-annotations/{annotation_id}": {
+      "patch": {
+        "summary": "Patch Citation Annotation",
+        "operationId": "patch_citation_annotation_api_citation_annotations__annotation_id__patch",
+        "parameters": [
+          {
+            "name": "annotation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Annotation Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CitationAnnotationPatchRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CitationAnnotationRecord"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Remove Citation Annotation",
+        "operationId": "remove_citation_annotation_api_citation_annotations__annotation_id__delete",
+        "parameters": [
+          {
+            "name": "annotation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Annotation Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Remove Citation Annotation Api Citation Annotations  Annotation Id  Delete"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/evidence-packs/{evidence_pack_id}/compare": {
+      "post": {
+        "summary": "Compare Evidence Pack Items",
+        "operationId": "compare_evidence_pack_items_api_evidence_packs__evidence_pack_id__compare_post",
+        "parameters": [
+          {
+            "name": "evidence_pack_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Evidence Pack Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CitationCompareRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CitationCompareResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -2111,6 +2334,379 @@
           "created_at"
         ],
         "title": "ChunkRecord"
+      },
+      "CitationAnnotationListResponse": {
+        "properties": {
+          "evidence_pack_id": {
+            "type": "string",
+            "title": "Evidence Pack Id"
+          },
+          "annotations": {
+            "items": {
+              "$ref": "#/components/schemas/CitationAnnotationRecord"
+            },
+            "type": "array",
+            "title": "Annotations"
+          },
+          "counts_by_type": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Counts By Type"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          }
+        },
+        "type": "object",
+        "required": [
+          "evidence_pack_id",
+          "annotations",
+          "counts_by_type",
+          "total"
+        ],
+        "title": "CitationAnnotationListResponse"
+      },
+      "CitationAnnotationPatchRequest": {
+        "properties": {
+          "annotation_type": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "note",
+                  "question",
+                  "risk",
+                  "follow_up"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Annotation Type"
+          },
+          "content": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "CitationAnnotationPatchRequest"
+      },
+      "CitationAnnotationRecord": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "evidence_pack_id": {
+            "type": "string",
+            "title": "Evidence Pack Id"
+          },
+          "evidence_item_id": {
+            "type": "string",
+            "title": "Evidence Item Id"
+          },
+          "annotation_type": {
+            "type": "string",
+            "enum": [
+              "note",
+              "question",
+              "risk",
+              "follow_up"
+            ],
+            "title": "Annotation Type"
+          },
+          "content": {
+            "type": "string",
+            "title": "Content"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Metadata"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "evidence_pack_id",
+          "evidence_item_id",
+          "annotation_type",
+          "content",
+          "metadata",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "CitationAnnotationRecord"
+      },
+      "CitationAnnotationRequest": {
+        "properties": {
+          "evidence_item_id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Evidence Item Id"
+          },
+          "annotation_type": {
+            "type": "string",
+            "enum": [
+              "note",
+              "question",
+              "risk",
+              "follow_up"
+            ],
+            "title": "Annotation Type"
+          },
+          "content": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Content"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "evidence_item_id",
+          "annotation_type",
+          "content"
+        ],
+        "title": "CitationAnnotationRequest"
+      },
+      "CitationCompareItem": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "citation_label": {
+            "type": "string",
+            "title": "Citation Label"
+          },
+          "rank_score": {
+            "type": "number",
+            "title": "Rank Score"
+          },
+          "knowledge_unit_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Knowledge Unit Id"
+          },
+          "knowledge_unit_title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Knowledge Unit Title"
+          },
+          "knowledge_unit_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Knowledge Unit Status"
+          },
+          "knowledge_unit_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Knowledge Unit Type"
+          },
+          "chunk_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chunk Id"
+          },
+          "chunk_citation_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chunk Citation Label"
+          },
+          "source_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Id"
+          },
+          "source_title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Title"
+          },
+          "source_origin": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Origin"
+          },
+          "source_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Type"
+          },
+          "trace_path": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Trace Path"
+          },
+          "copy_payload": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Copy Payload"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "citation_label",
+          "rank_score",
+          "knowledge_unit_id",
+          "knowledge_unit_title",
+          "knowledge_unit_status",
+          "knowledge_unit_type",
+          "chunk_id",
+          "chunk_citation_label",
+          "source_id",
+          "source_title",
+          "source_origin",
+          "source_type",
+          "trace_path",
+          "copy_payload"
+        ],
+        "title": "CitationCompareItem"
+      },
+      "CitationCompareRequest": {
+        "properties": {
+          "evidence_item_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 3,
+            "minItems": 2,
+            "title": "Evidence Item Ids"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "evidence_item_ids"
+        ],
+        "title": "CitationCompareRequest"
+      },
+      "CitationCompareResponse": {
+        "properties": {
+          "evidence_pack_id": {
+            "type": "string",
+            "title": "Evidence Pack Id"
+          },
+          "item_count": {
+            "type": "integer",
+            "title": "Item Count"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CitationCompareItem"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "differences": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Differences"
+          },
+          "copy_safe_summary": {
+            "type": "string",
+            "title": "Copy Safe Summary"
+          }
+        },
+        "type": "object",
+        "required": [
+          "evidence_pack_id",
+          "item_count",
+          "items",
+          "differences",
+          "copy_safe_summary"
+        ],
+        "title": "CitationCompareResponse"
       },
       "DiagnosticsResponse": {
         "properties": {
@@ -2589,6 +3185,18 @@
               }
             ],
             "title": "No Evidence Reason"
+          },
+          "annotation_count": {
+            "type": "integer",
+            "title": "Annotation Count",
+            "default": 0
+          },
+          "annotation_counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Annotation Counts"
           }
         },
         "type": "object",
