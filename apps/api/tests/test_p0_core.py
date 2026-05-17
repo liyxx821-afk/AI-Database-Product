@@ -348,6 +348,9 @@ def test_feedback_diagnostics_list_summary_and_filters(monkeypatch, tmp_path):
         unauthorized_export = client.get("/api/feedback/export?format=json")
         assert unauthorized_export.status_code == 401
         assert unauthorized_export.json()["error"]["code"] == "sidecar_auth_failed"
+        unauthorized_history = client.get("/api/feedback/export-history")
+        assert unauthorized_history.status_code == 401
+        assert unauthorized_history.json()["error"]["code"] == "sidecar_auth_failed"
 
         imported = client.post(
             "/api/text-imports",
@@ -379,10 +382,11 @@ def test_feedback_diagnostics_list_summary_and_filters(monkeypatch, tmp_path):
         answer_body = answer.json()
         evidence_item_id = answer_body["evidence_item_ids"][0]
 
+        feedback_ids: dict[str, str] = {}
         for feedback_type, comment in [
             ("useful", "useful event"),
             ("bad_citation", "bad citation event"),
-            ("missing_source", "missing source event"),
+            ("missing_source", None),
         ]:
             feedback = client.post(
                 "/api/feedback",
@@ -396,6 +400,19 @@ def test_feedback_diagnostics_list_summary_and_filters(monkeypatch, tmp_path):
                 },
             )
             assert feedback.status_code == 200
+            feedback_ids[feedback_type] = feedback.json()["id"]
+
+        created_times = {
+            "useful": "2026-05-17T00:00:01+00:00",
+            "bad_citation": "2026-05-17T00:00:02+00:00",
+            "missing_source": "2026-05-17T00:00:03+00:00",
+        }
+        with db() as conn:
+            for feedback_type, feedback_id in feedback_ids.items():
+                conn.execute(
+                    "UPDATE feedback_events SET created_at = ? WHERE id = ?",
+                    (created_times[feedback_type], feedback_id),
+                )
 
         events = client.get("/api/feedback", headers=headers)
         assert events.status_code == 200
@@ -439,6 +456,52 @@ def test_feedback_diagnostics_list_summary_and_filters(monkeypatch, tmp_path):
         assert by_item.status_code == 200
         assert len(by_item.json()) == 3
 
+        by_created_asc = client.get("/api/feedback?sort=created_asc", headers=headers)
+        assert by_created_asc.status_code == 200
+        assert [event["feedback_type"] for event in by_created_asc.json()] == [
+            "useful",
+            "bad_citation",
+            "missing_source",
+        ]
+
+        by_window = client.get(
+            (
+                "/api/feedback?created_from=2026-05-17T00:00:02%2B00:00"
+                "&created_to=2026-05-17T00:00:03%2B00:00"
+            ),
+            headers=headers,
+        )
+        assert by_window.status_code == 200
+        assert [event["feedback_type"] for event in by_window.json()] == [
+            "missing_source",
+            "bad_citation",
+        ]
+
+        by_search = client.get("/api/feedback?search=bad%20citation", headers=headers)
+        assert by_search.status_code == 200
+        assert [event["feedback_type"] for event in by_search.json()] == ["bad_citation"]
+
+        by_ranking = client.get(
+            "/api/feedback?ranking_effect=negative_weight_suggestion",
+            headers=headers,
+        )
+        assert by_ranking.status_code == 200
+        assert [event["feedback_type"] for event in by_ranking.json()] == [
+            "missing_source",
+            "bad_citation",
+        ]
+
+        with_comment = client.get("/api/feedback?has_comment=true", headers=headers)
+        assert with_comment.status_code == 200
+        assert [event["feedback_type"] for event in with_comment.json()] == [
+            "bad_citation",
+            "useful",
+        ]
+
+        without_comment = client.get("/api/feedback?has_comment=false", headers=headers)
+        assert without_comment.status_code == 200
+        assert [event["feedback_type"] for event in without_comment.json()] == ["missing_source"]
+
         summary = client.get("/api/feedback/summary", headers=headers)
         assert summary.status_code == 200
         summary_body = summary.json()
@@ -453,6 +516,14 @@ def test_feedback_diagnostics_list_summary_and_filters(monkeypatch, tmp_path):
         assert summary_body["negative_count"] == 2
         assert summary_body["last_event_at"] == event_body[0]["created_at"]
         assert summary_body["feedback_policy"]["mutates_confirmed_knowledge"] is False
+
+        filtered_summary = client.get(
+            "/api/feedback/summary?ranking_effect=negative_weight_suggestion",
+            headers=headers,
+        )
+        assert filtered_summary.status_code == 200
+        assert filtered_summary.json()["total"] == 2
+        assert filtered_summary.json()["negative_count"] == 2
 
         json_export = client.get("/api/feedback/export?format=json&limit=2", headers=headers)
         assert json_export.status_code == 200
@@ -505,6 +576,32 @@ def test_feedback_diagnostics_list_summary_and_filters(monkeypatch, tmp_path):
         assert csv_rows[0]["query"] == "Feedback Diagnostics Citation"
         assert csv_rows[0]["citation_label"]
 
+        history = client.get("/api/feedback/export-history", headers=headers)
+        assert history.status_code == 200
+        history_body = history.json()
+        assert len(history_body) == 2
+        assert history_body[0]["format"] == "csv"
+        assert history_body[0]["content_sha256"] == hashlib.sha256(
+            csv_export_body["content"].encode("utf-8")
+        ).hexdigest()
+        assert history_body[1]["format"] == "json"
+        assert history_body[1]["summary"]["total"] == 2
+        history_blob = json.dumps(history_body, ensure_ascii=False)
+        assert "content" not in history_body[0]
+        assert "test-token" not in history_blob
+        assert str(tmp_path) not in history_blob
+        assert "mutating retrieval artifacts" not in history_blob
+
+        deleted = client.delete(
+            f"/api/feedback/export-history/{history_body[0]['id']}",
+            headers=headers,
+        )
+        assert deleted.status_code == 200
+        assert deleted.json()["deleted"] is True
+        history_after_delete = client.get("/api/feedback/export-history", headers=headers)
+        assert history_after_delete.status_code == 200
+        assert [record["id"] for record in history_after_delete.json()] == [history_body[1]["id"]]
+
         exported_blob = (
             json.dumps(json_export_body, ensure_ascii=False) + csv_export_body["content"]
         )
@@ -515,6 +612,12 @@ def test_feedback_diagnostics_list_summary_and_filters(monkeypatch, tmp_path):
         invalid_target = client.get("/api/feedback?target_type=unknown", headers=headers)
         assert invalid_target.status_code == 422
         assert invalid_target.json()["error"]["code"] == "invalid_feedback_filter"
+        invalid_ranking = client.get("/api/feedback?ranking_effect=unknown", headers=headers)
+        assert invalid_ranking.status_code == 422
+        invalid_sort = client.get("/api/feedback?sort=wrong", headers=headers)
+        assert invalid_sort.status_code == 422
+        invalid_datetime = client.get("/api/feedback?created_from=not-a-date", headers=headers)
+        assert invalid_datetime.status_code == 422
 
         with db() as conn:
             retrieval_feedback_table = conn.execute(

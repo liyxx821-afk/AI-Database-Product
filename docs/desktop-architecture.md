@@ -1,8 +1,8 @@
 # 桌面应用架构
 
-版本：v0.9
+版本：v0.10
 日期：2026-05-17
-状态：已同步完整 P0 入库、文件处理、开源优先 AI、P0-RAG 桌面边界、D-092 sidecar 打包验证 spike、D-093 桌面运行时硬化、D-094 P0-Core 工程骨架开工契约、D-098 Knowledge Workspace 页面 IA / 桌面 shell 导航契约与 D-109 pseudo-packaged desktop runtime smoke
+状态：已同步完整 P0 入库、文件处理、开源优先 AI、P0-RAG 桌面边界、D-092 sidecar 打包验证 spike、D-093 桌面运行时硬化、D-094 P0-Core 工程骨架开工契约、D-098 Knowledge Workspace 页面 IA / 桌面 shell 导航契约、D-109 pseudo-packaged desktop runtime smoke 与 D-111 feedback export history metadata config
 
 ## 1. 文档目的
 
@@ -312,7 +312,7 @@ Linux:   ~/.config/KnowledgeBase/
 ├── sources/                   (原始 Source 文件)
 ├── exports/                   (导出文件)
 ├── logs/                      (应用日志)
-└── config.json                (用户配置)
+└── config.json                (用户配置与轻量 history metadata)
 ```
 
 用户可以在设置中自定义数据目录。
@@ -1155,7 +1155,7 @@ Onboarding 之后的设置页面应包含：
 | 关于 | 检查更新 | - | P1 |
 | 关于 | 开源许可 / 隐私政策 | P0 | - |
 
-D-106 后，语言偏好通过 `GET /api/settings` 与 `PATCH /api/settings` 读写，由 FastAPI sidecar 原子更新 app data 下的 `config.json`，不进入 SQLite migration。Renderer 在 Electron 环境下只通过 preload bridge + typed fetch wrapper 调用设置 API；普通浏览器无 bridge 时只允许 session fallback，并展示 degraded 状态。
+D-106 后，语言偏好通过 `GET /api/settings` 与 `PATCH /api/settings` 读写，由 FastAPI sidecar 原子更新 app data 下的 `config.json`，不进入 SQLite migration。D-111 后，feedback diagnostics export history 也写入同一个 `config.json.feedback_export_history`，但只保存最近 20 条 filename / format / record_count / generated_at / filters / summary totals / content_sha256 / redaction flags，不保存导出正文、source text、answer text、local token、DB path 或完整本地路径。Renderer 在 Electron 环境下只通过 preload bridge + typed fetch wrapper 调用设置和反馈 API；普通浏览器无 bridge 时只允许 session fallback，并展示 degraded 状态。
 
 ### 15.5 帮助系统
 

@@ -1,14 +1,21 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 import io
 import json
+from datetime import datetime
 from typing import Any, Dict, Optional
 
 from app.api.schemas import FeedbackRequest, MemoryDraftRequest
 from app.core.errors import AppError
 from app.db.sqlite import db, json_dumps
 from app.services.ingestion.text_import import new_id, now_iso
+from app.services.settings import (
+    append_feedback_export_history,
+    delete_feedback_export_history,
+    get_feedback_export_history,
+)
 
 VALID_TARGET_TYPES = {"evidence_pack", "ai_answer", "evidence_item"}
 POSITIVE_FEEDBACK_TYPES = {"click", "useful", "favorite"}
@@ -18,6 +25,12 @@ NEGATIVE_FEEDBACK_TYPES = {
     "missing_source",
     "downrank_source",
 }
+VALID_RANKING_EFFECTS = {
+    "positive_weight_suggestion",
+    "negative_weight_suggestion",
+    "diagnostic_only",
+}
+VALID_SORT_ORDERS = {"created_desc", "created_asc"}
 
 
 def submit_feedback(payload: FeedbackRequest) -> Dict[str, Any]:
@@ -86,6 +99,12 @@ def list_feedback_events(
     evidence_pack_id: Optional[str] = None,
     ai_answer_id: Optional[str] = None,
     evidence_item_id: Optional[str] = None,
+    created_from: Optional[str] = None,
+    created_to: Optional[str] = None,
+    search: Optional[str] = None,
+    ranking_effect: Optional[str] = None,
+    has_comment: Optional[bool] = None,
+    sort: str = "created_desc",
     limit: int = 50,
 ) -> list[Dict[str, Any]]:
     return _query_feedback_events(
@@ -94,6 +113,12 @@ def list_feedback_events(
         evidence_pack_id=evidence_pack_id,
         ai_answer_id=ai_answer_id,
         evidence_item_id=evidence_item_id,
+        created_from=created_from,
+        created_to=created_to,
+        search=search,
+        ranking_effect=ranking_effect,
+        has_comment=has_comment,
+        sort=sort,
         limit=limit,
         max_limit=100,
     )
@@ -107,6 +132,12 @@ def export_feedback_diagnostics(
     evidence_pack_id: Optional[str] = None,
     ai_answer_id: Optional[str] = None,
     evidence_item_id: Optional[str] = None,
+    created_from: Optional[str] = None,
+    created_to: Optional[str] = None,
+    search: Optional[str] = None,
+    ranking_effect: Optional[str] = None,
+    has_comment: Optional[bool] = None,
+    sort: str = "created_desc",
     limit: int = 50,
 ) -> Dict[str, Any]:
     if export_format not in {"json", "csv"}:
@@ -122,6 +153,12 @@ def export_feedback_diagnostics(
         evidence_pack_id=evidence_pack_id,
         ai_answer_id=ai_answer_id,
         evidence_item_id=evidence_item_id,
+        created_from=created_from,
+        created_to=created_to,
+        search=search,
+        ranking_effect=ranking_effect,
+        has_comment=has_comment,
+        sort=sort,
         limit=limit,
         max_limit=100,
     )
@@ -132,6 +169,12 @@ def export_feedback_diagnostics(
         evidence_pack_id=evidence_pack_id,
         ai_answer_id=ai_answer_id,
         evidence_item_id=evidence_item_id,
+        created_from=created_from,
+        created_to=created_to,
+        search=search,
+        ranking_effect=ranking_effect,
+        has_comment=has_comment,
+        sort=sort,
         limit=min(max(limit, 1), 100),
     )
     summary = _summary_from_events(events)
@@ -152,8 +195,24 @@ def export_feedback_diagnostics(
     else:
         content = _events_to_csv(events)
         mime_type = "text/csv"
+    filename = _export_filename(generated_at, export_format)
+    content_sha256 = hashlib.sha256(content.encode("utf-8")).hexdigest()
+    append_feedback_export_history(
+        {
+            "id": new_id("feedback_export"),
+            "filename": filename,
+            "format": export_format,
+            "record_count": len(events),
+            "generated_at": generated_at,
+            "filters": filters,
+            "summary": summary,
+            "content_sha256": content_sha256,
+            "redacted": True,
+            "includes_source_text": False,
+        }
+    )
     return {
-        "filename": _export_filename(generated_at, export_format),
+        "filename": filename,
         "mime_type": mime_type,
         "format": export_format,
         "record_count": len(events),
@@ -173,33 +232,29 @@ def _query_feedback_events(
     evidence_pack_id: Optional[str] = None,
     ai_answer_id: Optional[str] = None,
     evidence_item_id: Optional[str] = None,
+    created_from: Optional[str] = None,
+    created_to: Optional[str] = None,
+    search: Optional[str] = None,
+    ranking_effect: Optional[str] = None,
+    has_comment: Optional[bool] = None,
+    sort: str = "created_desc",
     limit: int = 50,
     max_limit: int = 100,
 ) -> list[Dict[str, Any]]:
-    if target_type and target_type not in VALID_TARGET_TYPES:
-        raise AppError(
-            "invalid_feedback_filter",
-            "Unsupported feedback target type.",
-            status_code=422,
-        )
+    where, params = _feedback_filter_clauses(
+        feedback_type=feedback_type,
+        target_type=target_type,
+        evidence_pack_id=evidence_pack_id,
+        ai_answer_id=ai_answer_id,
+        evidence_item_id=evidence_item_id,
+        created_from=created_from,
+        created_to=created_to,
+        search=search,
+        ranking_effect=ranking_effect,
+        has_comment=has_comment,
+    )
+    order_by = _feedback_order_by(sort)
     safe_limit = min(max(limit, 1), max_limit)
-    where: list[str] = []
-    params: list[Any] = []
-    if feedback_type:
-        where.append("f.feedback_type = ?")
-        params.append(feedback_type)
-    if target_type:
-        where.append("f.target_type = ?")
-        params.append(target_type)
-    if evidence_pack_id:
-        where.append("f.evidence_pack_id = ?")
-        params.append(evidence_pack_id)
-    if ai_answer_id:
-        where.append("f.ai_answer_id = ?")
-        params.append(ai_answer_id)
-    if evidence_item_id:
-        where.append("f.evidence_item_id = ?")
-        params.append(evidence_item_id)
 
     query = """
         SELECT
@@ -215,7 +270,7 @@ def _query_feedback_events(
     """
     if where:
         query += " WHERE " + " AND ".join(where)
-    query += " ORDER BY f.created_at DESC, f.id DESC LIMIT ?"
+    query += f" ORDER BY {order_by} LIMIT ?"
     params.append(safe_limit)
 
     with db() as conn:
@@ -223,15 +278,51 @@ def _query_feedback_events(
     return [_feedback_event_row(row) for row in rows]
 
 
-def feedback_summary() -> Dict[str, Any]:
+def feedback_summary(
+    *,
+    feedback_type: Optional[str] = None,
+    target_type: Optional[str] = None,
+    evidence_pack_id: Optional[str] = None,
+    ai_answer_id: Optional[str] = None,
+    evidence_item_id: Optional[str] = None,
+    created_from: Optional[str] = None,
+    created_to: Optional[str] = None,
+    search: Optional[str] = None,
+    ranking_effect: Optional[str] = None,
+    has_comment: Optional[bool] = None,
+    sort: str = "created_desc",
+) -> Dict[str, Any]:
+    where, params = _feedback_filter_clauses(
+        feedback_type=feedback_type,
+        target_type=target_type,
+        evidence_pack_id=evidence_pack_id,
+        ai_answer_id=ai_answer_id,
+        evidence_item_id=evidence_item_id,
+        created_from=created_from,
+        created_to=created_to,
+        search=search,
+        ranking_effect=ranking_effect,
+        has_comment=has_comment,
+    )
+    order_by = _feedback_order_by(sort)
+    query = """
+        SELECT
+          f.feedback_type,
+          f.target_type,
+          f.metadata_json,
+          f.created_at
+        FROM feedback_events f
+        LEFT JOIN evidence_items ei ON ei.id = f.evidence_item_id
+        LEFT JOIN ai_answers aa ON aa.id = f.ai_answer_id
+        LEFT JOIN evidence_packs ep
+          ON ep.id = COALESCE(f.evidence_pack_id, aa.evidence_pack_id, ei.evidence_pack_id)
+        LEFT JOIN retrieval_logs rl ON rl.id = COALESCE(aa.retrieval_log_id, ep.retrieval_log_id)
+    """
+    if where:
+        query += " WHERE " + " AND ".join(where)
+    query += f" ORDER BY {order_by}"
     with db() as conn:
-        rows = conn.execute(
-            """
-            SELECT feedback_type, target_type, metadata_json, created_at
-            FROM feedback_events
-            ORDER BY created_at DESC, id DESC
-            """
-        ).fetchall()
+        rows = conn.execute(query, tuple(params)).fetchall()
     by_type: dict[str, int] = {}
     by_target_type: dict[str, int] = {}
     positive_count = 0
@@ -251,9 +342,132 @@ def feedback_summary() -> Dict[str, Any]:
         "by_target_type": by_target_type,
         "positive_count": positive_count,
         "negative_count": negative_count,
-        "last_event_at": rows[0]["created_at"] if rows else None,
+        "last_event_at": max((row["created_at"] for row in rows), default=None),
         "feedback_policy": _summary_feedback_policy(rows),
     }
+
+
+def list_feedback_export_history() -> list[Dict[str, Any]]:
+    return get_feedback_export_history()
+
+
+def remove_feedback_export_history(history_id: str) -> Dict[str, Any]:
+    if not delete_feedback_export_history(history_id):
+        raise AppError(
+            "feedback_export_history_not_found",
+            "Feedback export history record was not found.",
+            status_code=404,
+        )
+    return {"deleted": True, "id": history_id}
+
+
+def _feedback_filter_clauses(
+    *,
+    feedback_type: Optional[str],
+    target_type: Optional[str],
+    evidence_pack_id: Optional[str],
+    ai_answer_id: Optional[str],
+    evidence_item_id: Optional[str],
+    created_from: Optional[str],
+    created_to: Optional[str],
+    search: Optional[str],
+    ranking_effect: Optional[str],
+    has_comment: Optional[bool],
+) -> tuple[list[str], list[Any]]:
+    if target_type and target_type not in VALID_TARGET_TYPES:
+        raise AppError(
+            "invalid_feedback_filter",
+            "Unsupported feedback target type.",
+            status_code=422,
+        )
+    if ranking_effect and ranking_effect not in VALID_RANKING_EFFECTS:
+        raise AppError(
+            "invalid_feedback_filter",
+            "Unsupported ranking effect.",
+            status_code=422,
+        )
+
+    where: list[str] = []
+    params: list[Any] = []
+    if feedback_type:
+        where.append("f.feedback_type = ?")
+        params.append(feedback_type)
+    if target_type:
+        where.append("f.target_type = ?")
+        params.append(target_type)
+    if evidence_pack_id:
+        where.append("f.evidence_pack_id = ?")
+        params.append(evidence_pack_id)
+    if ai_answer_id:
+        where.append("f.ai_answer_id = ?")
+        params.append(ai_answer_id)
+    if evidence_item_id:
+        where.append("f.evidence_item_id = ?")
+        params.append(evidence_item_id)
+    if created_from:
+        where.append("f.created_at >= ?")
+        params.append(_validate_iso_datetime(created_from, "created_from"))
+    if created_to:
+        where.append("f.created_at <= ?")
+        params.append(_validate_iso_datetime(created_to, "created_to"))
+    if search and search.strip():
+        needle = f"%{search.strip().lower()}%"
+        where.append(
+            """
+            (
+              LOWER(f.id) LIKE ?
+              OR LOWER(f.target_id) LIKE ?
+              OR LOWER(COALESCE(f.evidence_pack_id, '')) LIKE ?
+              OR LOWER(COALESCE(f.ai_answer_id, '')) LIKE ?
+              OR LOWER(COALESCE(f.evidence_item_id, '')) LIKE ?
+              OR LOWER(COALESCE(rl.query, '')) LIKE ?
+              OR LOWER(COALESCE(ei.citation_label, '')) LIKE ?
+              OR LOWER(COALESCE(f.comment, '')) LIKE ?
+            )
+            """
+        )
+        params.extend([needle] * 8)
+    if ranking_effect:
+        where.append(_ranking_effect_clause(ranking_effect))
+    if has_comment is True:
+        where.append("f.comment IS NOT NULL AND TRIM(f.comment) != ''")
+    if has_comment is False:
+        where.append("(f.comment IS NULL OR TRIM(f.comment) = '')")
+    return where, params
+
+
+def _ranking_effect_clause(ranking_effect: str) -> str:
+    positive = ", ".join(f"'{item}'" for item in sorted(POSITIVE_FEEDBACK_TYPES))
+    negative = ", ".join(f"'{item}'" for item in sorted(NEGATIVE_FEEDBACK_TYPES))
+    if ranking_effect == "positive_weight_suggestion":
+        return f"f.feedback_type IN ({positive})"
+    if ranking_effect == "negative_weight_suggestion":
+        return f"f.feedback_type IN ({negative})"
+    return f"f.feedback_type NOT IN ({positive}, {negative})"
+
+
+def _feedback_order_by(sort: str) -> str:
+    if sort not in VALID_SORT_ORDERS:
+        raise AppError(
+            "invalid_feedback_filter",
+            "Unsupported feedback sort order.",
+            status_code=422,
+        )
+    if sort == "created_asc":
+        return "f.created_at ASC, f.id ASC"
+    return "f.created_at DESC, f.id DESC"
+
+
+def _validate_iso_datetime(value: str, field_name: str) -> str:
+    try:
+        datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise AppError(
+            "invalid_feedback_filter",
+            f"{field_name} must be an ISO datetime.",
+            status_code=422,
+        ) from exc
+    return value
 
 
 def _summary_from_events(events: list[Dict[str, Any]]) -> Dict[str, Any]:
@@ -276,7 +490,7 @@ def _summary_from_events(events: list[Dict[str, Any]]) -> Dict[str, Any]:
         "by_target_type": by_target_type,
         "positive_count": positive_count,
         "negative_count": negative_count,
-        "last_event_at": events[0]["created_at"] if events else None,
+        "last_event_at": max((event["created_at"] for event in events), default=None),
         "feedback_policy": feedback_policy(),
     }
 
@@ -493,9 +707,15 @@ def _normalized_export_filters(
     evidence_pack_id: Optional[str],
     ai_answer_id: Optional[str],
     evidence_item_id: Optional[str],
+    created_from: Optional[str],
+    created_to: Optional[str],
+    search: Optional[str],
+    ranking_effect: Optional[str],
+    has_comment: Optional[bool],
+    sort: str,
     limit: int,
 ) -> Dict[str, Any]:
-    filters: Dict[str, Any] = {"limit": limit}
+    filters: Dict[str, Any] = {"limit": limit, "sort": sort}
     if feedback_type:
         filters["feedback_type"] = feedback_type
     if target_type:
@@ -506,6 +726,16 @@ def _normalized_export_filters(
         filters["ai_answer_id"] = ai_answer_id
     if evidence_item_id:
         filters["evidence_item_id"] = evidence_item_id
+    if created_from:
+        filters["created_from"] = created_from
+    if created_to:
+        filters["created_to"] = created_to
+    if search and search.strip():
+        filters["search"] = search.strip()
+    if ranking_effect:
+        filters["ranking_effect"] = ranking_effect
+    if has_comment is not None:
+        filters["has_comment"] = has_comment
     return filters
 
 

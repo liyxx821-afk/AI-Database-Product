@@ -1,8 +1,8 @@
 # API 设计草案
 
-版本：v0.25-draft
+版本：v0.26-draft
 日期：2026-05-17  
-状态：P0 API 边界草案——完整上传/文件处理/File Inspection/切片前准备层/切片执行 profile/AI 结构化整理 profile/D-079 structuring summary 子字段/结构化整理检查门/知识切片质量闭环/AI/RAG API + D-080 知识调用 profile / implicit_agent / D-081 Z0a-Z2 持久化边界 / D-082 InvocationProfileSchema / D-083 前端状态与反馈策略 / D-085 Z0a 调用锚点、feedback 与 citation 边界修正 + D-098 页面到现有 API 组映射 + D-105 Citation Detail / Evidence Pack replay 实现边界 + D-106 Settings language 持久化边界 + D-107 Feedback Events / Memory Draft Review Z0b-lite + D-108 Feedback Diagnostics / Event Replay Z0b-lite + D-110 Feedback Diagnostics Export Z0b-lite + 安全运维横切层 + 检查门映射单一来源 + 事件枚举单一来源 + P0-Z0a/ProcessingJob/sensitive grant 契约收紧
+状态：P0 API 边界草案——完整上传/文件处理/File Inspection/切片前准备层/切片执行 profile/AI 结构化整理 profile/D-079 structuring summary 子字段/结构化整理检查门/知识切片质量闭环/AI/RAG API + D-080 知识调用 profile / implicit_agent / D-081 Z0a-Z2 持久化边界 / D-082 InvocationProfileSchema / D-083 前端状态与反馈策略 / D-085 Z0a 调用锚点、feedback 与 citation 边界修正 + D-098 页面到现有 API 组映射 + D-105 Citation Detail / Evidence Pack replay 实现边界 + D-106 Settings language 持久化边界 + D-107 Feedback Events / Memory Draft Review Z0b-lite + D-108 Feedback Diagnostics / Event Replay Z0b-lite + D-110 Feedback Diagnostics Export Z0b-lite + D-111 Feedback Diagnostics Advanced Filters / Export History Z0b-lite + 安全运维横切层 + 检查门映射单一来源 + 事件枚举单一来源 + P0-Z0a/ProcessingJob/sensitive grant 契约收紧
 
 ## 1. 文档目的
 
@@ -1477,6 +1477,12 @@ target_type?: evidence_pack | ai_answer | evidence_item
 evidence_pack_id?: string
 ai_answer_id?: string
 evidence_item_id?: string
+created_from?: ISO datetime
+created_to?: ISO datetime
+search?: string // feedback id、target/evidence id、query、citation label、comment
+ranking_effect?: positive_weight_suggestion | negative_weight_suggestion | diagnostic_only
+has_comment?: boolean
+sort?: created_desc | created_asc // 默认 created_desc
 limit?: number // 默认 50，最大 100
 ```
 
@@ -1499,7 +1505,7 @@ limit?: number // 默认 50，最大 100
 }
 ```
 
-`GET /api/feedback/summary` 返回：
+`GET /api/feedback/summary` 复用同一组 filters，summary 反映当前 filter 匹配集合；list / export 仍受 `limit` 控制。返回：
 
 ```json
 {
@@ -1519,7 +1525,7 @@ limit?: number // 默认 50，最大 100
 
 后端从 `feedback_events.metadata_json.feedback_signal` / `feedback_policy` 还原诊断字段，并通过既有 `ai_answers`、`evidence_packs`、`evidence_items`、`retrieval_logs` join 补足 query 与 citation label。Renderer 不自行拼接证据链。
 
-`GET /api/feedback/export` 为 D-110 Feedback Diagnostics Export Z0b-lite，只导出当前筛选后的反馈诊断内容。它复用 `GET /api/feedback` 的 filters，并额外支持：
+`GET /api/feedback/export` 为 D-110 / D-111 Feedback Diagnostics Export Z0b-lite，只导出当前筛选后的反馈诊断内容。它复用 `GET /api/feedback` 的 filters，并额外支持：
 
 ```text
 format?: json | csv // 默认 json
@@ -1564,6 +1570,36 @@ format?: json | csv // 默认 json
 - 导出不得包含 source excerpt、answer text、local token、SQLite path、app data path 或完整本地文件路径。
 - 后端不写本地文件路径；Renderer 使用 Blob download 触发用户侧下载。
 - Export 只读 `feedback_events` 与 D-108 join 上下文，不写 `retrieval_feedback`，不影响 ranking，不修改 confirmed KU、Source、Evidence Pack、AIAnswer 或 Memory。
+- 每次成功导出后，后端向 app data `config.json.feedback_export_history` 追加最近 20 条 metadata：`id`、`filename`、`format`、`record_count`、`generated_at`、`filters`、`summary`、`content_sha256`、`redacted`、`includes_source_text`。历史记录不保存 export `content`，不支持重新下载旧 content。
+
+`GET /api/feedback/export-history` 返回最近 20 条导出历史 metadata：
+
+```json
+[
+  {
+    "id": "feedback_export_id",
+    "filename": "feedback-diagnostics-20260517T120000Z.json",
+    "format": "json",
+    "record_count": 3,
+    "generated_at": "2026-05-17T12:00:00Z",
+    "filters": { "search": "citation", "limit": 50 },
+    "summary": {
+      "total": 3,
+      "by_type": { "bad_citation": 1 },
+      "by_target_type": { "evidence_item": 3 },
+      "positive_count": 1,
+      "negative_count": 2,
+      "last_event_at": "2026-05-17T00:00:00Z",
+      "feedback_policy": { "storage_mode": "local_only" }
+    },
+    "content_sha256": "sha256",
+    "redacted": true,
+    "includes_source_text": false
+  }
+]
+```
+
+`DELETE /api/feedback/export-history/{id}` 只删除单条 `config.json` history metadata，不影响 `feedback_events` 或任何业务对象。
 
 ### 13.3 保存为 Memory Draft
 

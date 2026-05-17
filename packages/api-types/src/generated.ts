@@ -115,6 +115,18 @@ export type ApiSchemas = {
   "citation_label": string | null;
   "created_at": string;
 };
+  "FeedbackExportHistoryRecord": {
+  "id": string;
+  "filename": string;
+  "format": "json" | "csv";
+  "record_count": number;
+  "generated_at": string;
+  "filters": Record<string, unknown>;
+  "summary": FeedbackDiagnosticsSummary;
+  "content_sha256": string;
+  "redacted": boolean;
+  "includes_source_text": boolean;
+};
   "FeedbackRequest": {
   "feedback_type": "click" | "useful" | "not_useful" | "favorite" | "bad_citation" | "missing_source" | "downrank_source";
   "evidence_pack_id"?: string | null;
@@ -562,6 +574,19 @@ export type FeedbackEventRecord = {
   "created_at": string;
 };
 
+export type FeedbackExportHistoryRecord = {
+  "id": string;
+  "filename": string;
+  "format": "json" | "csv";
+  "record_count": number;
+  "generated_at": string;
+  "filters": Record<string, unknown>;
+  "summary": FeedbackDiagnosticsSummary;
+  "content_sha256": string;
+  "redacted": boolean;
+  "includes_source_text": boolean;
+};
+
 export type FeedbackRequest = {
   "feedback_type": "click" | "useful" | "not_useful" | "favorite" | "bad_citation" | "missing_source" | "downrank_source";
   "evidence_pack_id"?: string | null;
@@ -941,6 +966,8 @@ export type ApiPath =
   | "/api/feedback"
   | "/api/feedback/summary"
   | "/api/feedback/export"
+  | "/api/feedback/export-history"
+  | "/api/feedback/export-history/{history_id}"
   | "/api/memory-drafts"
   | "/api/memory-drafts/{memory_id}"
   | "/api/text-imports"

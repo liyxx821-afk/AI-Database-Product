@@ -1,8 +1,8 @@
 # 测试与评估策略
 
-版本：v0.29
+版本：v0.30
 日期：2026-05-17  
-状态：完整 P0 入库、P0-Z0a/Z0b 竖切、ProcessingJob、File Inspection、切片前准备层、结构化整理检查门、知识切片质量闭环、安全运维横切层、检查门映射单一来源、事件枚举单一来源、切片执行 profile fixture、AI 结构化整理 profile 与 D-079 存储映射 fixture、D-080 知识调用 / implicit_agent / D-081-D085 调用边界、profile schema、反馈策略与前端状态 fixture、D-098 Knowledge Workspace 页面契约 fixture、D-105 Citation Detail / Evidence Pack replay smoke、D-106 i18n settings smoke、D-107 feedback / memory smoke、D-108 feedback diagnostics smoke、D-109 desktop runtime smoke、D-110 feedback diagnostics export smoke、向量检索与 RAG 验收策略 + provider fallback fixture + D-090 技术栈执行优化测试口径 + D-091 工程化验收门槛 + D-092 代码骨架前置契约测试口径 + D-093 桌面运行时硬化测试口径 + D-094 P0-Core 工程骨架开工测试口径
+状态：完整 P0 入库、P0-Z0a/Z0b 竖切、ProcessingJob、File Inspection、切片前准备层、结构化整理检查门、知识切片质量闭环、安全运维横切层、检查门映射单一来源、事件枚举单一来源、切片执行 profile fixture、AI 结构化整理 profile 与 D-079 存储映射 fixture、D-080 知识调用 / implicit_agent / D-081-D085 调用边界、profile schema、反馈策略与前端状态 fixture、D-098 Knowledge Workspace 页面契约 fixture、D-105 Citation Detail / Evidence Pack replay smoke、D-106 i18n settings smoke、D-107 feedback / memory smoke、D-108 feedback diagnostics smoke、D-109 desktop runtime smoke、D-110 feedback diagnostics export smoke、D-111 feedback filters / export history smoke、向量检索与 RAG 验收策略 + provider fallback fixture + D-090 技术栈执行优化测试口径 + D-091 工程化验收门槛 + D-092 代码骨架前置契约测试口径 + D-093 桌面运行时硬化测试口径 + D-094 P0-Core 工程骨架开工测试口径
 
 ## 1. 文档目的
 
@@ -142,7 +142,7 @@ D-093 后，首批桌面工程必须补充以下测试：
 
 ### 2.9 D-094 P0-Core 工程骨架开工测试口径
 
-D-094 后，首批代码工程必须先通过 `smoke:p0-core`，再运行或开发业务 smoke。D-110 后，阶段顺序固定为 `smoke:p0-core` → `smoke:p0-desktop-runtime` → `smoke:p0-i18n-settings` → `smoke:p0-file` → `smoke:p0-parse` → `smoke:p0-ku` → `smoke:p0-search-ask` → `smoke:p0-citation-detail` → `smoke:p0-feedback-memory` → `smoke:p0-feedback-diagnostics` → `smoke:p0-feedback-export` → `smoke:p0-z0a`：
+D-094 后，首批代码工程必须先通过 `smoke:p0-core`，再运行或开发业务 smoke。D-111 后，阶段顺序固定为 `smoke:p0-core` → `smoke:p0-desktop-runtime` → `smoke:p0-i18n-settings` → `smoke:p0-file` → `smoke:p0-parse` → `smoke:p0-ku` → `smoke:p0-search-ask` → `smoke:p0-citation-detail` → `smoke:p0-feedback-memory` → `smoke:p0-feedback-diagnostics` → `smoke:p0-feedback-export` → `smoke:p0-feedback-filters-history` → `smoke:p0-z0a`：
 
 | 测试项 | 期望 |
 |---|---|
@@ -154,7 +154,7 @@ D-094 后，首批代码工程必须先通过 `smoke:p0-core`，再运行或开�
 | Desktop runtime smoke | build 产物 Electron Main / Preload 可启动；Renderer 通过 bridge 读取 runtime config 并访问受保护 sidecar API；退出后 sidecar pid 不残留 |
 | Shutdown cleanup | 应用退出后 sidecar 和 worker 被清理，不残留后台进程或锁文件 |
 | Status bar mapping | runtime state 和 sidecar / DB / worker / provider / vector 子状态能映射到底部状态栏 |
-| Smoke order | `pnpm smoke:p0-core` 必须先于 `pnpm smoke:p0-desktop-runtime`，`pnpm smoke:p0-desktop-runtime` 必须先于 `pnpm smoke:p0-i18n-settings`，`pnpm smoke:p0-i18n-settings` 必须先于 `pnpm smoke:p0-file`，`pnpm smoke:p0-file` 必须先于 `pnpm smoke:p0-parse`，`pnpm smoke:p0-parse` 必须先于 `pnpm smoke:p0-ku`，`pnpm smoke:p0-ku` 必须先于 `pnpm smoke:p0-search-ask`，`pnpm smoke:p0-search-ask` 必须先于 `pnpm smoke:p0-citation-detail`，`pnpm smoke:p0-citation-detail` 必须先于 `pnpm smoke:p0-feedback-memory`，`pnpm smoke:p0-feedback-memory` 必须先于 `pnpm smoke:p0-feedback-diagnostics`，`pnpm smoke:p0-feedback-diagnostics` 必须先于 `pnpm smoke:p0-feedback-export`，`pnpm smoke:p0-feedback-export` 必须先于 `pnpm smoke:p0-z0a` 通过 |
+| Smoke order | `pnpm smoke:p0-core` 必须先于 `pnpm smoke:p0-desktop-runtime`，`pnpm smoke:p0-desktop-runtime` 必须先于 `pnpm smoke:p0-i18n-settings`，`pnpm smoke:p0-i18n-settings` 必须先于 `pnpm smoke:p0-file`，`pnpm smoke:p0-file` 必须先于 `pnpm smoke:p0-parse`，`pnpm smoke:p0-parse` 必须先于 `pnpm smoke:p0-ku`，`pnpm smoke:p0-ku` 必须先于 `pnpm smoke:p0-search-ask`，`pnpm smoke:p0-search-ask` 必须先于 `pnpm smoke:p0-citation-detail`，`pnpm smoke:p0-citation-detail` 必须先于 `pnpm smoke:p0-feedback-memory`，`pnpm smoke:p0-feedback-memory` 必须先于 `pnpm smoke:p0-feedback-diagnostics`，`pnpm smoke:p0-feedback-diagnostics` 必须先于 `pnpm smoke:p0-feedback-export`，`pnpm smoke:p0-feedback-export` 必须先于 `pnpm smoke:p0-feedback-filters-history`，`pnpm smoke:p0-feedback-filters-history` 必须先于 `pnpm smoke:p0-z0a` 通过 |
 | Business feature block | `smoke:p0-core` 通过前不得新增 upload parsing UI、RAG UI、真实 Provider 接入、OCR/ASR、图谱或用户聊天入口；初期可用 review checklist 执行，后续再自动化 |
 
 `smoke:p0-core` 最小链路固定为：
@@ -354,6 +354,35 @@ text import
 → list diagnostics
 → export JSON
 → export filtered CSV
+→ verify no source text / token / path leakage
+```
+
+### 2.17 D-111 Feedback Filters / Export History 测试口径
+
+D-111 后，feedback diagnostics 支持深层过滤和导出历史 metadata。测试目标是证明列表、summary、export 使用同一组 filters，export history 只保存脱敏 metadata，不保存导出正文。
+
+| 测试项 | 期望 |
+|---|---|
+| auth | feedback list、summary、export、export-history 无 local token 均被拒绝 |
+| advanced filters | `created_from/created_to`、`search`、`ranking_effect`、`has_comment`、`sort`、`limit` 对列表生效 |
+| filtered summary | summary 按同一 filters 聚合，且不写任何业务对象 |
+| filtered export | JSON / CSV export 使用同一 filters，并写入 export history metadata |
+| history redaction | history 不保存 `content`、source text、answer text、local token、DB path 或完整本地路径 |
+| delete history | 删除单条 history 后列表不再返回该记录，且不影响 `feedback_events` |
+| validation | invalid `ranking_effect` / `sort` / datetime 返回 validation error |
+
+`smoke:p0-feedback-filters-history` 固定链路：
+
+```text
+text import
+→ confirm KU
+→ evidence-only answer
+→ submit useful / bad_citation / missing_source feedback with mixed comments
+→ advanced list filters
+→ filtered summary
+→ export JSON / CSV
+→ read export history
+→ delete one history record
 → verify no source text / token / path leakage
 ```
 

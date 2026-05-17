@@ -190,6 +190,7 @@ button {
 
 .settings-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
@@ -345,6 +346,11 @@ button {
   font: inherit;
 }
 
+.memory-label .query-input {
+  min-width: 180px;
+  width: 100%;
+}
+
 .feedback-actions {
   display: flex;
   flex-wrap: wrap;
@@ -358,6 +364,7 @@ button {
 
 .memory-label {
   display: flex;
+  flex: 1 1 220px;
   align-items: center;
   justify-content: space-between;
   gap: 12px;

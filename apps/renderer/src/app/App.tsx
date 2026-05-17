@@ -29,6 +29,7 @@ import type {
   EvidencePackDetail,
   FeedbackDiagnosticsSummary,
   FeedbackEventRecord,
+  FeedbackExportHistoryRecord,
   FeedbackRequest,
   FileRecord,
   MemoryDraftRecord,
@@ -46,7 +47,12 @@ import { useRetrievalStore } from "../stores/retrievalStore";
 import { useSettingsStore } from "../stores/settingsStore";
 import { useFeedbackMemoryStore } from "../stores/feedbackMemoryStore";
 import { hasBridge } from "../services/apiClient";
-import type { FeedbackExportFormat } from "../services/feedbackMemoryApi";
+import type {
+  FeedbackDiagnosticsFilters,
+  FeedbackExportFormat,
+  FeedbackRankingEffect,
+  FeedbackSortOrder
+} from "../services/feedbackMemoryApi";
 import { supportedLanguages, translate, type LanguageCode, type MessageKey } from "../services/i18n";
 
 type RouteKey =
@@ -78,6 +84,8 @@ type UploadQueueItem = {
 
 type FeedbackFilterValue = FeedbackRequest["feedback_type"] | "all";
 type FeedbackTargetFilterValue = "evidence_pack" | "ai_answer" | "evidence_item" | "all";
+type FeedbackRankingEffectFilterValue = FeedbackRankingEffect | "all";
+type FeedbackCommentFilterValue = "all" | "with_comment" | "without_comment";
 
 const routes: RouteConfig[] = [
   { path: "/dashboard", labelKey: "route.dashboard", icon: Gauge, summaryKey: "route.dashboard.summary" },
@@ -866,17 +874,34 @@ function OutputsPage() {
   const feedbackMemory = useFeedbackMemoryStore();
   const [feedbackTypeFilter, setFeedbackTypeFilter] = useState<FeedbackFilterValue>("all");
   const [targetTypeFilter, setTargetTypeFilter] = useState<FeedbackTargetFilterValue>("all");
+  const [searchFilter, setSearchFilter] = useState("");
+  const [createdFromFilter, setCreatedFromFilter] = useState("");
+  const [createdToFilter, setCreatedToFilter] = useState("");
+  const [rankingEffectFilter, setRankingEffectFilter] =
+    useState<FeedbackRankingEffectFilterValue>("all");
+  const [commentFilter, setCommentFilter] = useState<FeedbackCommentFilterValue>("all");
+  const [sortFilter, setSortFilter] = useState<FeedbackSortOrder>("created_desc");
+  const [limitFilter, setLimitFilter] = useState(50);
   const [exportFormat, setExportFormat] = useState<FeedbackExportFormat>("json");
 
   useEffect(() => {
     feedbackMemory.refreshMemories();
     feedbackMemory.refreshFeedbackDiagnostics();
+    feedbackMemory.refreshFeedbackExportHistory();
   }, []);
 
-  function diagnosticsFilters() {
+  function diagnosticsFilters(): FeedbackDiagnosticsFilters {
     return {
       feedback_type: feedbackTypeFilter === "all" ? undefined : feedbackTypeFilter,
-      target_type: targetTypeFilter === "all" ? undefined : targetTypeFilter
+      target_type: targetTypeFilter === "all" ? undefined : targetTypeFilter,
+      search: searchFilter.trim() || undefined,
+      created_from: datetimeLocalToIso(createdFromFilter),
+      created_to: datetimeLocalToIso(createdToFilter),
+      ranking_effect: rankingEffectFilter === "all" ? undefined : rankingEffectFilter,
+      has_comment:
+        commentFilter === "all" ? undefined : commentFilter === "with_comment",
+      sort: sortFilter,
+      limit: limitFilter
     };
   }
 
@@ -887,6 +912,18 @@ function OutputsPage() {
   async function exportDiagnostics() {
     const exported = await feedbackMemory.exportFeedbackDiagnostics(diagnosticsFilters(), exportFormat);
     if (exported) downloadTextFile(exported.filename, exported.mime_type, exported.content);
+  }
+
+  function resetDiagnosticsFilters() {
+    setFeedbackTypeFilter("all");
+    setTargetTypeFilter("all");
+    setSearchFilter("");
+    setCreatedFromFilter("");
+    setCreatedToFilter("");
+    setRankingEffectFilter("all");
+    setCommentFilter("all");
+    setSortFilter("created_desc");
+    setLimitFilter(50);
   }
 
   return (
@@ -928,14 +965,34 @@ function OutputsPage() {
         errorCode={feedbackMemory.diagnosticsErrorCode}
         feedbackTypeFilter={feedbackTypeFilter}
         targetTypeFilter={targetTypeFilter}
+        searchFilter={searchFilter}
+        createdFromFilter={createdFromFilter}
+        createdToFilter={createdToFilter}
+        rankingEffectFilter={rankingEffectFilter}
+        commentFilter={commentFilter}
+        sortFilter={sortFilter}
+        limitFilter={limitFilter}
         exportFormat={exportFormat}
         exportState={feedbackMemory.diagnosticsExportState}
         exportErrorCode={feedbackMemory.diagnosticsExportErrorCode}
+        exportHistory={feedbackMemory.feedbackExportHistory}
+        exportHistoryState={feedbackMemory.exportHistoryState}
+        exportHistoryErrorCode={feedbackMemory.exportHistoryErrorCode}
         onFeedbackTypeChange={setFeedbackTypeFilter}
         onTargetTypeChange={setTargetTypeFilter}
+        onSearchChange={setSearchFilter}
+        onCreatedFromChange={setCreatedFromFilter}
+        onCreatedToChange={setCreatedToFilter}
+        onRankingEffectChange={setRankingEffectFilter}
+        onCommentFilterChange={setCommentFilter}
+        onSortChange={setSortFilter}
+        onLimitChange={setLimitFilter}
         onExportFormatChange={setExportFormat}
         onRefresh={refreshDiagnostics}
         onExport={exportDiagnostics}
+        onResetFilters={resetDiagnosticsFilters}
+        onRefreshHistory={feedbackMemory.refreshFeedbackExportHistory}
+        onDeleteHistory={feedbackMemory.deleteFeedbackExportHistory}
       />
     </section>
   );
@@ -980,14 +1037,34 @@ function FeedbackDiagnosticsPanel({
   errorCode,
   feedbackTypeFilter,
   targetTypeFilter,
+  searchFilter,
+  createdFromFilter,
+  createdToFilter,
+  rankingEffectFilter,
+  commentFilter,
+  sortFilter,
+  limitFilter,
   exportFormat,
   exportState,
   exportErrorCode,
+  exportHistory,
+  exportHistoryState,
+  exportHistoryErrorCode,
   onFeedbackTypeChange,
   onTargetTypeChange,
+  onSearchChange,
+  onCreatedFromChange,
+  onCreatedToChange,
+  onRankingEffectChange,
+  onCommentFilterChange,
+  onSortChange,
+  onLimitChange,
   onExportFormatChange,
   onRefresh,
-  onExport
+  onExport,
+  onResetFilters,
+  onRefreshHistory,
+  onDeleteHistory
 }: {
   events: FeedbackEventRecord[];
   summary?: FeedbackDiagnosticsSummary;
@@ -995,14 +1072,34 @@ function FeedbackDiagnosticsPanel({
   errorCode?: string;
   feedbackTypeFilter: FeedbackFilterValue;
   targetTypeFilter: FeedbackTargetFilterValue;
+  searchFilter: string;
+  createdFromFilter: string;
+  createdToFilter: string;
+  rankingEffectFilter: FeedbackRankingEffectFilterValue;
+  commentFilter: FeedbackCommentFilterValue;
+  sortFilter: FeedbackSortOrder;
+  limitFilter: number;
   exportFormat: FeedbackExportFormat;
   exportState: "loading" | "empty" | "degraded" | "recoverable_error" | "done";
   exportErrorCode?: string;
+  exportHistory: FeedbackExportHistoryRecord[];
+  exportHistoryState: "loading" | "empty" | "degraded" | "recoverable_error" | "done";
+  exportHistoryErrorCode?: string;
   onFeedbackTypeChange: (value: FeedbackFilterValue) => void;
   onTargetTypeChange: (value: FeedbackTargetFilterValue) => void;
+  onSearchChange: (value: string) => void;
+  onCreatedFromChange: (value: string) => void;
+  onCreatedToChange: (value: string) => void;
+  onRankingEffectChange: (value: FeedbackRankingEffectFilterValue) => void;
+  onCommentFilterChange: (value: FeedbackCommentFilterValue) => void;
+  onSortChange: (value: FeedbackSortOrder) => void;
+  onLimitChange: (value: number) => void;
   onExportFormatChange: (value: FeedbackExportFormat) => void;
   onRefresh: () => Promise<void>;
   onExport: () => Promise<void>;
+  onResetFilters: () => void;
+  onRefreshHistory: () => Promise<void>;
+  onDeleteHistory: (historyId: string) => Promise<void>;
 }) {
   const t = useT();
   const feedbackTypes: FeedbackFilterValue[] = [
@@ -1020,6 +1117,12 @@ function FeedbackDiagnosticsPanel({
     "evidence_pack",
     "ai_answer",
     "evidence_item"
+  ];
+  const rankingEffects: FeedbackRankingEffectFilterValue[] = [
+    "all",
+    "positive_weight_suggestion",
+    "negative_weight_suggestion",
+    "diagnostic_only"
   ];
   return (
     <section className="page-frame">
@@ -1040,10 +1143,24 @@ function FeedbackDiagnosticsPanel({
             <Download aria-hidden="true" size={16} />
             <span>{t("feedback.export")}</span>
           </button>
+          <button className="icon-command" type="button" onClick={onResetFilters}>
+            <XCircle aria-hidden="true" size={16} />
+            <span>{t("feedback.resetFilters")}</span>
+          </button>
         </div>
       </div>
       <p className="section-note">{t("feedback.diagnosticsBody")}</p>
       <div className="settings-row">
+        <label className="memory-label">
+          <span>{t("feedback.search")}</span>
+          <input
+            className="query-input"
+            type="search"
+            value={searchFilter}
+            placeholder={t("feedback.searchPlaceholder")}
+            onChange={(event) => onSearchChange(event.target.value)}
+          />
+        </label>
         <label className="memory-label">
           <span>{t("feedback.filterType")}</span>
           <select
@@ -1071,6 +1188,83 @@ function FeedbackDiagnosticsPanel({
               </option>
             ))}
           </select>
+        </label>
+        <label className="memory-label">
+          <span>{t("feedback.rankingEffect")}</span>
+          <select
+            className="settings-select"
+            value={rankingEffectFilter}
+            onChange={(event) =>
+              onRankingEffectChange(event.target.value as FeedbackRankingEffectFilterValue)
+            }
+          >
+            {rankingEffects.map((effect) => (
+              <option key={effect} value={effect}>
+                {effect === "all" ? t("feedback.allRankingEffects") : effect}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+      <div className="settings-row">
+        <label className="memory-label">
+          <span>{t("feedback.createdFrom")}</span>
+          <input
+            className="settings-select"
+            type="datetime-local"
+            value={createdFromFilter}
+            onChange={(event) => onCreatedFromChange(event.target.value)}
+          />
+        </label>
+        <label className="memory-label">
+          <span>{t("feedback.createdTo")}</span>
+          <input
+            className="settings-select"
+            type="datetime-local"
+            value={createdToFilter}
+            onChange={(event) => onCreatedToChange(event.target.value)}
+          />
+        </label>
+        <label className="memory-label">
+          <span>{t("feedback.commentState")}</span>
+          <select
+            className="settings-select"
+            value={commentFilter}
+            onChange={(event) =>
+              onCommentFilterChange(event.target.value as FeedbackCommentFilterValue)
+            }
+          >
+            <option value="all">{t("feedback.allComments")}</option>
+            <option value="with_comment">{t("feedback.withComment")}</option>
+            <option value="without_comment">{t("feedback.withoutComment")}</option>
+          </select>
+        </label>
+      </div>
+      <div className="settings-row">
+        <label className="memory-label">
+          <span>{t("feedback.sort")}</span>
+          <select
+            className="settings-select"
+            value={sortFilter}
+            onChange={(event) => onSortChange(event.target.value as FeedbackSortOrder)}
+          >
+            <option value="created_desc">{t("feedback.sortCreatedDesc")}</option>
+            <option value="created_asc">{t("feedback.sortCreatedAsc")}</option>
+          </select>
+        </label>
+        <label className="memory-label">
+          <span>{t("feedback.limit")}</span>
+          <input
+            className="settings-select"
+            min={1}
+            max={100}
+            type="number"
+            value={limitFilter}
+            onChange={(event) => {
+              const value = Number(event.target.value);
+              onLimitChange(Number.isFinite(value) ? Math.min(Math.max(value, 1), 100) : 50);
+            }}
+          />
         </label>
         <label className="memory-label">
           <span>{t("feedback.exportFormat")}</span>
@@ -1144,6 +1338,66 @@ function FeedbackDiagnosticsPanel({
         ) : (
           <EmptyState
             message={state === "degraded" ? t("empty.bridgeUnavailable") : t("feedback.noEvents")}
+          />
+        )}
+      </div>
+      <div className="section-title-row compact-title-row">
+        <h3>{t("feedback.exportHistory")}</h3>
+        <div className="inline-actions">
+          <span className={`state-chip state-${exportHistoryState}`}>{exportHistoryState}</span>
+          <button className="icon-command" type="button" onClick={onRefreshHistory}>
+            <RefreshCw aria-hidden="true" size={16} />
+            <span>{t("action.refresh")}</span>
+          </button>
+        </div>
+      </div>
+      {exportHistoryErrorCode ? (
+        <div className="row-note">
+          <AlertCircle aria-hidden="true" size={15} />
+          <span>{exportHistoryErrorCode}</span>
+        </div>
+      ) : null}
+      <div className="file-table">
+        {exportHistory.length ? (
+          exportHistory.map((record) => (
+            <div className="review-row" key={record.id}>
+              <div>
+                <strong>{record.filename}</strong>
+                <span>{record.id}</span>
+              </div>
+              <StatusPill label={t("feedback.exportFormat")} value={record.format} />
+              <StatusPill label={t("feedback.records")} value={String(record.record_count)} />
+              <StatusPill label={t("feedback.generatedAt")} value={record.generated_at} />
+              <StatusPill label={t("feedback.redacted")} value={String(record.redacted)} />
+              <div className="row-note evidence-excerpt">
+                <FileText aria-hidden="true" size={15} />
+                <span>
+                  {t("feedback.filters")}: {formatMaybe(record.filters)}
+                </span>
+              </div>
+              <div className="row-note evidence-excerpt">
+                <FileText aria-hidden="true" size={15} />
+                <span>
+                  SHA256: {record.content_sha256}
+                </span>
+              </div>
+              <button
+                className="icon-command"
+                type="button"
+                onClick={() => onDeleteHistory(record.id)}
+              >
+                <XCircle aria-hidden="true" size={16} />
+                <span>{t("feedback.deleteHistory")}</span>
+              </button>
+            </div>
+          ))
+        ) : (
+          <EmptyState
+            message={
+              exportHistoryState === "degraded"
+                ? t("empty.bridgeUnavailable")
+                : t("feedback.noExportHistory")
+            }
           />
         )}
       </div>
@@ -1575,6 +1829,13 @@ function formatMaybe(value: unknown) {
   if (typeof value === "number" || typeof value === "boolean") return String(value);
   if (value == null) return "not_ready";
   return JSON.stringify(value);
+}
+
+function datetimeLocalToIso(value: string) {
+  if (!value) return undefined;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return undefined;
+  return parsed.toISOString();
 }
 
 function downloadTextFile(filename: string, mimeType: string, content: string) {

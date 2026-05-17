@@ -3,6 +3,7 @@ import type {
   FeedbackDiagnosticsExportResponse,
   FeedbackDiagnosticsSummary,
   FeedbackEventRecord,
+  FeedbackExportHistoryRecord,
   FeedbackRequest,
   FeedbackResponse,
   MemoryDraftRecord,
@@ -11,8 +12,10 @@ import type {
 import { hasBridge } from "../services/apiClient";
 import {
   createMemoryDraft,
+  deleteFeedbackExportHistory,
   exportFeedbackDiagnostics,
   getFeedbackSummary,
+  listFeedbackExportHistory,
   listFeedbackEvents,
   listMemoryDrafts,
   submitFeedback,
@@ -27,14 +30,17 @@ type FeedbackMemoryState = {
   memoryState: ViewState;
   diagnosticsState: ViewState;
   diagnosticsExportState: ViewState;
+  exportHistoryState: ViewState;
   feedbackErrorCode?: string;
   memoryErrorCode?: string;
   diagnosticsErrorCode?: string;
   diagnosticsExportErrorCode?: string;
+  exportHistoryErrorCode?: string;
   lastFeedback?: FeedbackResponse;
   lastDiagnosticsExport?: FeedbackDiagnosticsExportResponse;
   feedbackEvents: FeedbackEventRecord[];
   feedbackSummary?: FeedbackDiagnosticsSummary;
+  feedbackExportHistory: FeedbackExportHistoryRecord[];
   memories: MemoryDraftRecord[];
   submitFeedback: (payload: FeedbackRequest) => Promise<void>;
   createMemoryDraft: (payload: MemoryDraftRequest) => Promise<MemoryDraftRecord | undefined>;
@@ -44,6 +50,8 @@ type FeedbackMemoryState = {
     filters: FeedbackDiagnosticsFilters | undefined,
     format: FeedbackExportFormat
   ) => Promise<FeedbackDiagnosticsExportResponse | undefined>;
+  refreshFeedbackExportHistory: () => Promise<void>;
+  deleteFeedbackExportHistory: (historyId: string) => Promise<void>;
 };
 
 export const useFeedbackMemoryStore = create<FeedbackMemoryState>((set, get) => ({
@@ -51,7 +59,9 @@ export const useFeedbackMemoryStore = create<FeedbackMemoryState>((set, get) => 
   memoryState: "empty",
   diagnosticsState: "empty",
   diagnosticsExportState: "empty",
+  exportHistoryState: "empty",
   feedbackEvents: [],
+  feedbackExportHistory: [],
   memories: [],
   async submitFeedback(payload: FeedbackRequest) {
     if (!hasBridge()) {
@@ -135,7 +145,7 @@ export const useFeedbackMemoryStore = create<FeedbackMemoryState>((set, get) => 
     try {
       const [events, summary] = await Promise.all([
         listFeedbackEvents(filters),
-        getFeedbackSummary()
+        getFeedbackSummary(filters)
       ]);
       set({
         feedbackEvents: events,
@@ -161,8 +171,12 @@ export const useFeedbackMemoryStore = create<FeedbackMemoryState>((set, get) => 
     set({ diagnosticsExportState: "loading", diagnosticsExportErrorCode: undefined });
     try {
       const exported = await exportFeedbackDiagnostics(format, filters);
+      const history = await listFeedbackExportHistory();
       set({
         lastDiagnosticsExport: exported,
+        feedbackExportHistory: history,
+        exportHistoryState: history.length ? "done" : "empty",
+        exportHistoryErrorCode: undefined,
         diagnosticsExportState: exported.record_count ? "done" : "empty",
         diagnosticsExportErrorCode: undefined
       });
@@ -174,6 +188,56 @@ export const useFeedbackMemoryStore = create<FeedbackMemoryState>((set, get) => 
           error instanceof Error ? error.message : "feedback_export_failed"
       });
       return undefined;
+    }
+  },
+  async refreshFeedbackExportHistory() {
+    if (!hasBridge()) {
+      set({
+        feedbackExportHistory: [],
+        exportHistoryState: "degraded",
+        exportHistoryErrorCode: "desktop_bridge_unavailable"
+      });
+      return;
+    }
+    set({ exportHistoryState: "loading", exportHistoryErrorCode: undefined });
+    try {
+      const history = await listFeedbackExportHistory();
+      set({
+        feedbackExportHistory: history,
+        exportHistoryState: history.length ? "done" : "empty",
+        exportHistoryErrorCode: undefined
+      });
+    } catch (error) {
+      set({
+        exportHistoryState: "recoverable_error",
+        exportHistoryErrorCode:
+          error instanceof Error ? error.message : "feedback_export_history_failed"
+      });
+    }
+  },
+  async deleteFeedbackExportHistory(historyId: string) {
+    if (!hasBridge()) {
+      set({
+        exportHistoryState: "degraded",
+        exportHistoryErrorCode: "desktop_bridge_unavailable"
+      });
+      return;
+    }
+    set({ exportHistoryState: "loading", exportHistoryErrorCode: undefined });
+    try {
+      await deleteFeedbackExportHistory(historyId);
+      const history = await listFeedbackExportHistory();
+      set({
+        feedbackExportHistory: history,
+        exportHistoryState: history.length ? "done" : "empty",
+        exportHistoryErrorCode: undefined
+      });
+    } catch (error) {
+      set({
+        exportHistoryState: "recoverable_error",
+        exportHistoryErrorCode:
+          error instanceof Error ? error.message : "feedback_export_history_delete_failed"
+      });
     }
   }
 }));

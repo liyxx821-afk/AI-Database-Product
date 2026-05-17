@@ -882,6 +882,105 @@
             }
           },
           {
+            "name": "created_from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Created From"
+            }
+          },
+          {
+            "name": "created_to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Created To"
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Search"
+            }
+          },
+          {
+            "name": "ranking_effect",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "positive_weight_suggestion",
+                    "negative_weight_suggestion",
+                    "diagnostic_only"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ranking Effect"
+            }
+          },
+          {
+            "name": "has_comment",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Has Comment"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "created_desc",
+                "created_asc"
+              ],
+              "type": "string",
+              "default": "created_desc",
+              "title": "Sort"
+            }
+          },
+          {
             "name": "limit",
             "in": "query",
             "required": false,
@@ -924,6 +1023,196 @@
       "get": {
         "summary": "Feedback Summary Route",
         "operationId": "feedback_summary_route_api_feedback_summary_get",
+        "parameters": [
+          {
+            "name": "feedback_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "click",
+                    "useful",
+                    "not_useful",
+                    "favorite",
+                    "bad_citation",
+                    "missing_source",
+                    "downrank_source"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Feedback Type"
+            }
+          },
+          {
+            "name": "target_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Target Type"
+            }
+          },
+          {
+            "name": "evidence_pack_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Evidence Pack Id"
+            }
+          },
+          {
+            "name": "ai_answer_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ai Answer Id"
+            }
+          },
+          {
+            "name": "evidence_item_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Evidence Item Id"
+            }
+          },
+          {
+            "name": "created_from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Created From"
+            }
+          },
+          {
+            "name": "created_to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Created To"
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Search"
+            }
+          },
+          {
+            "name": "ranking_effect",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "positive_weight_suggestion",
+                    "negative_weight_suggestion",
+                    "diagnostic_only"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ranking Effect"
+            }
+          },
+          {
+            "name": "has_comment",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Has Comment"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "created_desc",
+                "created_asc"
+              ],
+              "type": "string",
+              "default": "created_desc",
+              "title": "Sort"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -931,6 +1220,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/FeedbackDiagnosticsSummary"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -1047,6 +1346,105 @@
             }
           },
           {
+            "name": "created_from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Created From"
+            }
+          },
+          {
+            "name": "created_to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Created To"
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Search"
+            }
+          },
+          {
+            "name": "ranking_effect",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "positive_weight_suggestion",
+                    "negative_weight_suggestion",
+                    "diagnostic_only"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ranking Effect"
+            }
+          },
+          {
+            "name": "has_comment",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Has Comment"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "created_desc",
+                "created_asc"
+              ],
+              "type": "string",
+              "default": "created_desc",
+              "title": "Sort"
+            }
+          },
+          {
             "name": "limit",
             "in": "query",
             "required": false,
@@ -1064,6 +1462,69 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/FeedbackDiagnosticsExportResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/feedback/export-history": {
+      "get": {
+        "summary": "List Feedback Export History Route",
+        "operationId": "list_feedback_export_history_route_api_feedback_export_history_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/FeedbackExportHistoryRecord"
+                  },
+                  "type": "array",
+                  "title": "Response List Feedback Export History Route Api Feedback Export History Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/feedback/export-history/{history_id}": {
+      "delete": {
+        "summary": "Delete Feedback Export History Route",
+        "operationId": "delete_feedback_export_history_route_api_feedback_export_history__history_id__delete",
+        "parameters": [
+          {
+            "name": "history_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "History Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Delete Feedback Export History Route Api Feedback Export History  History Id  Delete"
                 }
               }
             }
@@ -2281,6 +2742,68 @@
           "created_at"
         ],
         "title": "FeedbackEventRecord"
+      },
+      "FeedbackExportHistoryRecord": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "filename": {
+            "type": "string",
+            "title": "Filename"
+          },
+          "format": {
+            "type": "string",
+            "enum": [
+              "json",
+              "csv"
+            ],
+            "title": "Format"
+          },
+          "record_count": {
+            "type": "integer",
+            "title": "Record Count"
+          },
+          "generated_at": {
+            "type": "string",
+            "title": "Generated At"
+          },
+          "filters": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Filters"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/FeedbackDiagnosticsSummary"
+          },
+          "content_sha256": {
+            "type": "string",
+            "title": "Content Sha256"
+          },
+          "redacted": {
+            "type": "boolean",
+            "title": "Redacted"
+          },
+          "includes_source_text": {
+            "type": "boolean",
+            "title": "Includes Source Text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "filename",
+          "format",
+          "record_count",
+          "generated_at",
+          "filters",
+          "summary",
+          "content_sha256",
+          "redacted",
+          "includes_source_text"
+        ],
+        "title": "FeedbackExportHistoryRecord"
       },
       "FeedbackRequest": {
         "properties": {

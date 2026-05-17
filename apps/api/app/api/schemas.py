@@ -52,6 +52,12 @@ FeedbackType = Literal[
     "downrank_source",
 ]
 FeedbackExportFormat = Literal["json", "csv"]
+FeedbackRankingEffect = Literal[
+    "positive_weight_suggestion",
+    "negative_weight_suggestion",
+    "diagnostic_only",
+]
+FeedbackSortOrder = Literal["created_desc", "created_asc"]
 MemoryType = Literal["preference", "decision", "style", "conclusion", "reusable_context"]
 
 
@@ -386,6 +392,19 @@ class FeedbackDiagnosticsExportResponse(BaseModel):
     filters: Dict[str, Any]
     summary: FeedbackDiagnosticsSummary
     content: str
+    redacted: bool
+    includes_source_text: bool
+
+
+class FeedbackExportHistoryRecord(BaseModel):
+    id: str
+    filename: str
+    format: FeedbackExportFormat
+    record_count: int
+    generated_at: str
+    filters: Dict[str, Any]
+    summary: FeedbackDiagnosticsSummary
+    content_sha256: str
     redacted: bool
     includes_source_text: bool
 

@@ -1,5 +1,41 @@
 # 进度记录
 
+## 2026-05-17（D-111 Feedback Diagnostics Advanced Filters / Export History Z0b-lite）
+
+### 已完成
+
+- 扩展 `GET /api/feedback`、`GET /api/feedback/summary`、`GET /api/feedback/export` filters：`created_from`、`created_to`、`search`、`ranking_effect`、`has_comment`、`sort=created_desc|created_asc`，并保留 `feedback_type`、`target_type`、`evidence_pack_id`、`ai_answer_id`、`evidence_item_id`、`limit`。
+- `search` 只匹配 feedback id、target/evidence ids、query、citation label 和 comment；不搜索 source excerpt 或 answer text。
+- 新增 `GET /api/feedback/export-history` 与 `DELETE /api/feedback/export-history/{id}`；每次成功 export 后向 app data `config.json.feedback_export_history` 写入最近 20 条导出历史 metadata。
+- Export history 只保存 `filename`、`format`、`record_count`、`generated_at`、`filters`、`summary`、`content_sha256`、`redacted`、`includes_source_text`；不保存导出 `content`、source text、answer text、local token、DB path 或完整本地路径。
+- Renderer 扩展 `feedbackMemoryApi` / `feedbackMemoryStore`，新增高级过滤状态、过滤后的 summary、export history refresh / delete 和导出后 history 刷新。
+- Renderer `/outputs` Feedback Diagnostics 面板增加关键词、开始/结束时间、ranking effect、comment 状态、排序、limit、重置控件，以及 Export History 面板。
+- 新增中英双语 i18n 文案，覆盖高级过滤、Export History、删除历史和状态提示；用户 comment、query、citation label、API enum/status code 不翻译。
+- 新增 `scripts/smoke-p0-feedback-filters-history.mjs` 与 `pnpm smoke:p0-feedback-filters-history`；完整 smoke 顺序更新为 `smoke:p0-core` → `smoke:p0-desktop-runtime` → `smoke:p0-i18n-settings` → `smoke:p0-file` → `smoke:p0-parse` → `smoke:p0-ku` → `smoke:p0-search-ask` → `smoke:p0-citation-detail` → `smoke:p0-feedback-memory` → `smoke:p0-feedback-diagnostics` → `smoke:p0-feedback-export` → `smoke:p0-feedback-filters-history` → `smoke:p0-z0a`。
+- 已同步 README、`docs/development-plan.md`、`docs/api-design.md`、`docs/api-implementation-plan.md`、`docs/testing-strategy.md`、`docs/technical-stack-and-prototype-plan.md`、`docs/desktop-architecture.md`。
+
+### 验收
+
+- `pnpm generate:api-types` 通过，已更新 `packages/api-types/src/openapi.json` 与 `packages/api-types/src/generated.ts`。
+- `pnpm typecheck` 通过。
+- `pnpm api:ruff` 通过。
+- `pnpm api:test` 通过，9 个 API 测试通过。
+- 单项 API 测试 `apps/api/tests/test_p0_core.py::test_feedback_diagnostics_list_summary_and_filters` 已在实现中先行通过。
+- `pnpm smoke:p0-feedback-filters-history` 通过，输出 `SMOKE_P0_FEEDBACK_FILTERS_HISTORY_OK`。
+- 完整 smoke 顺序通过：
+  `pnpm smoke:p0-core`、`pnpm smoke:p0-desktop-runtime`、`pnpm smoke:p0-i18n-settings`、`pnpm smoke:p0-file`、`pnpm smoke:p0-parse`、`pnpm smoke:p0-ku`、`pnpm smoke:p0-search-ask`、`pnpm smoke:p0-citation-detail`、`pnpm smoke:p0-feedback-memory`、`pnpm smoke:p0-feedback-diagnostics`、`pnpm smoke:p0-feedback-export`、`pnpm smoke:p0-feedback-filters-history`、`pnpm smoke:p0-z0a`。
+- `pnpm --filter @knowledgebase-dev/renderer build` 通过。
+- `pnpm --filter @knowledgebase-dev/desktop-preload build` 通过。
+- `pnpm --filter @knowledgebase-dev/desktop-main build` 通过。
+- `git diff --check` 通过。
+- in-app browser 检查通过：`/outputs` 默认中文显示“反馈诊断”、关键词、开始/结束时间、备注状态、排序、数量上限和“导出历史”；切换英文后显示 “Feedback Diagnostics / Keyword / Created from / Created to / Comment state / Sort / Limit / Export History”；普通浏览器无 Electron preload 时显示 degraded / bridge unavailable；最终已切回中文并停在 `/ask`。
+
+### 备注
+
+- D-111 不新增 SQLite 表，不写 `retrieval_feedback`，不影响 ranking，不修改 confirmed KU、Source、Evidence Pack、AIAnswer 或 Memory。
+- Export history 不提供重新下载旧 content，只用于复盘导出 metadata 和当时 filters。
+- 普通浏览器无 Electron preload 时 `/outputs` 仍显示 bridge degraded；真实持久化和导出历史以 Electron bridge / API smoke 为准。
+
 ## 2026-05-17（D-110 Feedback Diagnostics Export Z0b-lite）
 
 ### 已完成
