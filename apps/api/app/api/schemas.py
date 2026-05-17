@@ -54,6 +54,7 @@ FeedbackType = Literal[
 FeedbackExportFormat = Literal["json", "csv"]
 KnowledgeUnitExportFormat = Literal["markdown", "json"]
 KnowledgeExportResponseFormat = Literal["markdown", "json", "zip"]
+KnowledgeExportKind = Literal["knowledge_units", "project"]
 FeedbackRankingEffect = Literal[
     "positive_weight_suggestion",
     "negative_weight_suggestion",
@@ -549,6 +550,21 @@ class KnowledgeExportResponse(BaseModel):
     filters: Dict[str, Any]
     content: Optional[str] = None
     content_base64: Optional[str] = None
+    redacted: bool
+    includes_source_text: bool
+
+
+class KnowledgeExportHistoryRecord(BaseModel):
+    id: str
+    export_id: str
+    export_kind: KnowledgeExportKind
+    filename: str
+    format: KnowledgeExportResponseFormat
+    record_count: int
+    generated_at: str
+    filters: Dict[str, Any]
+    summary: Dict[str, Any]
+    content_sha256: str
     redacted: bool
     includes_source_text: bool
 

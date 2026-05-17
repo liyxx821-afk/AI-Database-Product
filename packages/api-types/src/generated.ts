@@ -292,6 +292,20 @@ export type ApiSchemas = {
   "result": Record<string, unknown>;
   "events": JobEvent[];
 };
+  "KnowledgeExportHistoryRecord": {
+  "id": string;
+  "export_id": string;
+  "export_kind": "knowledge_units" | "project";
+  "filename": string;
+  "format": "markdown" | "json" | "zip";
+  "record_count": number;
+  "generated_at": string;
+  "filters": Record<string, unknown>;
+  "summary": Record<string, unknown>;
+  "content_sha256": string;
+  "redacted": boolean;
+  "includes_source_text": boolean;
+};
   "KnowledgeExportResponse": {
   "export_id": string;
   "filename": string;
@@ -943,6 +957,21 @@ export type JobSnapshot = {
   "events": JobEvent[];
 };
 
+export type KnowledgeExportHistoryRecord = {
+  "id": string;
+  "export_id": string;
+  "export_kind": "knowledge_units" | "project";
+  "filename": string;
+  "format": "markdown" | "json" | "zip";
+  "record_count": number;
+  "generated_at": string;
+  "filters": Record<string, unknown>;
+  "summary": Record<string, unknown>;
+  "content_sha256": string;
+  "redacted": boolean;
+  "includes_source_text": boolean;
+};
+
 export type KnowledgeExportResponse = {
   "export_id": string;
   "filename": string;
@@ -1333,6 +1362,8 @@ export type ApiPath =
   | "/api/knowledge-units/{knowledge_unit_id}"
   | "/api/exports/knowledge-units"
   | "/api/exports/project"
+  | "/api/exports/history"
+  | "/api/exports/history/{history_id}"
   | "/api/feedback"
   | "/api/feedback/summary"
   | "/api/feedback/export"

@@ -39,6 +39,7 @@ import type {
   FeedbackDiagnosticsSummary,
   FeedbackEventRecord,
   FeedbackExportHistoryRecord,
+  KnowledgeExportHistoryRecord,
   FeedbackRequest,
   FileRecord,
   FolderRecord,
@@ -1105,6 +1106,7 @@ function OutputsPage() {
     feedbackMemory.refreshMemories();
     feedbackMemory.refreshFeedbackDiagnostics();
     feedbackMemory.refreshFeedbackExportHistory();
+    knowledgeExport.refreshHistory();
     organization.refresh();
   }, []);
 
@@ -1158,6 +1160,26 @@ function OutputsPage() {
     if (exported?.content) {
       downloadTextFile(exported.filename, exported.mime_type, exported.content);
     }
+  }
+
+  function applyKnowledgeExportHistory(record: KnowledgeExportHistoryRecord) {
+    const filters = record.filters as Record<string, unknown>;
+    const projectId = typeof filters.project_id === "string" ? filters.project_id : "default-space";
+    const folderId = typeof filters.folder_id === "string" ? filters.folder_id : null;
+    const tagIds = Array.isArray(filters.tag_ids)
+      ? filters.tag_ids.filter((tagId): tagId is string => typeof tagId === "string")
+      : [];
+
+    organization.setSelectedProject(projectId);
+    organization.setSelectedFolder(record.export_kind === "project" ? null : folderId);
+    organization.setSelectedTagIds(record.export_kind === "project" ? [] : tagIds);
+    setKnowledgeExportKind(record.export_kind);
+    if (record.format === "markdown" || record.format === "json") {
+      setKnowledgeExportFormat(record.format);
+    }
+    setIncludeChunks(Boolean(filters.include_chunks));
+    setIncludeSources(Boolean(filters.include_sources));
+    setIncludePendingReview(Boolean(filters.include_pending_review));
   }
 
   function resetDiagnosticsFilters() {
@@ -1221,6 +1243,9 @@ function OutputsPage() {
         exportState={knowledgeExport.state}
         exportErrorCode={knowledgeExport.errorCode}
         lastExport={knowledgeExport.lastExport}
+        history={knowledgeExport.history}
+        historyState={knowledgeExport.historyState}
+        historyErrorCode={knowledgeExport.historyErrorCode}
         onSelectProject={organization.setSelectedProject}
         onSelectFolder={organization.setSelectedFolder}
         onSelectTagIds={organization.setSelectedTagIds}
@@ -1232,6 +1257,9 @@ function OutputsPage() {
         onIncludeSourcesChange={setIncludeSources}
         onIncludePendingReviewChange={setIncludePendingReview}
         onExport={exportKnowledgeAssets}
+        onRefreshHistory={knowledgeExport.refreshHistory}
+        onDeleteHistory={knowledgeExport.deleteHistory}
+        onApplyHistory={applyKnowledgeExportHistory}
       />
       <FeedbackDiagnosticsPanel
         events={feedbackMemory.feedbackEvents}
@@ -1322,6 +1350,9 @@ function KnowledgeExportPanel({
   exportState,
   exportErrorCode,
   lastExport,
+  history,
+  historyState,
+  historyErrorCode,
   onSelectProject,
   onSelectFolder,
   onSelectTagIds,
@@ -1332,7 +1363,10 @@ function KnowledgeExportPanel({
   onIncludeChunksChange,
   onIncludeSourcesChange,
   onIncludePendingReviewChange,
-  onExport
+  onExport,
+  onRefreshHistory,
+  onDeleteHistory,
+  onApplyHistory
 }: {
   projects: ProjectRecord[];
   folders: FolderRecord[];
@@ -1350,6 +1384,9 @@ function KnowledgeExportPanel({
   exportState: "loading" | "empty" | "degraded" | "recoverable_error" | "done";
   exportErrorCode?: string;
   lastExport?: KnowledgeExportResponse;
+  history: KnowledgeExportHistoryRecord[];
+  historyState: "loading" | "empty" | "degraded" | "recoverable_error" | "done";
+  historyErrorCode?: string;
   onSelectProject: (projectId: string) => void;
   onSelectFolder: (folderId: string | null) => void;
   onSelectTagIds: (tagIds: string[]) => void;
@@ -1361,6 +1398,9 @@ function KnowledgeExportPanel({
   onIncludeSourcesChange: (value: boolean) => void;
   onIncludePendingReviewChange: (value: boolean) => void;
   onExport: () => Promise<void>;
+  onRefreshHistory: () => Promise<void>;
+  onDeleteHistory: (historyId: string) => Promise<void>;
+  onApplyHistory: (record: KnowledgeExportHistoryRecord) => void;
 }) {
   const t = useT();
   return (
@@ -1482,6 +1522,76 @@ function KnowledgeExportPanel({
       ) : (
         <EmptyState message={t("knowledgeExport.noExport")} />
       )}
+      <div className="section-title-row compact-title-row">
+        <h3>{t("knowledgeExport.history")}</h3>
+        <div className="inline-actions">
+          <span className={`state-chip state-${historyState}`}>{historyState}</span>
+          <button className="icon-command" type="button" onClick={onRefreshHistory}>
+            <RefreshCw aria-hidden="true" size={16} />
+            <span>{t("action.refresh")}</span>
+          </button>
+        </div>
+      </div>
+      {historyErrorCode ? (
+        <div className="row-note">
+          <AlertCircle aria-hidden="true" size={15} />
+          <span>{historyErrorCode}</span>
+        </div>
+      ) : null}
+      <div className="file-table">
+        {history.length ? (
+          history.map((record) => (
+            <div className="review-row" key={record.id}>
+              <div>
+                <strong>{record.filename}</strong>
+                <span>{record.id}</span>
+              </div>
+              <StatusPill label={t("knowledgeExport.type")} value={record.export_kind} />
+              <StatusPill label={t("knowledgeExport.format")} value={record.format} />
+              <StatusPill label={t("knowledgeExport.records")} value={String(record.record_count)} />
+              <StatusPill label={t("feedback.generatedAt")} value={record.generated_at} />
+              <div className="row-note evidence-excerpt">
+                <FileText aria-hidden="true" size={15} />
+                <span>
+                  {t("feedback.filters")}: {formatMaybe(record.filters)}
+                </span>
+              </div>
+              <div className="row-note evidence-excerpt">
+                <FileText aria-hidden="true" size={15} />
+                <span>
+                  SHA256: {record.content_sha256}
+                </span>
+              </div>
+              <div className="inline-actions">
+                <button
+                  className="icon-command"
+                  type="button"
+                  onClick={() => onApplyHistory(record)}
+                >
+                  <RefreshCw aria-hidden="true" size={16} />
+                  <span>{t("knowledgeExport.applyHistory")}</span>
+                </button>
+                <button
+                  className="icon-command"
+                  type="button"
+                  onClick={() => onDeleteHistory(record.id)}
+                >
+                  <Trash2 aria-hidden="true" size={16} />
+                  <span>{t("knowledgeExport.deleteHistory")}</span>
+                </button>
+              </div>
+            </div>
+          ))
+        ) : (
+          <EmptyState
+            message={
+              historyState === "degraded"
+                ? t("empty.bridgeUnavailable")
+                : t("knowledgeExport.noHistory")
+            }
+          />
+        )}
+      </div>
     </section>
   );
 }

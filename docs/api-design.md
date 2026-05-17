@@ -1,8 +1,8 @@
 # API 设计草案
 
-版本：v0.29-draft
+版本：v0.30-draft
 日期：2026-05-17  
-状态：P0 API 边界草案——完整上传/文件处理/File Inspection/切片前准备层/切片执行 profile/AI 结构化整理 profile/D-079 structuring summary 子字段/结构化整理检查门/知识切片质量闭环/AI/RAG API + D-080 知识调用 profile / implicit_agent / D-081 Z0a-Z2 持久化边界 / D-082 InvocationProfileSchema / D-083 前端状态与反馈策略 / D-085 Z0a 调用锚点、feedback 与 citation 边界修正 + D-098 页面到现有 API 组映射 + D-105 Citation Detail / Evidence Pack replay 实现边界 + D-106 Settings language 持久化边界 + D-107 Feedback Events / Memory Draft Review Z0b-lite + D-108 Feedback Diagnostics / Event Replay Z0b-lite + D-110 Feedback Diagnostics Export Z0b-lite + D-111 Feedback Diagnostics Advanced Filters / Export History Z0b-lite + D-112 Citation Detail Focus / Evidence Trace Interaction Z0b-lite + D-113 Citation Annotation / Evidence Compare Z0b-lite + D-114 Knowledge Space / Folder-Tag / Metadata Filters Z0b-lite + D-115 Knowledge Unit / Project Export Z0b-lite + 安全运维横切层 + 检查门映射单一来源 + 事件枚举单一来源 + P0-Z0a/ProcessingJob/sensitive grant 契约收紧
+状态：P0 API 边界草案——完整上传/文件处理/File Inspection/切片前准备层/切片执行 profile/AI 结构化整理 profile/D-079 structuring summary 子字段/结构化整理检查门/知识切片质量闭环/AI/RAG API + D-080 知识调用 profile / implicit_agent / D-081 Z0a-Z2 持久化边界 / D-082 InvocationProfileSchema / D-083 前端状态与反馈策略 / D-085 Z0a 调用锚点、feedback 与 citation 边界修正 + D-098 页面到现有 API 组映射 + D-105 Citation Detail / Evidence Pack replay 实现边界 + D-106 Settings language 持久化边界 + D-107 Feedback Events / Memory Draft Review Z0b-lite + D-108 Feedback Diagnostics / Event Replay Z0b-lite + D-110 Feedback Diagnostics Export Z0b-lite + D-111 Feedback Diagnostics Advanced Filters / Export History Z0b-lite + D-112 Citation Detail Focus / Evidence Trace Interaction Z0b-lite + D-113 Citation Annotation / Evidence Compare Z0b-lite + D-114 Knowledge Space / Folder-Tag / Metadata Filters Z0b-lite + D-115 Knowledge Unit / Project Export Z0b-lite + D-116 Knowledge Export History / Replay Z0b-lite + 安全运维横切层 + 检查门映射单一来源 + 事件枚举单一来源 + P0-Z0a/ProcessingJob/sensitive grant 契约收紧
 
 ## 1. 文档目的
 
@@ -2029,6 +2029,8 @@ P0 行为：
 ```text
 POST /api/exports/knowledge-units
 POST /api/exports/project
+GET /api/exports/history
+DELETE /api/exports/history/{id}
 ```
 
 `POST /api/exports/knowledge-units` 导出 KU 为 Markdown / JSON。D-115 代码阶段只返回下载内容 envelope，后端不写用户本地路径：
@@ -2097,6 +2099,44 @@ README.md
 ```
 
 D-115 导出不得包含 local token、SQLite path、完整本地文件路径、app data 路径或原始二进制文件；`source_path` 只能保留 basename 或置空。默认只导出 confirmed KU，`pending_review` 必须显式 `include_pending_review=true` 才能进入导出。
+
+D-116 后，每次成功知识导出会向 app data `config.json.knowledge_export_history` 追加最近 20 条脱敏 metadata。历史记录只用于复盘和复用 filters，不保存 `content`、`content_base64`、source text、完整 KU 正文、local token、SQLite path、app data path 或完整本地路径。
+
+`GET /api/exports/history` 返回：
+
+```json
+[
+  {
+    "id": "knowledge_export_history_id",
+    "export_id": "export_id",
+    "export_kind": "knowledge_units",
+    "filename": "knowledge-units-20260517T120000.md",
+    "format": "markdown",
+    "record_count": 2,
+    "generated_at": "2026-05-17T12:00:00Z",
+    "filters": {
+      "project_id": "default-space",
+      "folder_id": "folder_id",
+      "tag_ids": ["tag_id"],
+      "include_chunks": true,
+      "include_sources": false,
+      "include_pending_review": false
+    },
+    "summary": {
+      "knowledge_unit_count": 2,
+      "folder_count": 1,
+      "tag_record_count": 1,
+      "source_count": 0,
+      "chunk_count": 1
+    },
+    "content_sha256": "sha256",
+    "redacted": true,
+    "includes_source_text": true
+  }
+]
+```
+
+`DELETE /api/exports/history/{id}` 只删除 `config.json` 中的一条 knowledge export history metadata，不影响已导出的下载内容、不影响 KU、Source、Chunk、Project、Tag 或反馈诊断导出历史。
 
 ### 16.6 设置（Settings）
 

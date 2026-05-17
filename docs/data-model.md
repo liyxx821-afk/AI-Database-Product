@@ -1,8 +1,8 @@
-# 数据模型 v0.26-draft
+# 数据模型 v0.27-draft
 
-版本：v0.26-draft
+版本：v0.27-draft
 日期：2026-05-17  
-状态：草案——完整 P0 入库与知识处理平台 + 切片前准备层 / 切片执行 profile / AI 结构化整理 profile / D-079 结构化整理子字段与存储映射 / D-080 知识调用 profile 与隐式 Agent / D-081 调用持久化边界 / D-082 InvocationProfileSchema v1 / D-083 前端状态与反馈策略 / D-085 Z0a 调用锚点、反馈和 citation 边界修正 / D-092 trace chain 与 Evidence Pack 失败态 / D-104 Retrieval Preview 复用既有调用对象 / D-107 feedback_events 与 memories Z0b-lite 物理表 / D-108 feedback_events 诊断读取与 Event Replay / D-113 citation_annotations 批注与 evidence compare 只读边界 / D-114 Project-Folder-Tag 组织过滤与 Source/KU organization 绑定 / D-115 Knowledge Unit / Project export 只读 envelope / 知识切片质量闭环 / 安全运维横切层 / 检查门映射单一来源 / 事件枚举单一来源 / P0-Z0a/Z0b 最小迁移 / ProcessingJob / sensitive grant / evidence-only 契约收紧
+状态：草案——完整 P0 入库与知识处理平台 + 切片前准备层 / 切片执行 profile / AI 结构化整理 profile / D-079 结构化整理子字段与存储映射 / D-080 知识调用 profile 与隐式 Agent / D-081 调用持久化边界 / D-082 InvocationProfileSchema v1 / D-083 前端状态与反馈策略 / D-085 Z0a 调用锚点、反馈和 citation 边界修正 / D-092 trace chain 与 Evidence Pack 失败态 / D-104 Retrieval Preview 复用既有调用对象 / D-107 feedback_events 与 memories Z0b-lite 物理表 / D-108 feedback_events 诊断读取与 Event Replay / D-113 citation_annotations 批注与 evidence compare 只读边界 / D-114 Project-Folder-Tag 组织过滤与 Source/KU organization 绑定 / D-115 Knowledge Unit / Project export 只读 envelope / D-116 knowledge_export_history metadata / 知识切片质量闭环 / 安全运维横切层 / 检查门映射单一来源 / 事件枚举单一来源 / P0-Z0a/Z0b 最小迁移 / ProcessingJob / sensitive grant / evidence-only 契约收紧
 
 ## 1. 文档目的
 
@@ -1865,7 +1865,9 @@ D-113 evidence compare 不新增表。`POST /api/evidence-packs/{id}/compare` �
 
 D-114 organization metadata 不新增任意 key-value 编辑器；它只把 project / folder / tag / filter 从文档契约落到本地 SQLite。`source_tags` 与 `knowledge_unit_tags` 只服务组织绑定和检索过滤，不写 feedback，不影响 ranking 权重，也不让 `pending_review` KU 进入 Evidence Pack。
 
-D-115 knowledge export 不新增 SQLite 表；`POST /api/exports/knowledge-units` 与 `POST /api/exports/project` 只读 Project、Folder、Tag、Source、Chunk、KnowledgeUnit 现有对象并返回下载 envelope。Project ZIP 的 `manifest.json` 只记录导出 id、filters、record_count、redaction flags 和文件清单语义，不是备份/还原快照，也不保存导出历史。导出内容允许包含用户选择的 KU 内容和可选 chunk/source 摘要，但必须脱敏 local token、SQLite path、app data path 和完整本地路径；`pending_review` 默认不导出。
+D-115 knowledge export 不新增 SQLite 表；`POST /api/exports/knowledge-units` 与 `POST /api/exports/project` 只读 Project、Folder、Tag、Source、Chunk、KnowledgeUnit 现有对象并返回下载 envelope。Project ZIP 的 `manifest.json` 只记录导出 id、filters、record_count、redaction flags 和文件清单语义，不是备份/还原快照。导出内容允许包含用户选择的 KU 内容和可选 chunk/source 摘要，但必须脱敏 local token、SQLite path、app data path 和完整本地路径；`pending_review` 默认不导出。
+
+D-116 knowledge export history 也不新增 SQLite 表；每次成功知识导出后只向 app data `config.json.knowledge_export_history` 写入最近 20 条脱敏 metadata：`id`、`export_id`、`export_kind`、`filename`、`format`、`record_count`、`generated_at`、`filters`、`summary`、`content_sha256`、`redacted`、`includes_source_text`。History 不保存 `content`、`content_base64`、KU 正文、source text、token、DB path、app data path 或完整本地路径；删除 history 只影响 config metadata，不影响业务对象。
 
 ### 7.6 ai_answers
 
@@ -1948,7 +1950,7 @@ D-107 / D-108 反馈 / Memory 边界：
 - `retrieval_feedback`：Z2 起的检索反馈持久化对象，必须能关联 Invocation / Evidence / Answer，并携带 `feedback_policy`、作用域、权重上限和是否参与 ranking suggestion。
 - D-113 的 `citation_annotations` 只服务 Citation Detail 本地复盘；不得作为 feedback/ranking signal，也不得让批注内容进入检索证据。
 - D-114 的 `source_tags` / `knowledge_unit_tags` 只服务 project / folder / tag 组织绑定与过滤；不得作为 feedback/ranking signal，也不得让 `pending_review` KU 因为有 tag/folder 而进入检索证据。
-- D-107 / D-108 / D-113 / D-114 / D-115 不新增 `invocation_requests`、`retrieval_plans`、真实 LLM answer、GraphRAG、provider-backed RAG 或 `retrieval_feedback`。
+- D-107 / D-108 / D-113 / D-114 / D-115 / D-116 不新增 `invocation_requests`、`retrieval_plans`、真实 LLM answer、GraphRAG、provider-backed RAG 或 `retrieval_feedback`。
 
 ---
 

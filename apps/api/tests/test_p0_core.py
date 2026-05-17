@@ -326,6 +326,9 @@ def test_knowledge_unit_and_project_exports(monkeypatch, tmp_path):
         unauthorized = client.post("/api/exports/knowledge-units", json={})
         assert unauthorized.status_code == 401
         assert unauthorized.json()["error"]["code"] == "sidecar_auth_failed"
+        unauthorized_history = client.get("/api/exports/history")
+        assert unauthorized_history.status_code == 401
+        assert unauthorized_history.json()["error"]["code"] == "sidecar_auth_failed"
 
         folder = client.post(
             "/api/folders",
@@ -493,6 +496,47 @@ def test_knowledge_unit_and_project_exports(monkeypatch, tmp_path):
             assert "test-token" not in combined
             assert str(tmp_path) not in combined
             assert "knowledgebase.sqlite" not in combined
+
+        history = client.get("/api/exports/history", headers=headers)
+        assert history.status_code == 200
+        history_body = history.json()
+        assert len(history_body) == 6
+        assert history_body[0]["export_kind"] == "project"
+        assert history_body[0]["format"] == "zip"
+        assert history_body[0]["content_sha256"] == hashlib.sha256(archive_bytes).hexdigest()
+        assert history_body[0]["summary"]["knowledge_unit_count"] == 1
+        assert history_body[1]["format"] == "json"
+        assert history_body[1]["filters"]["knowledge_unit_ids"] == [ku_id]
+        assert history_body[2]["record_count"] == 0
+        assert history_body[3]["format"] == "markdown"
+        assert history_body[3]["summary"]["include_chunks"] is True
+        assert history_body[3]["summary"]["include_sources"] is True
+        assert "content" not in history_body[0]
+        assert "content_base64" not in history_body[0]
+        history_blob = json.dumps(history_body, ensure_ascii=False)
+        assert "test-token" not in history_blob
+        assert str(tmp_path) not in history_blob
+        assert "D115 export confirmed knowledge" not in history_blob
+
+        deleted_history = client.delete(
+            f"/api/exports/history/{history_body[0]['id']}",
+            headers=headers,
+        )
+        assert deleted_history.status_code == 200
+        assert deleted_history.json()["deleted"] is True
+        history_after_delete = client.get("/api/exports/history", headers=headers)
+        assert history_after_delete.status_code == 200
+        assert all(
+            record["id"] != history_body[0]["id"]
+            for record in history_after_delete.json()
+        )
+
+        missing_history = client.delete(
+            "/api/exports/history/knowledge_export_history_missing",
+            headers=headers,
+        )
+        assert missing_history.status_code == 404
+        assert missing_history.json()["error"]["code"] == "knowledge_export_history_not_found"
 
         invalid_tag = client.post(
             "/api/exports/knowledge-units",

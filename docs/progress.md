@@ -1,5 +1,36 @@
 # 进度记录
 
+## 2026-05-17（D-116 Knowledge Export History / Replay Z0b-lite）
+
+### 已完成
+
+- 新增 `GET /api/exports/history` 与 `DELETE /api/exports/history/{id}`；所有知识资产导出成功后写入 app data `config.json.knowledge_export_history`。
+- Knowledge export history 只保存最近 20 条脱敏 metadata：`id`、`export_id`、`export_kind`、`filename`、`format`、`record_count`、`generated_at`、`filters`、`summary`、`content_sha256`、`redacted`、`includes_source_text`。
+- History 不保存 Markdown / JSON / ZIP 正文、不保存 `content_base64`、KU 正文、source text、local token、SQLite path、app data path 或完整本地路径。
+- Renderer 扩展 exports typed API/store；`/outputs` Knowledge Export 面板新增 Knowledge Export History 区域，支持刷新、删除记录，并把历史 filters 套用回当前导出控件。
+- 新增中英双语 i18n 文案，覆盖知识导出历史、套用过滤、删除历史和空态；用户 KU 内容、tag/folder 名、source excerpt、API enum/status code 不翻译。
+- 新增 `scripts/smoke-p0-knowledge-export-history.mjs` 与 `pnpm smoke:p0-knowledge-export-history`；完整 smoke 顺序更新为 `smoke:p0-core` → `smoke:p0-desktop-runtime` → `smoke:p0-i18n-settings` → `smoke:p0-file` → `smoke:p0-parse` → `smoke:p0-ku` → `smoke:p0-space-tag-metadata` → `smoke:p0-knowledge-export` → `smoke:p0-knowledge-export-history` → `smoke:p0-search-ask` → `smoke:p0-citation-detail` → `smoke:p0-citation-focus` → `smoke:p0-citation-annotate-compare` → `smoke:p0-feedback-memory` → `smoke:p0-feedback-diagnostics` → `smoke:p0-feedback-export` → `smoke:p0-feedback-filters-history` → `smoke:p0-z0a`。
+- 已同步 README、`docs/development-plan.md`、`docs/data-model.md`、`docs/api-design.md`、`docs/api-implementation-plan.md`、`docs/testing-strategy.md`、`docs/technical-stack-and-prototype-plan.md`、`docs/desktop-architecture.md`。
+
+### 验收
+
+- `pnpm generate:api-types` 通过，已更新 `packages/api-types/src/openapi.json` 与 `packages/api-types/src/generated.ts`。
+- `pnpm typecheck` 通过。
+- `pnpm api:ruff` 通过。
+- `pnpm api:test` 通过，12 个 API 测试通过。
+- `pnpm smoke:p0-knowledge-export-history` 通过，输出 `SMOKE_P0_KNOWLEDGE_EXPORT_HISTORY_OK`。
+- 完整 smoke 顺序通过：
+  `pnpm smoke:p0-core`、`pnpm smoke:p0-desktop-runtime`、`pnpm smoke:p0-i18n-settings`、`pnpm smoke:p0-file`、`pnpm smoke:p0-parse`、`pnpm smoke:p0-ku`、`pnpm smoke:p0-space-tag-metadata`、`pnpm smoke:p0-knowledge-export`、`pnpm smoke:p0-knowledge-export-history`、`pnpm smoke:p0-search-ask`、`pnpm smoke:p0-citation-detail`、`pnpm smoke:p0-citation-focus`、`pnpm smoke:p0-citation-annotate-compare`、`pnpm smoke:p0-feedback-memory`、`pnpm smoke:p0-feedback-diagnostics`、`pnpm smoke:p0-feedback-export`、`pnpm smoke:p0-feedback-filters-history`、`pnpm smoke:p0-z0a`。
+- `pnpm --filter @knowledgebase-dev/renderer build` 通过。
+- `pnpm --filter @knowledgebase-dev/desktop-preload build` 通过。
+- `pnpm --filter @knowledgebase-dev/desktop-main build` 通过。
+- in-app browser 检查通过：`/outputs` 默认中文显示“知识资产导出”“知识导出历史”和 bridge degraded；同一普通浏览器 session 切换英文后经导航进入 `/outputs` 显示 “Knowledge Export / Knowledge Export History / Desktop bridge unavailable”；最终停回 `/ask`。
+
+### 备注
+
+- D-116 只做知识导出历史 metadata 复盘和过滤条件复用，不提供重新下载旧导出内容。
+- D-116 不新增 SQLite 表，不保存长期导出正文，不做云同步、备份/还原、Obsidian 双向同步、真实 LLM、provider-backed RAG、Text-to-SQL provider 或 GraphRAG。
+
 ## 2026-05-17（D-115 Knowledge Unit / Project Export Z0b-lite）
 
 ### 已完成

@@ -1239,6 +1239,69 @@
         }
       }
     },
+    "/api/exports/history": {
+      "get": {
+        "summary": "List Knowledge Export History Route",
+        "operationId": "list_knowledge_export_history_route_api_exports_history_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/KnowledgeExportHistoryRecord"
+                  },
+                  "type": "array",
+                  "title": "Response List Knowledge Export History Route Api Exports History Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/exports/history/{history_id}": {
+      "delete": {
+        "summary": "Delete Knowledge Export History Route",
+        "operationId": "delete_knowledge_export_history_route_api_exports_history__history_id__delete",
+        "parameters": [
+          {
+            "name": "history_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "History Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Delete Knowledge Export History Route Api Exports History  History Id  Delete"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/feedback": {
       "post": {
         "summary": "Submit Feedback Route",
@@ -4614,6 +4677,85 @@
           "events"
         ],
         "title": "JobSnapshot"
+      },
+      "KnowledgeExportHistoryRecord": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "export_id": {
+            "type": "string",
+            "title": "Export Id"
+          },
+          "export_kind": {
+            "type": "string",
+            "enum": [
+              "knowledge_units",
+              "project"
+            ],
+            "title": "Export Kind"
+          },
+          "filename": {
+            "type": "string",
+            "title": "Filename"
+          },
+          "format": {
+            "type": "string",
+            "enum": [
+              "markdown",
+              "json",
+              "zip"
+            ],
+            "title": "Format"
+          },
+          "record_count": {
+            "type": "integer",
+            "title": "Record Count"
+          },
+          "generated_at": {
+            "type": "string",
+            "title": "Generated At"
+          },
+          "filters": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Filters"
+          },
+          "summary": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Summary"
+          },
+          "content_sha256": {
+            "type": "string",
+            "title": "Content Sha256"
+          },
+          "redacted": {
+            "type": "boolean",
+            "title": "Redacted"
+          },
+          "includes_source_text": {
+            "type": "boolean",
+            "title": "Includes Source Text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "export_id",
+          "export_kind",
+          "filename",
+          "format",
+          "record_count",
+          "generated_at",
+          "filters",
+          "summary",
+          "content_sha256",
+          "redacted",
+          "includes_source_text"
+        ],
+        "title": "KnowledgeExportHistoryRecord"
       },
       "KnowledgeExportResponse": {
         "properties": {

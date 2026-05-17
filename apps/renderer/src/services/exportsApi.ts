@@ -1,4 +1,5 @@
 import type {
+  KnowledgeExportHistoryRecord,
   KnowledgeExportResponse,
   KnowledgeUnitExportRequest,
   ProjectExportRequest
@@ -21,5 +22,15 @@ export async function exportProject(payload: ProjectExportRequest): Promise<Know
   return apiFetch<KnowledgeExportResponse>("/exports/project", {
     method: "POST",
     body: JSON.stringify(payload)
+  });
+}
+
+export async function listKnowledgeExportHistory(): Promise<KnowledgeExportHistoryRecord[]> {
+  return apiFetch<KnowledgeExportHistoryRecord[]>("/exports/history");
+}
+
+export async function deleteKnowledgeExportHistory(historyId: string): Promise<void> {
+  await apiFetch<{ deleted: boolean; id: string }>(`/exports/history/${historyId}`, {
+    method: "DELETE"
   });
 }

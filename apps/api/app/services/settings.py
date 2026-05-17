@@ -11,6 +11,8 @@ DEFAULT_LANGUAGE = "zh-CN"
 ALLOWED_LANGUAGES = {"zh-CN", "en-US"}
 FEEDBACK_EXPORT_HISTORY_LIMIT = 20
 FEEDBACK_EXPORT_HISTORY_KEY = "feedback_export_history"
+KNOWLEDGE_EXPORT_HISTORY_LIMIT = 20
+KNOWLEDGE_EXPORT_HISTORY_KEY = "knowledge_export_history"
 
 
 def _config_path() -> Path:
@@ -94,5 +96,52 @@ def delete_feedback_export_history(history_id: str) -> bool:
     if deleted:
         payload[FEEDBACK_EXPORT_HISTORY_KEY] = kept[:FEEDBACK_EXPORT_HISTORY_LIMIT]
         payload["feedback_export_history_updated_at"] = datetime.now(timezone.utc).isoformat()
+        _write_config(payload)
+    return deleted
+
+
+def get_knowledge_export_history() -> list[dict[str, Any]]:
+    payload = _read_config()
+    history = payload.get(KNOWLEDGE_EXPORT_HISTORY_KEY)
+    if not isinstance(history, list):
+        return []
+    return [
+        item
+        for item in history[:KNOWLEDGE_EXPORT_HISTORY_LIMIT]
+        if isinstance(item, dict)
+    ]
+
+
+def append_knowledge_export_history(record: dict[str, Any]) -> list[dict[str, Any]]:
+    payload = _read_config()
+    history = payload.get(KNOWLEDGE_EXPORT_HISTORY_KEY)
+    existing = (
+        [item for item in history if isinstance(item, dict)]
+        if isinstance(history, list)
+        else []
+    )
+    payload[KNOWLEDGE_EXPORT_HISTORY_KEY] = [
+        record,
+        *existing,
+    ][:KNOWLEDGE_EXPORT_HISTORY_LIMIT]
+    payload["knowledge_export_history_updated_at"] = datetime.now(timezone.utc).isoformat()
+    _write_config(payload)
+    return get_knowledge_export_history()
+
+
+def delete_knowledge_export_history(history_id: str) -> bool:
+    payload = _read_config()
+    history = payload.get(KNOWLEDGE_EXPORT_HISTORY_KEY)
+    if not isinstance(history, list):
+        return False
+    kept = [
+        item
+        for item in history
+        if not (isinstance(item, dict) and item.get("id") == history_id)
+    ]
+    deleted = len(kept) != len(history)
+    if deleted:
+        payload[KNOWLEDGE_EXPORT_HISTORY_KEY] = kept[:KNOWLEDGE_EXPORT_HISTORY_LIMIT]
+        payload["knowledge_export_history_updated_at"] = datetime.now(timezone.utc).isoformat()
         _write_config(payload)
     return deleted

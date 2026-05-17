@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 import io
 import json
 import sqlite3
@@ -14,6 +15,11 @@ from app.api.schemas import KnowledgeUnitExportRequest, ProjectExportRequest
 from app.core.errors import AppError
 from app.db.sqlite import db
 from app.services.organization import folder_record, project_record, tag_record
+from app.services.settings import (
+    append_knowledge_export_history,
+    delete_knowledge_export_history,
+    get_knowledge_export_history,
+)
 
 
 def now_iso() -> str:
@@ -71,6 +77,27 @@ def export_knowledge_units(payload: KnowledgeUnitExportRequest) -> dict[str, Any
         mime_type = "application/json"
         filename = _filename("knowledge-units", "json", generated_at)
 
+    append_knowledge_export_history(
+        _history_record(
+            export_id=export_id,
+            export_kind="knowledge_units",
+            filename=filename,
+            export_format=payload.format,
+            record_count=len(records),
+            generated_at=generated_at,
+            filters=filters,
+            summary=_knowledge_history_summary(
+                payload=payload,
+                records=records,
+                folders=folders,
+                tags=tags,
+                chunks=chunks,
+                sources=sources,
+            ),
+            content_sha256=_sha256_text(content),
+            includes_source_text=bool(payload.include_chunks or payload.include_sources),
+        )
+    )
     return {
         "export_id": export_id,
         "filename": filename,
@@ -129,9 +156,32 @@ def export_project(payload: ProjectExportRequest) -> dict[str, Any]:
         sources=sources,
         chunks=chunks,
     )
+    filename = _filename(f"project-{payload.project_id}", "zip", generated_at)
+    append_knowledge_export_history(
+        _history_record(
+            export_id=export_id,
+            export_kind="project",
+            filename=filename,
+            export_format="zip",
+            record_count=len(records),
+            generated_at=generated_at,
+            filters=filters,
+            summary={
+                "project_id": payload.project_id,
+                "folder_count": len(folders),
+                "tag_count": len(tags),
+                "source_count": len(sources),
+                "chunk_count": len(chunks),
+                "knowledge_unit_count": len(records),
+                "include_pending_review": payload.include_pending_review,
+            },
+            content_sha256=_sha256_bytes(archive),
+            includes_source_text=True,
+        )
+    )
     return {
         "export_id": export_id,
-        "filename": _filename(f"project-{payload.project_id}", "zip", generated_at),
+        "filename": filename,
         "mime_type": "application/zip",
         "format": "zip",
         "record_count": len(records),
@@ -142,6 +192,20 @@ def export_project(payload: ProjectExportRequest) -> dict[str, Any]:
         "redacted": True,
         "includes_source_text": True,
     }
+
+
+def list_knowledge_export_history() -> list[dict[str, Any]]:
+    return get_knowledge_export_history()
+
+
+def remove_knowledge_export_history(history_id: str) -> dict[str, Any]:
+    if not delete_knowledge_export_history(history_id):
+        raise AppError(
+            "knowledge_export_history_not_found",
+            "Knowledge export history record was not found.",
+            status_code=404,
+        )
+    return {"deleted": True, "id": history_id}
 
 
 def _query_knowledge_units(
@@ -613,6 +677,68 @@ def _knowledge_filters(
         "include_sources": payload.include_sources,
         "include_pending_review": payload.include_pending_review,
     }
+
+
+def _knowledge_history_summary(
+    *,
+    payload: KnowledgeUnitExportRequest,
+    records: list[dict[str, Any]],
+    folders: list[dict[str, Any]],
+    tags: list[dict[str, Any]],
+    chunks: list[dict[str, Any]],
+    sources: list[dict[str, Any]],
+) -> dict[str, Any]:
+    return {
+        "project_id": payload.project_id,
+        "folder_id": payload.folder_id,
+        "tag_count": len(payload.tag_ids),
+        "knowledge_unit_id_count": len(payload.knowledge_unit_ids),
+        "folder_count": len(folders),
+        "tag_record_count": len(tags),
+        "source_count": len(sources),
+        "chunk_count": len(chunks),
+        "knowledge_unit_count": len(records),
+        "include_chunks": payload.include_chunks,
+        "include_sources": payload.include_sources,
+        "include_pending_review": payload.include_pending_review,
+    }
+
+
+def _history_record(
+    *,
+    export_id: str,
+    export_kind: str,
+    filename: str,
+    export_format: str,
+    record_count: int,
+    generated_at: str,
+    filters: dict[str, Any],
+    summary: dict[str, Any],
+    content_sha256: str,
+    includes_source_text: bool,
+) -> dict[str, Any]:
+    return {
+        "id": new_id("knowledge_export_history"),
+        "export_id": export_id,
+        "export_kind": export_kind,
+        "filename": filename,
+        "format": export_format,
+        "record_count": record_count,
+        "generated_at": generated_at,
+        "filters": filters,
+        "summary": summary,
+        "content_sha256": content_sha256,
+        "redacted": True,
+        "includes_source_text": includes_source_text,
+    }
+
+
+def _sha256_text(content: str) -> str:
+    return hashlib.sha256(content.encode("utf-8")).hexdigest()
+
+
+def _sha256_bytes(content: bytes) -> str:
+    return hashlib.sha256(content).hexdigest()
 
 
 def _filename(prefix: str, extension: str, generated_at: str) -> str:

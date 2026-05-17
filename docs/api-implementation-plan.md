@@ -1,8 +1,8 @@
 # API Route-Level 实施计划
 
-版本：v0.31-draft
+版本：v0.32-draft
 日期：2026-05-17  
-状态：P0 API 实施映射草案——四切片 + P0-Z0a/Z0b 竖切 + 切片前准备层 / 结构化整理检查门 / 知识切片质量闭环 / 安全运维横切层 / 检查门映射单一来源 / 事件枚举单一来源 / ProcessingJob / sensitive grant / evidence-only / 切片执行 profile / AI 结构化整理 profile / D-079 存储映射契约对齐 / D-080 知识调用 profile 与 implicit_agent / D-081-D085 调用边界、profile schema、Z0a 锚点与前端状态契约对齐 / D-092 OpenAPI 类型生成、trace chain 与 migration 波次命名 / D-093 桌面运行时 API 约束 / D-094 P0-Core 工程骨架 API 顺序 / D-098 页面到 API 组映射 / D-105 Citation Detail replay / D-106 Settings language config 持久化 / D-107 Feedback Events 与 Memory Draft Review / D-108 Feedback Diagnostics 只读复盘 / D-110 Feedback Diagnostics Export 脱敏导出 / D-111 Feedback Advanced Filters 与 Export History / D-112 Citation Detail Focus 与 Evidence Trace Interaction / D-113 Citation Annotation 与 Evidence Compare / D-114 OrganizationService 与 Folder-Tag metadata filters / D-115 KnowledgeExportService 与 Project ZIP export
+状态：P0 API 实施映射草案——四切片 + P0-Z0a/Z0b 竖切 + 切片前准备层 / 结构化整理检查门 / 知识切片质量闭环 / 安全运维横切层 / 检查门映射单一来源 / 事件枚举单一来源 / ProcessingJob / sensitive grant / evidence-only / 切片执行 profile / AI 结构化整理 profile / D-079 存储映射契约对齐 / D-080 知识调用 profile 与 implicit_agent / D-081-D085 调用边界、profile schema、Z0a 锚点与前端状态契约对齐 / D-092 OpenAPI 类型生成、trace chain 与 migration 波次命名 / D-093 桌面运行时 API 约束 / D-094 P0-Core 工程骨架 API 顺序 / D-098 页面到 API 组映射 / D-105 Citation Detail replay / D-106 Settings language config 持久化 / D-107 Feedback Events 与 Memory Draft Review / D-108 Feedback Diagnostics 只读复盘 / D-110 Feedback Diagnostics Export 脱敏导出 / D-111 Feedback Advanced Filters 与 Export History / D-112 Citation Detail Focus 与 Evidence Trace Interaction / D-113 Citation Annotation 与 Evidence Compare / D-114 OrganizationService 与 Folder-Tag metadata filters / D-115 KnowledgeExportService 与 Project ZIP export / D-116 KnowledgeExportHistory metadata replay
 
 ## 1. 文档目的
 
@@ -29,6 +29,8 @@ D-113 已新增 `citation_annotations` 与 annotation CRUD：CitationAnnotationS
 D-114 已新增 OrganizationService：Project / Folder / Tag route 统一负责知识空间、Folder-Tag Mirroring、`source_tags` / `knowledge_unit_tags` 组织绑定；Source/KU list 与 Retrieval Preview / evidence-only answer 复用 `project_id`、`folder_id`、`tag_ids` filters。Renderer 通过 typed organization API/store 消费这些接口，不在前端拼接 SQLite 关系或硬编码本地路径。
 
 D-115 已新增 `POST /api/exports/knowledge-units` 与 `POST /api/exports/project`：KnowledgeExportService 只读 confirmed KU、Project/Folder/Tag、Source、Chunk 数据，返回 Markdown / JSON / ZIP 下载 envelope；后端不写用户本地路径，不保存长期导出历史，不包含 local token、SQLite path、app data path、完整本地路径或原始二进制文件。Renderer `/outputs` 只通过 typed exports API/store 触发 Blob download。
+
+D-116 已新增 `GET /api/exports/history` 与 `DELETE /api/exports/history/{id}`：KnowledgeExportService 每次成功导出后只向 `config.json.knowledge_export_history` 写入最近 20 条 metadata，包含 export kind、filename、format、record_count、generated_at、filters、summary、content_sha256 和 redaction flags；history 不保存 Markdown / JSON / ZIP 正文，不新增 SQLite 表。
 
 目标：
 
@@ -747,12 +749,15 @@ commit
 |---|---|---|---|
 | `POST /api/exports/knowledge-units` | `KnowledgeExportService.exportKnowledgeUnits` | `KnowledgeUnitRepository`, `ProjectRepository`, `FolderRepository`, `TagRepository`, `SourceRepository`, `ChunkRepository` | D-115 已实现：支持 `format=markdown|json`、project / folder / tag / KU ID filters、`include_chunks`、`include_sources` 和显式 `include_pending_review`；默认只导出 confirmed KU，返回 content envelope，不写本地路径 |
 | `POST /api/exports/project` | `KnowledgeExportService.exportProject` | `ProjectRepository`, `KnowledgeUnitRepository`, `FolderRepository`, `TagRepository`, `SourceRepository`, `ChunkRepository` | D-115 已实现：返回最小 ZIP base64 envelope，包含 `manifest.json`、`knowledge-units.json`、`tags.json`、`folders.json`、`sources.json`、`chunks.json` 和 `README.md`；不等同于数据库备份或可恢复快照 |
+| `GET /api/exports/history` | `KnowledgeExportService.listExportHistory` | `SettingsConfigRepository` | D-116 已实现：返回 `config.json.knowledge_export_history` 最近 20 条脱敏 metadata，不返回 export content |
+| `DELETE /api/exports/history/{id}` | `KnowledgeExportService.deleteExportHistory` | `SettingsConfigRepository` | D-116 已实现：删除单条 history metadata，不影响 KU、Source、Chunk、Project、Tag 或下载内容 |
 
 约束：
 
 - Knowledge export 是本地知识资产下载能力，不是备份/还原、云同步、系统级诊断包或 Obsidian 双向同步。
 - 导出允许包含用户选择的 KU 内容和可选 chunk/source 摘要，但必须脱敏 token、SQLite path、app data path 与完整本地路径；`source_path` 只能保留 basename 或置空。
-- D-115 不新增 SQLite 表，不复用 feedback export history，也不让 `pending_review` 默认进入导出。
+- D-115 / D-116 不新增 SQLite 表，不复用 feedback export history，也不让 `pending_review` 默认进入导出。
+- Knowledge Export History 只持久化 `config.json` 中的脱敏 metadata、filters、summary 和 `content_sha256`；不得保存 export `content` / `content_base64`。
 
 约束：
 
