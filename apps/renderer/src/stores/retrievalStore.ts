@@ -24,18 +24,17 @@ import {
   previewRetrieval,
   updateCitationAnnotation
 } from "../services/retrievalApi";
+import type { UiState } from "../types/uiState";
 import { resolveErrorCode } from "../utils/errors";
-
-type ViewState = "loading" | "empty" | "degraded" | "recoverable_error" | "done";
 
 type RetrievalState = {
   lastQuery: string;
-  state: ViewState;
-  previewState: ViewState;
-  answerState: ViewState;
-  detailState: ViewState;
-  annotationState: ViewState;
-  compareState: ViewState;
+  state: UiState;
+  previewState: UiState;
+  answerState: UiState;
+  detailState: UiState;
+  annotationState: UiState;
+  compareState: UiState;
   errorCode?: string;
   previewErrorCode?: string;
   answerErrorCode?: string;

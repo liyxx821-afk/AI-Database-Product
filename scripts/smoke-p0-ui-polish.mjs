@@ -65,6 +65,7 @@ function main() {
   const app = readRepoFile("apps", "renderer", "src", "app", "App.tsx");
   const styles = readRepoFile("apps", "renderer", "src", "styles.css");
   const i18n = readRepoFile("apps", "renderer", "src", "services", "i18n.ts");
+  const uiStateType = readRepoFile("apps", "renderer", "src", "types", "uiState.ts");
   const packageJson = JSON.parse(readRepoFile("package.json"));
 
   const zhKeys = collectMessageKeys(localeBlock(i18n, "zh-CN"));
@@ -116,6 +117,22 @@ function main() {
   ];
   for (const marker of requiredStyleMarkers) {
     assert(styles.includes(marker), `renderer style marker missing ${marker}`);
+  }
+
+  assert(uiStateType.includes("export type UiState"), "shared UiState type is missing");
+  const repeatedUiStateUnion =
+    /type\s+\w+\s*=\s*"loading"\s*\|\s*"empty"\s*\|\s*"degraded"\s*\|\s*"recoverable_error"\s*\|\s*"done"/;
+  const stateFiles = [
+    ["apps", "renderer", "src", "app", "App.tsx"],
+    ["apps", "renderer", "src", "stores", "retrievalStore.ts"],
+    ["apps", "renderer", "src", "stores", "feedbackMemoryStore.ts"],
+    ["apps", "renderer", "src", "stores", "organizationStore.ts"],
+    ["apps", "renderer", "src", "stores", "exportsStore.ts"],
+    ["apps", "renderer", "src", "stores", "textToSqlStore.ts"]
+  ];
+  for (const parts of stateFiles) {
+    const file = readRepoFile(...parts);
+    assert(!repeatedUiStateUnion.test(file), `${parts.join("/")} repeats UiState union`);
   }
 
   assert(

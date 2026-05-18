@@ -21,15 +21,14 @@ import {
   updateSourcesOrganizationBatch,
   updateSourceOrganization
 } from "../services/organizationApi";
+import type { UiState } from "../types/uiState";
 import { resolveErrorCode } from "../utils/errors";
-
-type ViewState = "loading" | "empty" | "degraded" | "recoverable_error" | "done";
 
 type OrganizationStore = {
   projects: ProjectRecord[];
   folders: FolderRecord[];
   tags: TagRecord[];
-  state: ViewState;
+  state: UiState;
   errorCode: string | null;
   selectedProjectId: string;
   selectedFolderId: string | null;

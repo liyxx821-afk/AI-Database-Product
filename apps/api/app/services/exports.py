@@ -796,10 +796,14 @@ def _is_secret_key(key: str) -> bool:
 
 
 def _is_path_key(key: str) -> bool:
-    return key == "path" or key.endswith("_path") or key in {
+    return key.endswith("_path") or key in {
         "source_path",
         "storage_path",
         "output_text_path",
+        "database_path",
+        "sqlite_path",
+        "app_data_path",
+        "local_path",
     }
 
 

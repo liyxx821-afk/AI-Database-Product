@@ -1,5 +1,34 @@
 # 进度记录
 
+## 2026-05-18（代码审查优化：导出路径、runtime config、UI 状态类型）
+
+### 审查结论
+
+- 知识导出的 `_sanitize()` 把所有 `path` 字段都当成本地文件路径处理，会误伤 Folder 的逻辑路径，如 `Parent/Child` 被截断为 `Child`。
+- Renderer `apiClient` 缓存 runtime config 后缺少重置入口，sidecar token 失效时需要刷新页面才能恢复。
+- 上轮已收敛 `App.tsx` 的 UI 状态类型，但多个 renderer store 仍重复定义同一组状态联合类型。
+
+### 已优化
+
+- 调整知识导出脱敏逻辑，只对明确的本地路径字段做 basename 脱敏，保留 Folder / Knowledge Space 的逻辑 `path`。
+- 扩展知识导出 API 测试，创建父子 Folder 并验证 Markdown、JSON、Project ZIP 均保留完整逻辑路径，同时继续断言 token / app data / SQLite 路径不泄露。
+- Renderer `apiClient` 新增 `resetRuntimeConfig()`，遇到 `sidecar_auth_failed` 时重取 bridge config 后重试一次；网络错误只对 GET / HEAD 自动重试，避免 POST / PUT 被静默重复执行。
+- 新增共享 `UiState` 类型并替换 renderer store 内重复的 `ViewState`；`smoke:p0-ui-polish` 新增重复状态联合类型检查。
+
+### 验收
+
+- `pnpm typecheck` 通过。
+- `pnpm api:ruff` 通过。
+- `pnpm api:test` 通过，14 个 API 测试全部通过。
+- `pnpm smoke:p0-ui-polish` 通过，输出 `SMOKE_P0_UI_POLISH_OK`。
+- `pnpm smoke:p0-knowledge-export` 通过，输出 `SMOKE_P0_KNOWLEDGE_EXPORT_OK`。
+- `pnpm --filter @knowledgebase-dev/renderer build` 通过。
+- `git diff --check` 通过。
+
+### 边界
+
+- 本轮不改 OpenAPI schema、数据库 schema、主路由、业务功能范围或 UI 视觉方向。
+
 ## 2026-05-18（Renderer UI state 类型边界优化）
 
 ### 审查结论

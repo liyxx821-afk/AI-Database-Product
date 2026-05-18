@@ -485,13 +485,24 @@ def test_knowledge_unit_and_project_exports(monkeypatch, tmp_path):
         assert unauthorized_history.status_code == 401
         assert unauthorized_history.json()["error"]["code"] == "sidecar_auth_failed"
 
-        folder = client.post(
+        parent_folder = client.post(
             "/api/folders",
             headers=json_headers,
             json={"project_id": "default-space", "name": "D115 Folder"},
         )
-        assert folder.status_code == 200
-        folder_body = folder.json()
+        assert parent_folder.status_code == 200
+        child_folder = client.post(
+            "/api/folders",
+            headers=json_headers,
+            json={
+                "project_id": "default-space",
+                "parent_id": parent_folder.json()["id"],
+                "name": "D115 Child",
+            },
+        )
+        assert child_folder.status_code == 200
+        folder_body = child_folder.json()
+        assert folder_body["path"] == "D115 Folder/D115 Child"
 
         topic_tag = client.post(
             "/api/tags",
@@ -578,6 +589,7 @@ def test_knowledge_unit_and_project_exports(monkeypatch, tmp_path):
         assert "source_id:" in markdown_content
         assert "chunk_id:" in markdown_content
         assert "citation_label:" in markdown_content
+        assert 'folder: "D115 Folder/D115 Child"' in markdown_content
         assert "D115 export confirmed knowledge" in markdown_content
         assert "test-token" not in markdown_content
         assert str(tmp_path) not in markdown_content
@@ -617,6 +629,8 @@ def test_knowledge_unit_and_project_exports(monkeypatch, tmp_path):
         assert json_content["manifest"]["record_count"] == 1
         assert json_content["project"]["id"] == "default-space"
         assert json_content["knowledge_units"][0]["id"] == ku_id
+        assert json_content["knowledge_units"][0]["folder"]["path"] == folder_body["path"]
+        assert any(folder["path"] == folder_body["path"] for folder in json_content["folders"])
         assert json_content["knowledge_units"][0]["citation"]["source_id"] == source_id
         assert json_content["chunks"][0]["citation_label"].startswith("D115 Export Source")
         serialized_json = json_export.json()["content"]
@@ -645,8 +659,10 @@ def test_knowledge_unit_and_project_exports(monkeypatch, tmp_path):
             }
             manifest = json.loads(archive.read("manifest.json"))
             knowledge_units = json.loads(archive.read("knowledge-units.json"))
+            folders = json.loads(archive.read("folders.json"))
             assert manifest["record_count"] == len(knowledge_units)
             assert any(unit["id"] == ku_id for unit in knowledge_units)
+            assert any(folder["path"] == folder_body["path"] for folder in folders)
             combined = "\n".join(archive.read(name).decode("utf-8") for name in names)
             assert "test-token" not in combined
             assert str(tmp_path) not in combined

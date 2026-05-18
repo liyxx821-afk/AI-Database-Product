@@ -3,12 +3,11 @@ import type { TextToSqlPreviewResponse } from "@knowledgebase-dev/api-types";
 import { hasBridge } from "../services/apiClient";
 import type { OrganizationFilters } from "../services/organizationApi";
 import { previewTextToSql } from "../services/textToSqlApi";
+import type { UiState } from "../types/uiState";
 import { resolveErrorCode } from "../utils/errors";
 
-type ViewState = "loading" | "empty" | "degraded" | "recoverable_error" | "done";
-
 type TextToSqlState = {
-  state: ViewState;
+  state: UiState;
   errorCode?: string;
   preview?: TextToSqlPreviewResponse;
   previewQuery: (query: string, filters?: OrganizationFilters, limit?: number) => Promise<void>;

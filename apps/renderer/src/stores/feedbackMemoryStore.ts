@@ -22,16 +22,15 @@ import {
   type FeedbackDiagnosticsFilters,
   type FeedbackExportFormat
 } from "../services/feedbackMemoryApi";
+import type { UiState } from "../types/uiState";
 import { resolveErrorCode } from "../utils/errors";
 
-type ViewState = "loading" | "empty" | "degraded" | "recoverable_error" | "done";
-
 type FeedbackMemoryState = {
-  feedbackState: ViewState;
-  memoryState: ViewState;
-  diagnosticsState: ViewState;
-  diagnosticsExportState: ViewState;
-  exportHistoryState: ViewState;
+  feedbackState: UiState;
+  memoryState: UiState;
+  diagnosticsState: UiState;
+  diagnosticsExportState: UiState;
+  exportHistoryState: UiState;
   feedbackErrorCode?: string;
   memoryErrorCode?: string;
   diagnosticsErrorCode?: string;

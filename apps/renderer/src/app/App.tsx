@@ -82,6 +82,7 @@ import type {
 } from "../services/exportsApi";
 import { resolveErrorCode } from "../utils/errors";
 import { supportedLanguages, translate, type LanguageCode, type MessageKey } from "../services/i18n";
+import type { UiState } from "../types/uiState";
 
 type RouteKey =
   | "/dashboard"
@@ -109,8 +110,6 @@ type UploadQueueItem = {
   uploadId?: string;
   fileId?: string | null;
 };
-
-type UiState = "loading" | "empty" | "degraded" | "recoverable_error" | "done";
 
 type FeedbackFilterValue = FeedbackRequest["feedback_type"] | "all";
 type FeedbackTargetFilterValue = "evidence_pack" | "ai_answer" | "evidence_item" | "all";

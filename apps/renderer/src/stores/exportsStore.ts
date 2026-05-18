@@ -12,13 +12,12 @@ import {
   exportProject,
   listKnowledgeExportHistory
 } from "../services/exportsApi";
+import type { UiState } from "../types/uiState";
 import { resolveErrorCode } from "../utils/errors";
 
-type ViewState = "loading" | "empty" | "degraded" | "recoverable_error" | "done";
-
 type KnowledgeExportStore = {
-  state: ViewState;
-  historyState: ViewState;
+  state: UiState;
+  historyState: UiState;
   errorCode?: string;
   historyErrorCode?: string;
   lastExport?: KnowledgeExportResponse;
