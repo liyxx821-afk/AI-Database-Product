@@ -1,5 +1,33 @@
 # 进度记录
 
+## 2026-05-18（D-120 UI Interaction Polish / Design-Ready Shell Z0b-lite）
+
+### 已实现
+
+- Renderer 八页工作台新增 route summary，强化每个内部路由的低保真信息架构提示，仍保持 `/dashboard`、`/import`、`/library`、`/search`、`/ask`、`/graph`、`/outputs`、`/settings` 不变。
+- 普通浏览器无 Electron preload 时新增全局 bridge degraded 横幅，明确当前只能展示降级或样例状态，不伪造真实持久化能力。
+- 统一 state chip 显示和中英双语文案，补齐 `loading / empty / degraded / recoverable_error / done / ready / available / unavailable / unknown` 等 UI 状态标签。
+- 优化黑白灰低保真布局 CSS：metric / panel 自适应 grid、工具条换行、query/action bar 稳定尺寸、status pill 防溢出、移动窄屏侧栏与 runtime bar 响应式。
+- 新增 `scripts/smoke-p0-ui-polish.mjs` 与 `pnpm smoke:p0-ui-polish`，检查 8 页 route config、i18n key 对齐、关键 UI shell marker、关键 CSS marker，并执行 renderer build。
+- 完整 smoke 顺序更新为 `smoke:p0-core` → `smoke:p0-desktop-runtime` → `smoke:p0-packaged-runtime` → `smoke:p0-i18n-settings` → `smoke:p0-ui-polish` → `smoke:p0-file` → `smoke:p0-parse` → `smoke:p0-ku` → `smoke:p0-space-tag-metadata` → `smoke:p0-text-to-sql` → `smoke:p0-knowledge-export` → `smoke:p0-knowledge-export-history` → `smoke:p0-search-ask` → `smoke:p0-citation-detail` → `smoke:p0-citation-focus` → `smoke:p0-citation-annotate-compare` → `smoke:p0-batch-actions` → `smoke:p0-feedback-memory` → `smoke:p0-feedback-diagnostics` → `smoke:p0-feedback-export` → `smoke:p0-feedback-filters-history` → `smoke:p0-z0a`。
+
+### 验收
+
+- `pnpm typecheck` 通过。
+- `pnpm api:ruff` 通过。
+- `pnpm api:test` 通过，14 个 API 测试全部通过。
+- `pnpm smoke:p0-ui-polish` 通过，输出 `SMOKE_P0_UI_POLISH_OK`。
+- 完整 smoke 顺序通过：
+  `pnpm smoke:p0-core`、`pnpm smoke:p0-desktop-runtime`、`pnpm smoke:p0-packaged-runtime`、`pnpm smoke:p0-i18n-settings`、`pnpm smoke:p0-ui-polish`、`pnpm smoke:p0-file`、`pnpm smoke:p0-parse`、`pnpm smoke:p0-ku`、`pnpm smoke:p0-space-tag-metadata`、`pnpm smoke:p0-text-to-sql`、`pnpm smoke:p0-knowledge-export`、`pnpm smoke:p0-knowledge-export-history`、`pnpm smoke:p0-search-ask`、`pnpm smoke:p0-citation-detail`、`pnpm smoke:p0-citation-focus`、`pnpm smoke:p0-citation-annotate-compare`、`pnpm smoke:p0-batch-actions`、`pnpm smoke:p0-feedback-memory`、`pnpm smoke:p0-feedback-diagnostics`、`pnpm smoke:p0-feedback-export`、`pnpm smoke:p0-feedback-filters-history`、`pnpm smoke:p0-z0a`。
+- `pnpm --filter @knowledgebase-dev/renderer build`、`pnpm --filter @knowledgebase-dev/desktop-preload build`、`pnpm --filter @knowledgebase-dev/desktop-main build` 通过。
+- `git diff --check` 通过。
+- in-app browser 自动检查未完成：Browser Use URL policy 拦截了对 `http://127.0.0.1:5173` 当前页面的 DOM 读取 / 路由跳转；本轮未绕过该限制。需用户侧手动刷新检查 `/dashboard`、`/library`、`/search`、`/ask`、`/outputs`、`/settings` 的默认中文、英文切换、bridge degraded 横幅和窄屏排版。
+
+### 边界
+
+- D-120 不修改 OpenAPI schema、后端数据模型、主路由或业务语义。
+- 本阶段只做 UI 交互壳层与 design-ready 低保真边界整理，不接正式 Figma 设计稿、真实 LLM、provider-backed RAG、GraphRAG 或新增产品能力。
+
 ## 2026-05-18（D-119 Text-to-SQL Template / Structured Query Preview Z0b-lite）
 
 ### 已实现

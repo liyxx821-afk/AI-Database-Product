@@ -10,6 +10,8 @@ export const defaultLanguage: LanguageCode = "zh-CN";
 export const messages = {
   "zh-CN": {
     "app.meta": "P0 本地工作台",
+    "shell.bridgeDegradedTitle": "桌面桥接不可用",
+    "shell.bridgeDegradedBody": "当前是普通浏览器预览，只显示降级或样例状态；真实持久化能力需要 Electron preload bridge。",
     "nav.label": "知识工作台",
     "route.dashboard": "总览",
     "route.import": "导入",
@@ -300,11 +302,21 @@ export const messages = {
     "settings.providerFallback": "sqlite-vec 能力探测尚未加载。",
     "empty.bridgeUnavailable": "桌面桥接不可用。",
     "empty.none": "无",
+    "state.available": "可用",
+    "state.degraded": "降级",
+    "state.done": "完成",
+    "state.empty": "空",
+    "state.loading": "加载中",
+    "state.notReady": "未就绪",
     "state.ready": "就绪",
-    "state.degraded": "降级"
+    "state.recoverableError": "可恢复错误",
+    "state.unavailable": "不可用",
+    "state.unknown": "未知"
   },
   "en-US": {
     "app.meta": "P0 local workspace",
+    "shell.bridgeDegradedTitle": "Desktop bridge unavailable",
+    "shell.bridgeDegradedBody": "This browser preview only shows degraded or fixture-safe state; persistence requires the Electron preload bridge.",
     "nav.label": "Knowledge Workspace",
     "route.dashboard": "Dashboard",
     "route.import": "Import",
@@ -595,8 +607,16 @@ export const messages = {
     "settings.providerFallback": "sqlite-vec capability probe not loaded yet.",
     "empty.bridgeUnavailable": "Desktop bridge unavailable.",
     "empty.none": "none",
+    "state.available": "available",
+    "state.degraded": "degraded",
+    "state.done": "done",
+    "state.empty": "empty",
+    "state.loading": "loading",
+    "state.notReady": "not ready",
     "state.ready": "ready",
-    "state.degraded": "degraded"
+    "state.recoverableError": "recoverable error",
+    "state.unavailable": "unavailable",
+    "state.unknown": "unknown"
   }
 } as const;
 

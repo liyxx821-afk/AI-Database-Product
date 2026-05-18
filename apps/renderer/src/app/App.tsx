@@ -211,12 +211,14 @@ export function App() {
           <div>
             <div className="route-path">{activeRoute.path}</div>
             <h1>{t(activeRoute.labelKey)}</h1>
+            <p className="route-summary">{t(activeRoute.summaryKey)}</p>
           </div>
           <button className="icon-command" type="button" title={t("action.refresh")} onClick={() => runtime.refresh()}>
             <Bot aria-hidden="true" size={18} />
             <span>{t("action.refresh")}</span>
           </button>
         </header>
+        <BridgeNotice />
         <RoutePanel path={activePath} />
       </main>
 
@@ -247,6 +249,39 @@ function StatusPill({ label, value }: { label: string; value: string }) {
       <span>{label}</span>
       <strong>{value}</strong>
     </div>
+  );
+}
+
+const stateLabelKeys: Partial<Record<string, MessageKey>> = {
+  available: "state.available",
+  degraded: "state.degraded",
+  done: "state.done",
+  empty: "state.empty",
+  loading: "state.loading",
+  not_ready: "state.notReady",
+  ready: "state.ready",
+  recoverable_error: "state.recoverableError",
+  unavailable: "state.unavailable",
+  unknown: "state.unknown"
+};
+
+function StateChip({ state, label }: { state: string; label?: string }) {
+  const t = useT();
+  const key = stateLabelKeys[state];
+  return <span className={`state-chip state-${state}`}>{label ?? (key ? t(key) : state)}</span>;
+}
+
+function BridgeNotice() {
+  const t = useT();
+  if (hasBridge()) return null;
+  return (
+    <section className="workspace-notice state-degraded" aria-live="polite">
+      <AlertCircle aria-hidden="true" size={16} />
+      <div>
+        <strong>{t("shell.bridgeDegradedTitle")}</strong>
+        <span>{t("shell.bridgeDegradedBody")}</span>
+      </div>
+    </section>
   );
 }
 
@@ -403,9 +438,7 @@ function ImportPage() {
       <section className="page-frame">
         <div className="section-title-row">
           <h2>{t("import.sourceIntake")}</h2>
-          <span className={`state-chip state-${hasBridge() ? "empty" : "degraded"}`}>
-            {hasBridge() ? t("state.ready") : t("state.degraded")}
-          </span>
+          <StateChip state={hasBridge() ? "ready" : "degraded"} />
         </div>
         <div
           className="upload-zone"
@@ -432,9 +465,10 @@ function ImportPage() {
       <section className="page-frame">
         <div className="section-title-row">
           <h2>{t("import.uploadQueue")}</h2>
-          <span className="state-chip">
-            {queue.length ? t("import.queued", { count: queue.length }) : t("import.emptyQueue")}
-          </span>
+          <StateChip
+            state={queue.length ? "ready" : "empty"}
+            label={queue.length ? t("import.queued", { count: queue.length }) : t("import.emptyQueue")}
+          />
         </div>
         <div className="file-table">
           {queue.length ? (
@@ -640,9 +674,7 @@ function SearchPage() {
       <section className="page-frame">
         <div className="section-title-row">
           <h2>{t("search.preview")}</h2>
-          <span className={`state-chip state-${retrieval.previewState}`}>
-            {retrieval.previewState}
-          </span>
+          <StateChip state={retrieval.previewState} />
         </div>
         <form
           className="query-bar"
@@ -686,7 +718,7 @@ function SearchPage() {
       <section className="page-frame">
         <div className="section-title-row">
           <h2>{t("organization.filters")}</h2>
-          <span className={`state-chip state-${organization.state}`}>{organization.state}</span>
+          <StateChip state={organization.state} />
         </div>
         <OrganizationFilterControls
           projects={organization.projects}
@@ -854,9 +886,7 @@ function AskPage() {
       <section className="page-frame">
         <div className="section-title-row">
           <h2>{t("ask.title")}</h2>
-          <span className={`state-chip state-${retrieval.answerState}`}>
-            {retrieval.answerState}
-          </span>
+          <StateChip state={retrieval.answerState} />
         </div>
         <form
           className="query-bar"
@@ -891,7 +921,7 @@ function AskPage() {
       <section className="page-frame">
         <div className="section-title-row">
           <h2>{t("organization.filters")}</h2>
-          <span className={`state-chip state-${organization.state}`}>{organization.state}</span>
+          <StateChip state={organization.state} />
         </div>
         <OrganizationFilterControls
           projects={organization.projects}
@@ -920,9 +950,7 @@ function AskPage() {
       <section className="page-frame">
         <div className="section-title-row">
           <h2>{t("feedback.title")}</h2>
-          <span className={`state-chip state-${feedbackMemory.feedbackState}`}>
-            {feedbackMemory.feedbackState}
-          </span>
+          <StateChip state={feedbackMemory.feedbackState} />
         </div>
         <p className="section-note">{t("feedback.appendOnly")}</p>
         <div className="feedback-actions">
@@ -988,9 +1016,7 @@ function AskPage() {
       <section className="page-frame">
         <div className="section-title-row">
           <h2>{t("memory.title")}</h2>
-          <span className={`state-chip state-${feedbackMemory.memoryState}`}>
-            {feedbackMemory.memoryState}
-          </span>
+          <StateChip state={feedbackMemory.memoryState} />
         </div>
         <p className="section-note">{t("memory.body")}</p>
         <div className="memory-form">
@@ -1276,9 +1302,7 @@ function OutputsPage() {
         <div className="section-title-row">
           <h2>{t("memory.drafts")}</h2>
           <div className="inline-actions">
-            <span className={`state-chip state-${feedbackMemory.memoryState}`}>
-              {feedbackMemory.memoryState}
-            </span>
+            <StateChip state={feedbackMemory.memoryState} />
             <button className="icon-command" type="button" onClick={feedbackMemory.refreshMemories}>
               <RefreshCw aria-hidden="true" size={16} />
               <span>{t("action.refresh")}</span>
@@ -1549,7 +1573,7 @@ function KnowledgeExportPanel({
       <div className="section-title-row">
         <h2>{t("knowledgeExport.title")}</h2>
         <div className="inline-actions">
-          <span className={`state-chip state-${exportState}`}>{exportState}</span>
+          <StateChip state={exportState} />
           <button className="icon-command" type="button" onClick={onRefreshOrganization}>
             <RefreshCw aria-hidden="true" size={16} />
             <span>{t("action.refresh")}</span>
@@ -1715,7 +1739,7 @@ function KnowledgeExportPanel({
       <div className="section-title-row compact-title-row">
         <h3>{t("knowledgeExport.history")}</h3>
         <div className="inline-actions">
-          <span className={`state-chip state-${historyState}`}>{historyState}</span>
+          <StateChip state={historyState} />
           <button className="icon-command" type="button" onClick={onRefreshHistory}>
             <RefreshCw aria-hidden="true" size={16} />
             <span>{t("action.refresh")}</span>
@@ -1885,7 +1909,7 @@ function FeedbackDiagnosticsPanel({
       <div className="section-title-row">
         <h2>{t("feedback.diagnostics")}</h2>
         <div className="inline-actions">
-          <span className={`state-chip state-${state}`}>{state}</span>
+          <StateChip state={state} />
           <button className="icon-command" type="button" onClick={onRefresh}>
             <RefreshCw aria-hidden="true" size={16} />
             <span>{t("action.refresh")}</span>
@@ -2100,7 +2124,7 @@ function FeedbackDiagnosticsPanel({
       <div className="section-title-row compact-title-row">
         <h3>{t("feedback.exportHistory")}</h3>
         <div className="inline-actions">
-          <span className={`state-chip state-${exportHistoryState}`}>{exportHistoryState}</span>
+          <StateChip state={exportHistoryState} />
           <button className="icon-command" type="button" onClick={onRefreshHistory}>
             <RefreshCw aria-hidden="true" size={16} />
             <span>{t("action.refresh")}</span>
@@ -2393,7 +2417,7 @@ function OrganizationPanel({
       <div className="section-title-row">
         <h2>{t("organization.title")}</h2>
         <div className="inline-actions">
-          <span className={`state-chip state-${state}`}>{state}</span>
+          <StateChip state={state} />
           <button className="icon-command" type="button" onClick={onRefresh}>
             <RefreshCw aria-hidden="true" size={16} />
             <span>{t("action.refresh")}</span>
@@ -2744,7 +2768,7 @@ function TextToSqlPanel({
       <div className="section-title-row">
         <h2>{t("textToSql.title")}</h2>
         <div className="inline-actions">
-          <span className={`state-chip state-${state}`}>{state}</span>
+          <StateChip state={state} />
           <StatusPill label="provider" value={preview?.provider_status ?? "not_ready"} />
         </div>
       </div>
@@ -2845,7 +2869,10 @@ function EvidenceItemsPanel({
     <section className="page-frame">
       <div className="section-title-row">
         <h2>{t("evidence.items")}</h2>
-        <span className="state-chip">{items.length ? t("evidence.itemCount", { count: items.length }) : state}</span>
+        <StateChip
+          state={items.length ? "ready" : state}
+          label={items.length ? t("evidence.itemCount", { count: items.length }) : undefined}
+        />
       </div>
       <div className="file-table">
         {items.length ? (
@@ -3111,7 +3138,7 @@ function CitationDetailPanel({
     <section className="page-frame">
       <div className="section-title-row">
         <h2>{t("citation.detail")}</h2>
-        <span className={`state-chip state-${state}`}>{state}</span>
+        <StateChip state={state} />
       </div>
       {errorCode ? (
         <div className="row-note">
@@ -3279,7 +3306,7 @@ function CitationDetailPanel({
               <div className="annotation-box">
                 <div className="section-title-row compact-title-row">
                   <h3>{t("citation.annotations")}</h3>
-                  <span className={`state-chip state-${annotationState}`}>{annotationState}</span>
+                  <StateChip state={annotationState} />
                 </div>
                 {annotationErrorCode ? (
                   <div className="row-note">
@@ -3399,7 +3426,7 @@ function CitationDetailPanel({
           <section className="focused-citation">
             <div className="section-title-row compact-title-row">
               <h3>{t("citation.compare")}</h3>
-              <span className={`state-chip state-${compareState}`}>{compareState}</span>
+              <StateChip state={compareState} />
             </div>
             <div className="inline-actions">
               <button
@@ -3555,7 +3582,7 @@ function SettingsPage() {
       <section className="page-frame">
         <div className="section-title-row">
           <h2>{t("settings.languageTitle")}</h2>
-          <span className={`state-chip state-${settings.state}`}>{settings.state}</span>
+          <StateChip state={settings.state} />
         </div>
         <div className="settings-row">
           <div>
@@ -3615,7 +3642,7 @@ function PageFrame({
     <section className="page-frame">
       <div className="section-title-row">
         <h2>{title}</h2>
-        <span className={`state-chip state-${state}`}>{state}</span>
+        <StateChip state={state} />
       </div>
       <div className="panel-grid">
         {sections.map(([heading, body]) => (

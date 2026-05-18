@@ -1,8 +1,8 @@
 # 测试与评估策略
 
-版本：v0.36
+版本：v0.37
 日期：2026-05-18
-状态：完整 P0 入库、P0-Z0a/Z0b 竖切、ProcessingJob、File Inspection、切片前准备层、结构化整理检查门、知识切片质量闭环、安全运维横切层、检查门映射单一来源、事件枚举单一来源、切片执行 profile fixture、AI 结构化整理 profile 与 D-079 存储映射 fixture、D-080 知识调用 / implicit_agent / D-081-D085 调用边界、profile schema、反馈策略与前端状态 fixture、D-098 Knowledge Workspace 页面契约 fixture、D-105 Citation Detail / Evidence Pack replay smoke、D-106 i18n settings smoke、D-107 feedback / memory smoke、D-108 feedback diagnostics smoke、D-109 desktop runtime smoke、D-110 feedback diagnostics export smoke、D-111 feedback filters / export history smoke、D-112 citation detail focus smoke、D-113 citation annotation / compare smoke、D-114 space/tag/metadata smoke、D-115 knowledge export smoke、D-116 knowledge export history smoke、D-117 packaged runtime smoke、D-118 batch actions smoke、D-119 text-to-sql preview smoke、向量检索与 RAG 验收策略 + provider fallback fixture + D-090 技术栈执行优化测试口径 + D-091 工程化验收门槛 + D-092 代码骨架前置契约测试口径 + D-093 桌面运行时硬化测试口径 + D-094 P0-Core 工程骨架开工测试口径
+状态：完整 P0 入库、P0-Z0a/Z0b 竖切、ProcessingJob、File Inspection、切片前准备层、结构化整理检查门、知识切片质量闭环、安全运维横切层、检查门映射单一来源、事件枚举单一来源、切片执行 profile fixture、AI 结构化整理 profile 与 D-079 存储映射 fixture、D-080 知识调用 / implicit_agent / D-081-D085 调用边界、profile schema、反馈策略与前端状态 fixture、D-098 Knowledge Workspace 页面契约 fixture、D-105 Citation Detail / Evidence Pack replay smoke、D-106 i18n settings smoke、D-107 feedback / memory smoke、D-108 feedback diagnostics smoke、D-109 desktop runtime smoke、D-110 feedback diagnostics export smoke、D-111 feedback filters / export history smoke、D-112 citation detail focus smoke、D-113 citation annotation / compare smoke、D-114 space/tag/metadata smoke、D-115 knowledge export smoke、D-116 knowledge export history smoke、D-117 packaged runtime smoke、D-118 batch actions smoke、D-119 text-to-sql preview smoke、D-120 UI polish smoke、向量检索与 RAG 验收策略 + provider fallback fixture + D-090 技术栈执行优化测试口径 + D-091 工程化验收门槛 + D-092 代码骨架前置契约测试口径 + D-093 桌面运行时硬化测试口径 + D-094 P0-Core 工程骨架开工测试口径
 
 ## 1. 文档目的
 
@@ -142,7 +142,7 @@ D-093 后，首批桌面工程必须补充以下测试：
 
 ### 2.9 D-094 P0-Core 工程骨架开工测试口径
 
-D-094 后，首批代码工程必须先通过 `smoke:p0-core`，再运行或开发业务 smoke。D-119 后，阶段顺序固定为 `smoke:p0-core` → `smoke:p0-desktop-runtime` → `smoke:p0-packaged-runtime` → `smoke:p0-i18n-settings` → `smoke:p0-file` → `smoke:p0-parse` → `smoke:p0-ku` → `smoke:p0-space-tag-metadata` → `smoke:p0-text-to-sql` → `smoke:p0-knowledge-export` → `smoke:p0-knowledge-export-history` → `smoke:p0-search-ask` → `smoke:p0-citation-detail` → `smoke:p0-citation-focus` → `smoke:p0-citation-annotate-compare` → `smoke:p0-batch-actions` → `smoke:p0-feedback-memory` → `smoke:p0-feedback-diagnostics` → `smoke:p0-feedback-export` → `smoke:p0-feedback-filters-history` → `smoke:p0-z0a`：
+D-094 后，首批代码工程必须先通过 `smoke:p0-core`，再运行或开发业务 smoke。D-120 后，阶段顺序固定为 `smoke:p0-core` → `smoke:p0-desktop-runtime` → `smoke:p0-packaged-runtime` → `smoke:p0-i18n-settings` → `smoke:p0-ui-polish` → `smoke:p0-file` → `smoke:p0-parse` → `smoke:p0-ku` → `smoke:p0-space-tag-metadata` → `smoke:p0-text-to-sql` → `smoke:p0-knowledge-export` → `smoke:p0-knowledge-export-history` → `smoke:p0-search-ask` → `smoke:p0-citation-detail` → `smoke:p0-citation-focus` → `smoke:p0-citation-annotate-compare` → `smoke:p0-batch-actions` → `smoke:p0-feedback-memory` → `smoke:p0-feedback-diagnostics` → `smoke:p0-feedback-export` → `smoke:p0-feedback-filters-history` → `smoke:p0-z0a`：
 
 | 测试项 | 期望 |
 |---|---|
@@ -155,7 +155,7 @@ D-094 后，首批代码工程必须先通过 `smoke:p0-core`，再运行或开�
 | Packaged runtime smoke | Electron 不启动 Vite preview，加载静态 renderer dist、artifact preload 和 artifact sidecar；sidecar 日志落在 app data logs |
 | Shutdown cleanup | 应用退出后 sidecar 和 worker 被清理，不残留后台进程或锁文件 |
 | Status bar mapping | runtime state 和 sidecar / DB / worker / provider / vector 子状态能映射到底部状态栏 |
-| Smoke order | `pnpm smoke:p0-core` 必须先于 `pnpm smoke:p0-desktop-runtime`，`pnpm smoke:p0-desktop-runtime` 必须先于 `pnpm smoke:p0-packaged-runtime`，`pnpm smoke:p0-packaged-runtime` 必须先于 `pnpm smoke:p0-i18n-settings`，`pnpm smoke:p0-i18n-settings` 必须先于 `pnpm smoke:p0-file`，`pnpm smoke:p0-file` 必须先于 `pnpm smoke:p0-parse`，`pnpm smoke:p0-parse` 必须先于 `pnpm smoke:p0-ku`，`pnpm smoke:p0-ku` 必须先于 `pnpm smoke:p0-space-tag-metadata`，`pnpm smoke:p0-space-tag-metadata` 必须先于 `pnpm smoke:p0-text-to-sql`，`pnpm smoke:p0-text-to-sql` 必须先于 `pnpm smoke:p0-knowledge-export`，`pnpm smoke:p0-knowledge-export` 必须先于 `pnpm smoke:p0-knowledge-export-history`，`pnpm smoke:p0-knowledge-export-history` 必须先于 `pnpm smoke:p0-search-ask`，`pnpm smoke:p0-search-ask` 必须先于 `pnpm smoke:p0-citation-detail`，`pnpm smoke:p0-citation-detail` 必须先于 `pnpm smoke:p0-citation-focus`，`pnpm smoke:p0-citation-focus` 必须先于 `pnpm smoke:p0-citation-annotate-compare`，`pnpm smoke:p0-citation-annotate-compare` 必须先于 `pnpm smoke:p0-batch-actions`，`pnpm smoke:p0-batch-actions` 必须先于 `pnpm smoke:p0-feedback-memory`，`pnpm smoke:p0-feedback-memory` 必须先于 `pnpm smoke:p0-feedback-diagnostics`，`pnpm smoke:p0-feedback-diagnostics` 必须先于 `pnpm smoke:p0-feedback-export`，`pnpm smoke:p0-feedback-export` 必须先于 `pnpm smoke:p0-feedback-filters-history`，`pnpm smoke:p0-feedback-filters-history` 必须先于 `pnpm smoke:p0-z0a` 通过 |
+| Smoke order | `pnpm smoke:p0-core` 必须先于 `pnpm smoke:p0-desktop-runtime`，`pnpm smoke:p0-desktop-runtime` 必须先于 `pnpm smoke:p0-packaged-runtime`，`pnpm smoke:p0-packaged-runtime` 必须先于 `pnpm smoke:p0-i18n-settings`，`pnpm smoke:p0-i18n-settings` 必须先于 `pnpm smoke:p0-ui-polish`，`pnpm smoke:p0-ui-polish` 必须先于 `pnpm smoke:p0-file`，`pnpm smoke:p0-file` 必须先于 `pnpm smoke:p0-parse`，`pnpm smoke:p0-parse` 必须先于 `pnpm smoke:p0-ku`，`pnpm smoke:p0-ku` 必须先于 `pnpm smoke:p0-space-tag-metadata`，`pnpm smoke:p0-space-tag-metadata` 必须先于 `pnpm smoke:p0-text-to-sql`，`pnpm smoke:p0-text-to-sql` 必须先于 `pnpm smoke:p0-knowledge-export`，`pnpm smoke:p0-knowledge-export` 必须先于 `pnpm smoke:p0-knowledge-export-history`，`pnpm smoke:p0-knowledge-export-history` 必须先于 `pnpm smoke:p0-search-ask`，`pnpm smoke:p0-search-ask` 必须先于 `pnpm smoke:p0-citation-detail`，`pnpm smoke:p0-citation-detail` 必须先于 `pnpm smoke:p0-citation-focus`，`pnpm smoke:p0-citation-focus` 必须先于 `pnpm smoke:p0-citation-annotate-compare`，`pnpm smoke:p0-citation-annotate-compare` 必须先于 `pnpm smoke:p0-batch-actions`，`pnpm smoke:p0-batch-actions` 必须先于 `pnpm smoke:p0-feedback-memory`，`pnpm smoke:p0-feedback-memory` 必须先于 `pnpm smoke:p0-feedback-diagnostics`，`pnpm smoke:p0-feedback-diagnostics` 必须先于 `pnpm smoke:p0-feedback-export`，`pnpm smoke:p0-feedback-export` 必须先于 `pnpm smoke:p0-feedback-filters-history`，`pnpm smoke:p0-feedback-filters-history` 必须先于 `pnpm smoke:p0-z0a` 通过 |
 | Business feature block | `smoke:p0-core` 通过前不得新增 upload parsing UI、RAG UI、真实 Provider 接入、OCR/ASR、图谱或用户聊天入口；初期可用 review checklist 执行，后续再自动化 |
 
 `smoke:p0-core` 最小链路固定为：
@@ -302,6 +302,28 @@ text import
 → retrieval preview
 → evidence history
 → malicious query safety check
+```
+
+### 2.12F D-120 UI Interaction Polish / Design-Ready Shell 测试口径
+
+D-120 后，UI polish 只验证八页低保真壳层、i18n key、状态呈现和响应式布局 marker，不验证真实后端业务数据，也不把普通浏览器 degraded 状态伪装成 Electron bridge 可用。
+
+| 测试项 | 期望 |
+|---|---|
+| route shell | `/dashboard`、`/import`、`/library`、`/search`、`/ask`、`/graph`、`/outputs`、`/settings` route config 仍存在 |
+| i18n keys | `App.tsx` 使用的 `t("...")` key 在 `zh-CN` 与 `en-US` 中成对存在 |
+| degraded browser state | 普通浏览器无 Electron preload 时显示 bridge degraded 横幅，不触发真实持久化假象 |
+| design-ready CSS | route summary、workspace notice、metric/panel auto-fit grid 和 720px 窄屏布局 marker 存在 |
+| renderer build | renderer build 通过，证明低保真 shell 仍可静态构建 |
+
+`smoke:p0-ui-polish` 固定链路：
+
+```text
+read renderer shell
+→ verify eight route configs
+→ verify zh-CN/en-US i18n key parity
+→ verify design-ready CSS markers
+→ renderer build
 ```
 
 ### 2.12C D-118 Citation / Organization / Export Batch Actions 测试口径
