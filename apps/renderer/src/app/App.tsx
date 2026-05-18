@@ -41,10 +41,14 @@ import type {
   FeedbackDiagnosticsSummary,
   FeedbackEventRecord,
   FeedbackExportHistoryRecord,
+  GraphPreviewResponse,
   KnowledgeExportHistoryRecord,
   FeedbackRequest,
   FileRecord,
   FolderRecord,
+  KnowledgeRelationCreateRequest,
+  KnowledgeRelationPatchRequest,
+  KnowledgeRelationRecord,
   KnowledgeExportResponse,
   KnowledgeUnitRecord,
   MemoryDraftRecord,
@@ -68,6 +72,7 @@ import { useFeedbackMemoryStore } from "../stores/feedbackMemoryStore";
 import { useOrganizationStore } from "../stores/organizationStore";
 import { useKnowledgeExportStore } from "../stores/exportsStore";
 import { useTextToSqlStore } from "../stores/textToSqlStore";
+import { useRelationsStore } from "../stores/relationsStore";
 import { hasBridge } from "../services/apiClient";
 import { listKnowledgeUnits } from "../services/knowledgeApi";
 import type {
@@ -125,6 +130,19 @@ const routes: RouteConfig[] = [
   { path: "/graph", labelKey: "route.graph", icon: GitBranch, summaryKey: "route.graph.summary" },
   { path: "/outputs", labelKey: "route.outputs", icon: FileInput, summaryKey: "route.outputs.summary" },
   { path: "/settings", labelKey: "route.settings", icon: Settings, summaryKey: "route.settings.summary" }
+];
+
+const relationTypes: KnowledgeRelationCreateRequest["relation_type"][] = [
+  "supports",
+  "contradicts",
+  "derived_from",
+  "example_of",
+  "part_of",
+  "depends_on",
+  "similar_to",
+  "used_for",
+  "updates",
+  "replaces"
 ];
 
 function currentPath(): RouteKey {
@@ -305,22 +323,445 @@ function RoutePanel({ path }: { path: RouteKey }) {
     case "/ask":
       return <AskPage />;
     case "/graph":
-      return (
-        <PageFrame
-          state="degraded"
-          title={t("graph.title")}
-          sections={[
-            [t("search.failure"), t("graph.disabled")],
-            [t("graph.boundaryTitle"), t("graph.boundary")],
-            [t("graph.sourceLinkTitle"), t("graph.sourceLink")]
-          ]}
-        />
-      );
+      return <GraphPage />;
     case "/outputs":
       return <OutputsPage />;
     case "/settings":
       return <SettingsPage />;
   }
+}
+
+function GraphPage() {
+  const t = useT();
+  const organization = useOrganizationStore();
+  const relations = useRelationsStore();
+  const [knowledgeUnits, setKnowledgeUnits] = useState<KnowledgeUnitRecord[]>([]);
+  const [knowledgeState, setKnowledgeState] = useState<UiState>("empty");
+  const [knowledgeErrorCode, setKnowledgeErrorCode] = useState<string | null>(null);
+  const [sourceKnowledgeUnitId, setSourceKnowledgeUnitId] = useState("");
+  const [targetKnowledgeUnitId, setTargetKnowledgeUnitId] = useState("");
+  const [relationType, setRelationType] =
+    useState<KnowledgeRelationCreateRequest["relation_type"]>("supports");
+  const [description, setDescription] = useState("");
+  const [editingRelationId, setEditingRelationId] = useState<string | null>(null);
+  const [editRelationType, setEditRelationType] =
+    useState<KnowledgeRelationPatchRequest["relation_type"]>("supports");
+  const [editDescription, setEditDescription] = useState("");
+  const activeFilters = useMemo(
+    () => ({
+      projectId: organization.selectedProjectId,
+      folderId: organization.selectedFolderId,
+      tagIds: organization.selectedTagIds
+    }),
+    [organization.selectedProjectId, organization.selectedFolderId, organization.selectedTagIds]
+  );
+
+  useEffect(() => {
+    void refreshGraphData();
+  }, [organization.selectedProjectId, organization.selectedFolderId, organization.selectedTagIds.join("|")]);
+
+  async function refreshGraphData() {
+    await organization.refresh();
+    await Promise.all([relations.refreshGraph(activeFilters), relations.refreshRelations(activeFilters)]);
+    if (!hasBridge()) {
+      setKnowledgeUnits([]);
+      setKnowledgeState("degraded");
+      setKnowledgeErrorCode("desktop_bridge_unavailable");
+      return;
+    }
+    setKnowledgeState("loading");
+    setKnowledgeErrorCode(null);
+    try {
+      const units = await listKnowledgeUnits("confirmed", activeFilters);
+      setKnowledgeUnits(units);
+      setKnowledgeState(units.length ? "done" : "empty");
+      if (!sourceKnowledgeUnitId && units[0]) setSourceKnowledgeUnitId(units[0].id);
+      if (!targetKnowledgeUnitId && units[1]) setTargetKnowledgeUnitId(units[1].id);
+    } catch (error) {
+      setKnowledgeUnits([]);
+      setKnowledgeState("recoverable_error");
+      setKnowledgeErrorCode(resolveErrorCode(error, "knowledge_units_refresh_failed"));
+    }
+  }
+
+  async function submitRelation() {
+    if (!sourceKnowledgeUnitId || !targetKnowledgeUnitId) return;
+    const relation = await relations.createRelation({
+      project_id: organization.selectedProjectId,
+      source_knowledge_unit_id: sourceKnowledgeUnitId,
+      target_knowledge_unit_id: targetKnowledgeUnitId,
+      relation_type: relationType,
+      description: description.trim() || null
+    });
+    if (relation) {
+      setDescription("");
+      await Promise.all([relations.refreshGraph(activeFilters), relations.refreshRelations(activeFilters)]);
+    }
+  }
+
+  function startEditRelation(relation: KnowledgeRelationRecord) {
+    setEditingRelationId(relation.id);
+    setEditRelationType(relation.relation_type);
+    setEditDescription(relation.description ?? "");
+  }
+
+  async function saveRelationEdit() {
+    if (!editingRelationId) return;
+    const updated = await relations.updateRelation(editingRelationId, {
+      relation_type: editRelationType,
+      description: editDescription.trim() || null
+    });
+    if (updated) {
+      setEditingRelationId(null);
+      setEditDescription("");
+      await Promise.all([relations.refreshGraph(activeFilters), relations.refreshRelations(activeFilters)]);
+    }
+  }
+
+  async function archiveRelation(relationId: string) {
+    await relations.archiveRelation(relationId, activeFilters);
+  }
+
+  return (
+    <section className="page-grid">
+      <section className="page-frame">
+        <div className="section-title-row">
+          <h2>{t("graph.title")}</h2>
+          <div className="inline-actions">
+            <StateChip state={relations.graphState} />
+            <button className="icon-command" type="button" onClick={refreshGraphData}>
+              <RefreshCw aria-hidden="true" size={16} />
+              <span>{t("action.refresh")}</span>
+            </button>
+          </div>
+        </div>
+        <p className="section-note">{t("graph.boundary")}</p>
+        {relations.graphErrorCode ? (
+          <div className="row-note">
+            <AlertCircle aria-hidden="true" size={15} />
+            <span>{relations.graphErrorCode}</span>
+          </div>
+        ) : null}
+        <GraphSummary graph={relations.graph} />
+      </section>
+
+      <section className="page-frame">
+        <div className="section-title-row">
+          <h2>{t("organization.filters")}</h2>
+          <StateChip state={organization.state} />
+        </div>
+        <OrganizationFilterControls
+          projects={organization.projects}
+          folders={organization.folders}
+          tags={organization.tags}
+          selectedProjectId={organization.selectedProjectId}
+          selectedFolderId={organization.selectedFolderId}
+          selectedTagIds={organization.selectedTagIds}
+          onSelectProject={organization.setSelectedProject}
+          onSelectFolder={organization.setSelectedFolder}
+          onSelectTagIds={organization.setSelectedTagIds}
+          onReset={organization.resetFilters}
+        />
+      </section>
+
+      <section className="page-frame">
+        <div className="section-title-row">
+          <h2>{t("graph.createRelation")}</h2>
+          <StateChip state={relations.relationState} />
+        </div>
+        <div className="organization-filter-grid">
+          <label className="memory-label">
+            <span>{t("graph.sourceKu")}</span>
+            <select
+              className="settings-select"
+              value={sourceKnowledgeUnitId}
+              onChange={(event) => setSourceKnowledgeUnitId(event.target.value)}
+            >
+              <option value="">{t("graph.selectKu")}</option>
+              {knowledgeUnits.map((unit) => (
+                <option key={unit.id} value={unit.id}>
+                  {unit.title}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="memory-label">
+            <span>{t("graph.targetKu")}</span>
+            <select
+              className="settings-select"
+              value={targetKnowledgeUnitId}
+              onChange={(event) => setTargetKnowledgeUnitId(event.target.value)}
+            >
+              <option value="">{t("graph.selectKu")}</option>
+              {knowledgeUnits.map((unit) => (
+                <option key={unit.id} value={unit.id}>
+                  {unit.title}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="memory-label">
+            <span>{t("graph.relationType")}</span>
+            <select
+              className="settings-select"
+              value={relationType}
+              onChange={(event) =>
+                setRelationType(event.target.value as KnowledgeRelationCreateRequest["relation_type"])
+              }
+            >
+              {relationTypes.map((type) => (
+                <option key={type} value={type}>
+                  {type}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="memory-label">
+            <span>{t("graph.description")}</span>
+            <input
+              className="query-input"
+              value={description}
+              placeholder={t("graph.descriptionPlaceholder")}
+              onChange={(event) => setDescription(event.target.value)}
+            />
+          </label>
+          <button
+            className="icon-command"
+            type="button"
+            disabled={
+              !sourceKnowledgeUnitId ||
+              !targetKnowledgeUnitId ||
+              sourceKnowledgeUnitId === targetKnowledgeUnitId ||
+              relations.relationState === "loading"
+            }
+            onClick={submitRelation}
+          >
+            <Save aria-hidden="true" size={16} />
+            <span>{t("graph.createRelation")}</span>
+          </button>
+        </div>
+        {knowledgeErrorCode ? (
+          <div className="row-note">
+            <AlertCircle aria-hidden="true" size={15} />
+            <span>{knowledgeErrorCode}</span>
+          </div>
+        ) : null}
+        {relations.relationErrorCode ? (
+          <div className="row-note">
+            <AlertCircle aria-hidden="true" size={15} />
+            <span>{relations.relationErrorCode}</span>
+          </div>
+        ) : null}
+      </section>
+
+      <GraphEdgeList
+        graph={relations.graph}
+        state={relations.graphState}
+        relations={relations.relations}
+        editingRelationId={editingRelationId}
+        editRelationType={editRelationType}
+        editDescription={editDescription}
+        onEditRelationTypeChange={setEditRelationType}
+        onEditDescriptionChange={setEditDescription}
+        onStartEdit={startEditRelation}
+        onCancelEdit={() => setEditingRelationId(null)}
+        onSaveEdit={saveRelationEdit}
+        onArchive={archiveRelation}
+      />
+
+      <GraphNodeList
+        graph={relations.graph}
+        knowledgeUnits={knowledgeUnits}
+        state={knowledgeState}
+      />
+    </section>
+  );
+}
+
+function GraphSummary({ graph }: { graph?: GraphPreviewResponse }) {
+  const t = useT();
+  return (
+    <>
+      <div className="metric-row">
+        <Metric label={t("graph.nodes")} value={graph?.summary.node_count ?? 0} />
+        <Metric label={t("graph.edges")} value={graph?.summary.edge_count ?? 0} />
+      </div>
+      <div className="panel-grid">
+        <article className="panel">
+          <h3>{t("graph.provider")}</h3>
+          <p>{graph?.provider_status ?? "not_ready"}</p>
+        </article>
+        <article className="panel">
+          <h3>{t("graph.fallback")}</h3>
+          <p>{graph?.fallback_reason ?? t("empty.none")}</p>
+        </article>
+      </div>
+    </>
+  );
+}
+
+function GraphEdgeList({
+  graph,
+  state,
+  relations,
+  editingRelationId,
+  editRelationType,
+  editDescription,
+  onEditRelationTypeChange,
+  onEditDescriptionChange,
+  onStartEdit,
+  onCancelEdit,
+  onSaveEdit,
+  onArchive
+}: {
+  graph?: GraphPreviewResponse;
+  state: UiState;
+  relations: KnowledgeRelationRecord[];
+  editingRelationId: string | null;
+  editRelationType: KnowledgeRelationPatchRequest["relation_type"];
+  editDescription: string;
+  onEditRelationTypeChange: (type: KnowledgeRelationPatchRequest["relation_type"]) => void;
+  onEditDescriptionChange: (description: string) => void;
+  onStartEdit: (relation: KnowledgeRelationRecord) => void;
+  onCancelEdit: () => void;
+  onSaveEdit: () => void;
+  onArchive: (relationId: string) => void;
+}) {
+  const t = useT();
+  const rows = relations;
+  return (
+    <section className="page-frame">
+      <div className="section-title-row">
+        <h2>{t("graph.edges")}</h2>
+        <StateChip state={state} />
+      </div>
+      <div className="file-table">
+        {rows.length ? (
+          rows.map((relation) => (
+            <div className="review-row" key={relation.id}>
+              <div>
+                <strong>{relation.source_title} → {relation.target_title}</strong>
+                <span>{relation.id}</span>
+              </div>
+              <StatusPill label={t("graph.relationType")} value={relation.relation_type} />
+              <StatusPill label="status" value={relation.status} />
+              <div className="row-note evidence-excerpt">
+                <GitBranch aria-hidden="true" size={15} />
+                <span>{relation.description ?? t("empty.none")}</span>
+              </div>
+              {editingRelationId === relation.id ? (
+                <div className="organization-filter-grid">
+                  <label className="memory-label">
+                    <span>{t("graph.relationType")}</span>
+                    <select
+                      className="settings-select"
+                      value={editRelationType ?? "supports"}
+                      onChange={(event) =>
+                        onEditRelationTypeChange(
+                          event.target.value as KnowledgeRelationPatchRequest["relation_type"]
+                        )
+                      }
+                    >
+                      {relationTypes.map((type) => (
+                        <option key={type} value={type}>
+                          {type}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="memory-label">
+                    <span>{t("graph.description")}</span>
+                    <input
+                      className="query-input"
+                      value={editDescription}
+                      onChange={(event) => onEditDescriptionChange(event.target.value)}
+                    />
+                  </label>
+                  <div className="inline-actions">
+                    <button className="icon-command" type="button" onClick={onSaveEdit}>
+                      <Save aria-hidden="true" size={16} />
+                      <span>{t("action.save")}</span>
+                    </button>
+                    <button className="icon-command" type="button" onClick={onCancelEdit}>
+                      <XCircle aria-hidden="true" size={16} />
+                      <span>{t("action.cancel")}</span>
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="inline-actions">
+                  <button className="icon-command" type="button" onClick={() => onStartEdit(relation)}>
+                    <FileText aria-hidden="true" size={16} />
+                    <span>{t("action.edit")}</span>
+                  </button>
+                  <button className="icon-command" type="button" onClick={() => onArchive(relation.id)}>
+                    <Trash2 aria-hidden="true" size={16} />
+                    <span>{t("action.archive")}</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          ))
+        ) : (
+          <EmptyState message={state === "degraded" ? t("empty.bridgeUnavailable") : t("graph.empty")} />
+        )}
+      </div>
+    </section>
+  );
+}
+
+function GraphNodeList({
+  graph,
+  knowledgeUnits,
+  state
+}: {
+  graph?: GraphPreviewResponse;
+  knowledgeUnits: KnowledgeUnitRecord[];
+  state: UiState;
+}) {
+  const t = useT();
+  const graphNodeIds = new Set(graph?.nodes.map((node) => node.id) ?? []);
+  return (
+    <section className="page-frame">
+      <div className="section-title-row">
+        <h2>{t("graph.nodes")}</h2>
+        <StateChip state={state} />
+      </div>
+      <div className="file-table">
+        {knowledgeUnits.length ? (
+          knowledgeUnits.map((unit) => {
+            const tags = unit.tags ?? [];
+            return (
+              <div className="review-row" key={unit.id}>
+                <div>
+                  <strong>{unit.title}</strong>
+                  <span>{unit.id}</span>
+                </div>
+                <StatusPill
+                  label={t("graph.inGraph")}
+                  value={graphNodeIds.has(unit.id) ? t("state.done") : t("state.empty")}
+                />
+                <StatusPill label="status" value={unit.status} />
+                <div className="tag-select-row">
+                  {tags.length ? (
+                    tags.map((tag) => (
+                      <span className="mini-badge" key={`${unit.id}-${tag.id}`}>
+                        {tag.name}
+                      </span>
+                    ))
+                  ) : (
+                    <span className="muted-text">{t("organization.noTags")}</span>
+                  )}
+                </div>
+              </div>
+            );
+          })
+        ) : (
+          <EmptyState message={state === "degraded" ? t("empty.bridgeUnavailable") : t("graph.noConfirmedKu")} />
+        )}
+      </div>
+    </section>
+  );
 }
 
 function DashboardPage() {

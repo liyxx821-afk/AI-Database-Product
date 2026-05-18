@@ -2,7 +2,7 @@
 
 版本：v0.27-draft
 日期：2026-05-17  
-状态：草案——完整 P0 入库与知识处理平台 + 切片前准备层 / 切片执行 profile / AI 结构化整理 profile / D-079 结构化整理子字段与存储映射 / D-080 知识调用 profile 与隐式 Agent / D-081 调用持久化边界 / D-082 InvocationProfileSchema v1 / D-083 前端状态与反馈策略 / D-085 Z0a 调用锚点、反馈和 citation 边界修正 / D-092 trace chain 与 Evidence Pack 失败态 / D-104 Retrieval Preview 复用既有调用对象 / D-107 feedback_events 与 memories Z0b-lite 物理表 / D-108 feedback_events 诊断读取与 Event Replay / D-113 citation_annotations 批注与 evidence compare 只读边界 / D-114 Project-Folder-Tag 组织过滤与 Source/KU organization 绑定 / D-115 Knowledge Unit / Project export 只读 envelope / D-116 knowledge_export_history metadata / D-118 batch actions 无新表边界 / 知识切片质量闭环 / 安全运维横切层 / 检查门映射单一来源 / 事件枚举单一来源 / P0-Z0a/Z0b 最小迁移 / ProcessingJob / sensitive grant / evidence-only 契约收紧
+状态：草案——完整 P0 入库与知识处理平台 + 切片前准备层 / 切片执行 profile / AI 结构化整理 profile / D-079 结构化整理子字段与存储映射 / D-080 知识调用 profile 与隐式 Agent / D-081 调用持久化边界 / D-082 InvocationProfileSchema v1 / D-083 前端状态与反馈策略 / D-085 Z0a 调用锚点、反馈和 citation 边界修正 / D-092 trace chain 与 Evidence Pack 失败态 / D-104 Retrieval Preview 复用既有调用对象 / D-107 feedback_events 与 memories Z0b-lite 物理表 / D-108 feedback_events 诊断读取与 Event Replay / D-113 citation_annotations 批注与 evidence compare 只读边界 / D-114 Project-Folder-Tag 组织过滤与 Source/KU organization 绑定 / D-115 Knowledge Unit / Project export 只读 envelope / D-116 knowledge_export_history metadata / D-118 batch actions 无新表边界 / D-121 knowledge_relations 手动关系与 Graph Preview / 知识切片质量闭环 / 安全运维横切层 / 检查门映射单一来源 / 事件枚举单一来源 / P0-Z0a/Z0b 最小迁移 / ProcessingJob / sensitive grant / evidence-only 契约收紧
 
 ## 1. 文档目的
 
@@ -1480,15 +1480,17 @@ D-114 物理实现使用 `(knowledge_unit_id, tag_id, tag_source)` 作为唯一�
 |---|---|---|
 | id | uuid | Relation ID |
 | project_id | uuid | 所属项目（便于按项目过滤关系） |
-| from_knowledge_unit_id | uuid | 起点 KU |
-| to_knowledge_unit_id | uuid | 终点 KU |
+| source_knowledge_unit_id | uuid/text | 起点 KU；D-121 物理实现只允许 `status=confirmed` |
+| target_knowledge_unit_id | uuid/text | 终点 KU；D-121 物理实现只允许 `status=confirmed` |
 | relation_type | text | 关系类型 |
-| confidence | numeric nullable | 置信度 |
-| confirmed_by_user | boolean | 是否确认 |
-| reason | text nullable | 关系理由 |
-| created_by | text | user / rule / ai_mock / ai |
+| status | text | confirmed / archived；默认 Graph Preview 只读 confirmed |
+| description | text nullable | 用户手动关系说明 |
+| created_by | text | D-121 固定 user；rule / ai_mock / ai 仍为后续 relation suggestion |
+| metadata_json | jsonb/text | D-121 记录 `source=manual`、`capability_status=user_confirmed`、graph profile |
 | created_at | timestamptz | 创建时间 |
-| metadata_json | jsonb | 扩展字段（P0 预期：无额外属性） |
+| updated_at | timestamptz | 更新时间 |
+
+D-121 物理实现提前落地 `knowledge_relations` 作为 Z0b-lite 手动关系表，并加 active relation 唯一约束：同一 project、source KU、target KU、relation type 只能有一条非 archived 关系。`GET /api/graph/preview` 只读取 confirmed KU 与 confirmed relation，支持 project / folder / tag filters；pending_review KU、关系候选、GraphRAG 推理和外部图数据库仍不进入 P0 默认图谱。
 
 ### 6.12 embeddings
 
@@ -1870,6 +1872,8 @@ D-115 knowledge export 不新增 SQLite 表；`POST /api/exports/knowledge-units
 D-116 knowledge export history 也不新增 SQLite 表；每次成功知识导出后只向 app data `config.json.knowledge_export_history` 写入最近 20 条脱敏 metadata：`id`、`export_id`、`export_kind`、`filename`、`format`、`record_count`、`generated_at`、`filters`、`summary`、`content_sha256`、`redacted`、`includes_source_text`。History 不保存 `content`、`content_base64`、KU 正文、source text、token、DB path、app data path 或完整本地路径；删除 history 只影响 config metadata，不影响业务对象。
 
 D-118 batch actions 不新增 SQLite 表。批量 Source/KU organization 只批量调用现有 `sources.primary_folder_id`、`source_tags`、`knowledge_units.primary_folder_id`、`knowledge_unit_tags` 写入语义；批量 citation annotation 仍逐条写入 `citation_annotations`；KU 选择导出只复用 `knowledge_unit_ids` filter。批量操作不得创建 `retrieval_feedback`、不得修改 ranking、不得把 annotation / compare / export selection 写成检索证据。
+
+D-121 knowledge relations 新增 SQLite 表，但只服务手动 confirmed KU 关系和 `/graph` 低保真预览。它不把 relation 写入 retrieval ranking、不生成 AI relation suggestion、不保存 GraphRAG 推理结果，也不让 archived relation 或 pending_review KU 进入默认 Graph Preview。
 
 ### 7.6 ai_answers
 

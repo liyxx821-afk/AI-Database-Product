@@ -63,6 +63,19 @@ FeedbackRankingEffect = Literal[
 FeedbackSortOrder = Literal["created_desc", "created_asc"]
 MemoryType = Literal["preference", "decision", "style", "conclusion", "reusable_context"]
 CitationAnnotationType = Literal["note", "question", "risk", "follow_up"]
+KnowledgeRelationType = Literal[
+    "supports",
+    "contradicts",
+    "derived_from",
+    "example_of",
+    "part_of",
+    "depends_on",
+    "similar_to",
+    "used_for",
+    "updates",
+    "replaces",
+]
+KnowledgeRelationStatus = Literal["confirmed", "archived"]
 TagNamespace = Literal["folder", "topic", "status", "use", "discipline", "system", "custom"]
 TagType = Literal[
     "folder_tag",
@@ -418,6 +431,93 @@ class KnowledgeUnitDetail(KnowledgeUnitRecord):
     chunk: Optional[ChunkRecord]
     embeddings: List[EmbeddingRecord]
     review_task: Optional[Dict[str, Any]]
+
+
+class KnowledgeRelationCreateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    project_id: str = "default-space"
+    source_knowledge_unit_id: str = Field(min_length=1)
+    target_knowledge_unit_id: str = Field(min_length=1)
+    relation_type: KnowledgeRelationType
+    description: Optional[str] = Field(default=None, max_length=1000)
+
+
+class KnowledgeRelationPatchRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    relation_type: Optional[KnowledgeRelationType] = None
+    description: Optional[str] = Field(default=None, max_length=1000)
+    status: Optional[KnowledgeRelationStatus] = None
+
+    @model_validator(mode="after")
+    def require_change(self) -> KnowledgeRelationPatchRequest:
+        if self.relation_type is None and self.description is None and self.status is None:
+            raise ValueError("relation change is required")
+        return self
+
+
+class KnowledgeRelationRecord(BaseModel):
+    id: str
+    project_id: str
+    source_knowledge_unit_id: str
+    target_knowledge_unit_id: str
+    relation_type: KnowledgeRelationType
+    status: str
+    description: Optional[str]
+    source_title: str
+    target_title: str
+    created_by: str
+    metadata: Dict[str, Any]
+    created_at: str
+    updated_at: str
+
+
+class KnowledgeRelationDeleteResponse(BaseModel):
+    id: str
+    status: str
+    updated_at: str
+
+
+class GraphPreviewNode(BaseModel):
+    id: str
+    title: str
+    type: str
+    status: str
+    project_id: str
+    primary_folder_id: Optional[str]
+    tags: List[TagRecord] = Field(default_factory=list)
+
+
+class GraphPreviewEdge(BaseModel):
+    id: str
+    source_knowledge_unit_id: str
+    target_knowledge_unit_id: str
+    relation_type: KnowledgeRelationType
+    status: str
+    description: Optional[str]
+    source_title: str
+    target_title: str
+    created_at: str
+    updated_at: str
+
+
+class GraphPreviewSummary(BaseModel):
+    project_id: str
+    node_count: int
+    edge_count: int
+    relation_type_counts: Dict[str, int]
+    filters: Dict[str, Any]
+
+
+class GraphPreviewResponse(BaseModel):
+    project_id: str
+    filters: Dict[str, Any]
+    summary: GraphPreviewSummary
+    nodes: List[GraphPreviewNode]
+    edges: List[GraphPreviewEdge]
+    provider_status: str
+    fallback_reason: Optional[str]
 
 
 class JobEvent(BaseModel):

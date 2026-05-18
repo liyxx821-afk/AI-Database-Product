@@ -603,6 +603,18 @@ button {
   color: var(--muted);
 }
 
+.mini-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  padding: 0 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .memory-label {
   display: flex;
   flex: 1 1 220px;

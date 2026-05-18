@@ -2,7 +2,7 @@
 
 版本：v0.31-draft
 日期：2026-05-18
-状态：P0 API 边界草案——完整上传/文件处理/File Inspection/切片前准备层/切片执行 profile/AI 结构化整理 profile/D-079 structuring summary 子字段/结构化整理检查门/知识切片质量闭环/AI/RAG API + D-080 知识调用 profile / implicit_agent / D-081 Z0a-Z2 持久化边界 / D-082 InvocationProfileSchema / D-083 前端状态与反馈策略 / D-085 Z0a 调用锚点、feedback 与 citation 边界修正 + D-098 页面到现有 API 组映射 + D-105 Citation Detail / Evidence Pack replay 实现边界 + D-106 Settings language 持久化边界 + D-107 Feedback Events / Memory Draft Review Z0b-lite + D-108 Feedback Diagnostics / Event Replay Z0b-lite + D-110 Feedback Diagnostics Export Z0b-lite + D-111 Feedback Diagnostics Advanced Filters / Export History Z0b-lite + D-112 Citation Detail Focus / Evidence Trace Interaction Z0b-lite + D-113 Citation Annotation / Evidence Compare Z0b-lite + D-114 Knowledge Space / Folder-Tag / Metadata Filters Z0b-lite + D-115 Knowledge Unit / Project Export Z0b-lite + D-116 Knowledge Export History / Replay Z0b-lite + D-118 Batch Actions Z0b-lite + D-119 Text-to-SQL Template / Structured Query Preview Z0b-lite + 安全运维横切层 + 检查门映射单一来源 + 事件枚举单一来源 + P0-Z0a/ProcessingJob/sensitive grant 契约收紧
+状态：P0 API 边界草案——完整上传/文件处理/File Inspection/切片前准备层/切片执行 profile/AI 结构化整理 profile/D-079 structuring summary 子字段/结构化整理检查门/知识切片质量闭环/AI/RAG API + D-080 知识调用 profile / implicit_agent / D-081 Z0a-Z2 持久化边界 / D-082 InvocationProfileSchema / D-083 前端状态与反馈策略 / D-085 Z0a 调用锚点、feedback 与 citation 边界修正 + D-098 页面到现有 API 组映射 + D-105 Citation Detail / Evidence Pack replay 实现边界 + D-106 Settings language 持久化边界 + D-107 Feedback Events / Memory Draft Review Z0b-lite + D-108 Feedback Diagnostics / Event Replay Z0b-lite + D-110 Feedback Diagnostics Export Z0b-lite + D-111 Feedback Diagnostics Advanced Filters / Export History Z0b-lite + D-112 Citation Detail Focus / Evidence Trace Interaction Z0b-lite + D-113 Citation Annotation / Evidence Compare Z0b-lite + D-114 Knowledge Space / Folder-Tag / Metadata Filters Z0b-lite + D-115 Knowledge Unit / Project Export Z0b-lite + D-116 Knowledge Export History / Replay Z0b-lite + D-118 Batch Actions Z0b-lite + D-119 Text-to-SQL Template / Structured Query Preview Z0b-lite + D-121 Knowledge Relations / Graph Preview Z0b-lite + 安全运维横切层 + 检查门映射单一来源 + 事件枚举单一来源 + P0-Z0a/ProcessingJob/sensitive grant 契约收紧
 
 ## 1. 文档目的
 
@@ -78,6 +78,7 @@ P0 采用开源优先 ProviderRegistry。未配置 parser / OCR / ASR / embeddin
 /api/knowledge-units
 /api/review-tasks
 /api/relations
+/api/graph
 /api/embeddings
 /api/retrieval
 /api/invocations
@@ -1006,7 +1007,9 @@ P0 行为：
 
 ---
 
-## 9. Relation APIs
+## 9. Relation / Graph Preview APIs
+
+D-121 Z0b-lite 实现口径：Relation 只支持用户手动确认的 confirmed KU 关系；Graph Preview 只读取 confirmed relation 和参与关系的 confirmed KU。P0 不运行 GraphRAG、不接自动关系抽取、不引入外部图数据库、不把 relation 写回 retrieval ranking。
 
 ### 9.1 创建 Manual Relation
 
@@ -1018,20 +1021,48 @@ POST /api/relations
 
 ```json
 {
-  "from_knowledge_unit_id": "ku_1",
-  "to_knowledge_unit_id": "ku_2",
+  "project_id": "default-space",
+  "source_knowledge_unit_id": "ku_1",
+  "target_knowledge_unit_id": "ku_2",
   "relation_type": "supports",
-  "reason": "两条知识表达同一产品判断的证据链",
-  "created_by": "user"
+  "description": "两条知识表达同一产品判断的证据链"
 }
 ```
 
 P0 行为：
 
-- 创建 manual relation。
-- `confirmed_by_user=true`。
-- 可进入 relation index。
-- 不做自动实体关系抽取。
+- 只允许 `knowledge_units.status=confirmed` 的 KU 参与关系。
+- `source_knowledge_unit_id == target_knowledge_unit_id` 返回 `invalid_relation_target`。
+- source / target 不属于同一 project 返回 `project_mismatch`。
+- 同一 project + source + target + relation_type 的非 archived 关系重复创建返回 `relation_duplicate`。
+- 关系类型固定为 `supports / contradicts / derived_from / example_of / part_of / depends_on / similar_to / used_for / updates / replaces`。
+
+### 9.2 Relation 读取 / 更新 / 归档
+
+```text
+GET /api/relations?project_id=default-space&folder_id=...&tag_ids=...
+PATCH /api/relations/{relation_id}
+DELETE /api/relations/{relation_id}
+```
+
+P0 行为：
+
+- `GET` 默认只返回 `status=confirmed`，支持 `status=archived` 显式查询，并复用 project / folder / tag filters。
+- `PATCH` 只允许修改 `relation_type`、`description`、`status`；恢复为 confirmed 时仍执行 duplicate validation。
+- `DELETE` 不物理删除，统一把 relation 标记为 `status=archived`，默认 Graph Preview 不返回 archived relation。
+
+### 9.3 Graph Preview
+
+```text
+GET /api/graph/preview?project_id=default-space&folder_id=...&tag_ids=...
+```
+
+响应返回：
+
+- `summary`: node_count、edge_count、relation_type_counts、filters。
+- `nodes`: 参与 confirmed relation 的 confirmed KU 节点，含 tags。
+- `edges`: confirmed relation 边，含 source / target KU title、relation_type、description、created_at / updated_at。
+- `provider_status=degraded` 与 `fallback_reason=graph_reasoning_provider_unavailable`，明确没有 GraphRAG runtime。
 
 ---
 

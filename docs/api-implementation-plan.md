@@ -1,8 +1,8 @@
 # API Route-Level 实施计划
 
-版本：v0.33-draft
+版本：v0.34-draft
 日期：2026-05-18
-状态：P0 API 实施映射草案——四切片 + P0-Z0a/Z0b 竖切 + 切片前准备层 / 结构化整理检查门 / 知识切片质量闭环 / 安全运维横切层 / 检查门映射单一来源 / 事件枚举单一来源 / ProcessingJob / sensitive grant / evidence-only / 切片执行 profile / AI 结构化整理 profile / D-079 存储映射契约对齐 / D-080 知识调用 profile 与 implicit_agent / D-081-D085 调用边界、profile schema、Z0a 锚点与前端状态契约对齐 / D-092 OpenAPI 类型生成、trace chain 与 migration 波次命名 / D-093 桌面运行时 API 约束 / D-094 P0-Core 工程骨架 API 顺序 / D-098 页面到 API 组映射 / D-105 Citation Detail replay / D-106 Settings language config 持久化 / D-107 Feedback Events 与 Memory Draft Review / D-108 Feedback Diagnostics 只读复盘 / D-110 Feedback Diagnostics Export 脱敏导出 / D-111 Feedback Advanced Filters 与 Export History / D-112 Citation Detail Focus 与 Evidence Trace Interaction / D-113 Citation Annotation 与 Evidence Compare / D-114 OrganizationService 与 Folder-Tag metadata filters / D-115 KnowledgeExportService 与 Project ZIP export / D-116 KnowledgeExportHistory metadata replay / D-118 Batch Actions / D-119 TextToSqlTemplateService preview
+状态：P0 API 实施映射草案——四切片 + P0-Z0a/Z0b 竖切 + 切片前准备层 / 结构化整理检查门 / 知识切片质量闭环 / 安全运维横切层 / 检查门映射单一来源 / 事件枚举单一来源 / ProcessingJob / sensitive grant / evidence-only / 切片执行 profile / AI 结构化整理 profile / D-079 存储映射契约对齐 / D-080 知识调用 profile 与 implicit_agent / D-081-D085 调用边界、profile schema、Z0a 锚点与前端状态契约对齐 / D-092 OpenAPI 类型生成、trace chain 与 migration 波次命名 / D-093 桌面运行时 API 约束 / D-094 P0-Core 工程骨架 API 顺序 / D-098 页面到 API 组映射 / D-105 Citation Detail replay / D-106 Settings language config 持久化 / D-107 Feedback Events 与 Memory Draft Review / D-108 Feedback Diagnostics 只读复盘 / D-110 Feedback Diagnostics Export 脱敏导出 / D-111 Feedback Advanced Filters 与 Export History / D-112 Citation Detail Focus 与 Evidence Trace Interaction / D-113 Citation Annotation 与 Evidence Compare / D-114 OrganizationService 与 Folder-Tag metadata filters / D-115 KnowledgeExportService 与 Project ZIP export / D-116 KnowledgeExportHistory metadata replay / D-118 Batch Actions / D-119 TextToSqlTemplateService preview / D-121 RelationService 与 GraphPreviewService
 
 ## 1. 文档目的
 
@@ -35,6 +35,8 @@ D-116 已新增 `GET /api/exports/history` 与 `DELETE /api/exports/history/{id}
 D-118 已新增 batch actions：OrganizationService 支持 Source/KU 批量替换式 folder/tag 绑定；CitationAnnotationService 支持同一 Evidence Pack 内 1-20 个 evidence item 批量创建同内容批注；KnowledgeExportService 继续复用 `knowledge_unit_ids` 做 KU 选择导出，不新增 export endpoint。
 
 D-119 已新增 TextToSqlTemplateService preview：`POST /api/text-to-sql/preview` 只执行规则模板版参数化 SELECT，返回 SQL trace、参数、结果行和 query explanation，并写 `retrieval_logs.query_intent=structured_query_preview`；不接真实 Text-to-SQL provider，不新增表，不影响 Retrieval Preview ranking 或 Evidence Pack 组装。
+
+D-121 已新增 RelationService / GraphPreviewService：`GET/POST/PATCH/DELETE /api/relations` 只管理用户手动 confirmed KU 关系，`GET /api/graph/preview` 只读 confirmed relation 与参与关系的 confirmed KU node，并复用 project / folder / tag filters；不接自动关系抽取、GraphRAG、外部图数据库或 ranking 写回。
 
 目标：
 
@@ -171,7 +173,7 @@ D-098 不新增 route、DTO、migration 或 OpenAPI 文件，只约束 Renderer 
 | `/library` | Project/Folder/Tag/Source/Chunk/KU/Review query services | 列表和筛选只消费 API；Renderer 不读本地文件系统，不直接拼接 chunk/source 状态 |
 | `/search` | `RetrievalPreviewService`、`EvidencePackService`、`CitationService`、`FeedbackService` | response 必须返回 query understanding、strategy route、ranking summary、citation trace、evidence gaps 和 feedback actions |
 | `/ask` | `RAGAnswerService`、`EvidencePackService`、`CitationService`、`FeedbackService` | Z0a 固定 evidence-only；Provider answer 只在能力可用时启用，且必须带 citation |
-| `/graph` | `RelationService`、Tag/Source/KU query services、Evidence summary | P0 只读 confirmed relation 或 relation suggestion evidence；GraphRAG 和外部图数据库不进入 route 依赖 |
+| `/graph` | `RelationService`、`GraphPreviewService`、Project/Folder/Tag/KU query services | D-121 已实现手动 confirmed KU relation 创建 / 编辑 / 归档和 Graph Preview；GraphRAG、自动关系抽取和外部图数据库不进入 route 依赖 |
 | `/outputs` | `RAGAnswerService`、`MemoryService`、`ReviewTaskService`、`ExportService` | 输出物为 derived artifact；无 evidence 时返回 disabled / pending review，不写 confirmed knowledge |
 | `/settings` | `AuthStatusService`、`SystemStatusService`、`SettingsService`、`ProviderCapabilityService`、`BackupService`、`ExportService` | D-106 已接入语言设置；API Key 写入仍走 Electron IPC / Keychain；settings route 拒绝密钥字段、未知字段和非法语言 |
 
@@ -605,14 +607,18 @@ commit
 
 | Route | Service | Repository | P0 关键行为 |
 |---|---|---|---|
-| `POST /api/relations` | `RelationService.createManualRelation` | `RelationRepository`, `KnowledgeUnitRepository`, `AuditLogRepository` | 创建用户确认关系 |
+| `GET /api/relations` | `RelationService.listRelations` | `RelationRepository`, `KnowledgeUnitRepository`, `TagRepository` | D-121：按 project/folder/tag/status 读取 confirmed 或 archived 手动关系 |
+| `POST /api/relations` | `RelationService.createManualRelation` | `RelationRepository`, `KnowledgeUnitRepository`, `AuditLogRepository` | D-121：创建用户手动 confirmed KU 关系 |
+| `PATCH /api/relations/{relation_id}` | `RelationService.updateRelation` | `RelationRepository`, `AuditLogRepository` | D-121：只允许修改 relation_type、description、status，恢复 active 时检查 duplicate |
+| `DELETE /api/relations/{relation_id}` | `RelationService.archiveRelation` | `RelationRepository`, `AuditLogRepository` | D-121：归档关系，不物理删除 |
+| `GET /api/graph/preview` | `GraphPreviewService.preview` | `RelationRepository`, `KnowledgeUnitRepository`, `TagRepository` | D-121：返回 confirmed relation nodes/edges/summary 和 GraphRAG unavailable fallback |
 
 约束：
 
 - P0 只做 manual relation。
-- from / to KU 必须属于同一 project。
+- source / target KU 必须属于同一 project 且 `status=confirmed`。
 - relation_type 必须来自枚举。
-- `confirmed_by_user=true`。
+- self relation、pending_review KU、跨 project relation、重复 active relation 必须返回 error envelope。
 
 ### 5.6 Retrieval Preview
 

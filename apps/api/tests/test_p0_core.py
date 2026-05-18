@@ -316,6 +316,194 @@ def test_space_tag_metadata_filters(monkeypatch, tmp_path):
         assert invalid_folder_preview.json()["error"]["code"] == "folder_not_found"
 
 
+def test_knowledge_relations_and_graph_preview(monkeypatch, tmp_path):
+    monkeypatch.setenv("KB_APP_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("KB_LOCAL_TOKEN", "test-token")
+    headers = {"x-kb-local-token": "test-token"}
+    json_headers = {**headers, "content-type": "application/json"}
+    with TestClient(create_app()) as client:
+        unauthorized = client.get("/api/relations")
+        assert unauthorized.status_code == 401
+        assert unauthorized.json()["error"]["code"] == "sidecar_auth_failed"
+
+        folder = client.post(
+            "/api/folders",
+            headers=json_headers,
+            json={"project_id": "default-space", "name": "D121 Graph Folder"},
+        )
+        assert folder.status_code == 200
+        folder_id = folder.json()["id"]
+        tag = client.post(
+            "/api/tags",
+            headers=json_headers,
+            json={
+                "project_id": "default-space",
+                "name": "D121 Graph Tag",
+                "namespace": "topic",
+                "tag_type": "topic_tag",
+            },
+        )
+        assert tag.status_code == 200
+        tag_id = tag.json()["id"]
+
+        ku_ids: list[str] = []
+        review_ids: list[str] = []
+        source_ids: list[str] = []
+        for index in range(2):
+            imported = client.post(
+                "/api/text-imports",
+                headers=json_headers,
+                json={
+                    "title": f"D121 Relation Source {index}",
+                    "content": f"D121 relation graph confirmed knowledge node {index}.",
+                },
+            )
+            assert imported.status_code == 200
+            body = imported.json()
+            ku_ids.append(body["candidate_knowledge_unit_ids"][0])
+            review_ids.append(body["review_task_ids"][0])
+            source_ids.append(body["source_id"])
+
+        batch_org = client.patch(
+            "/api/sources/organization:batch",
+            headers=json_headers,
+            json={"source_ids": source_ids, "folder_id": folder_id, "tag_ids": [tag_id]},
+        )
+        assert batch_org.status_code == 200
+
+        pending_relation = client.post(
+            "/api/relations",
+            headers=json_headers,
+            json={
+                "source_knowledge_unit_id": ku_ids[0],
+                "target_knowledge_unit_id": ku_ids[1],
+                "relation_type": "supports",
+            },
+        )
+        assert pending_relation.status_code == 422
+        assert pending_relation.json()["error"]["code"] == "knowledge_unit_not_confirmed"
+
+        for review_id in review_ids:
+            confirmed = client.post(f"/api/review-tasks/{review_id}:confirm", headers=headers)
+            assert confirmed.status_code == 200
+
+        relation = client.post(
+            "/api/relations",
+            headers=json_headers,
+            json={
+                "source_knowledge_unit_id": ku_ids[0],
+                "target_knowledge_unit_id": ku_ids[1],
+                "relation_type": "supports",
+                "description": "  D121 manual relation evidence  ",
+            },
+        )
+        assert relation.status_code == 200
+        relation_body = relation.json()
+        assert relation_body["relation_type"] == "supports"
+        assert relation_body["status"] == "confirmed"
+        assert relation_body["description"] == "D121 manual relation evidence"
+
+        duplicate = client.post(
+            "/api/relations",
+            headers=json_headers,
+            json={
+                "source_knowledge_unit_id": ku_ids[0],
+                "target_knowledge_unit_id": ku_ids[1],
+                "relation_type": "supports",
+            },
+        )
+        assert duplicate.status_code == 409
+        assert duplicate.json()["error"]["code"] == "relation_duplicate"
+
+        self_relation = client.post(
+            "/api/relations",
+            headers=json_headers,
+            json={
+                "source_knowledge_unit_id": ku_ids[0],
+                "target_knowledge_unit_id": ku_ids[0],
+                "relation_type": "similar_to",
+            },
+        )
+        assert self_relation.status_code == 422
+        assert self_relation.json()["error"]["code"] == "invalid_relation_target"
+
+        listed = client.get(
+            "/api/relations",
+            headers=headers,
+            params={"folder_id": folder_id, "tag_ids": tag_id},
+        )
+        assert listed.status_code == 200
+        assert [record["id"] for record in listed.json()] == [relation_body["id"]]
+
+        graph = client.get(
+            "/api/graph/preview",
+            headers=headers,
+            params={"folder_id": folder_id, "tag_ids": tag_id},
+        )
+        assert graph.status_code == 200
+        graph_body = graph.json()
+        assert graph_body["summary"]["edge_count"] == 1
+        assert graph_body["summary"]["node_count"] == 2
+        assert graph_body["summary"]["relation_type_counts"]["supports"] == 1
+        assert {node["id"] for node in graph_body["nodes"]} == set(ku_ids)
+        assert graph_body["edges"][0]["source_knowledge_unit_id"] == ku_ids[0]
+        assert graph_body["fallback_reason"] == "graph_reasoning_provider_unavailable"
+
+        other_project = client.post(
+            "/api/projects",
+            headers=json_headers,
+            json={"name": "D121 Other Project"},
+        )
+        assert other_project.status_code == 200
+        cross_project = client.post(
+            "/api/relations",
+            headers=json_headers,
+            json={
+                "project_id": other_project.json()["id"],
+                "source_knowledge_unit_id": ku_ids[0],
+                "target_knowledge_unit_id": ku_ids[1],
+                "relation_type": "supports",
+            },
+        )
+        assert cross_project.status_code == 422
+        assert cross_project.json()["error"]["code"] == "project_mismatch"
+
+        patched = client.patch(
+            f"/api/relations/{relation_body['id']}",
+            headers=json_headers,
+            json={"relation_type": "derived_from", "description": "updated relation"},
+        )
+        assert patched.status_code == 200
+        assert patched.json()["relation_type"] == "derived_from"
+
+        deleted = client.delete(f"/api/relations/{relation_body['id']}", headers=headers)
+        assert deleted.status_code == 200
+        assert deleted.json()["status"] == "archived"
+
+        archived_graph = client.get(
+            "/api/graph/preview",
+            headers=headers,
+            params={"folder_id": folder_id, "tag_ids": tag_id},
+        )
+        assert archived_graph.status_code == 200
+        assert archived_graph.json()["summary"]["edge_count"] == 0
+
+        archived_list = client.get(
+            "/api/relations",
+            headers=headers,
+            params={"status": "archived", "folder_id": folder_id, "tag_ids": tag_id},
+        )
+        assert archived_list.status_code == 200
+        assert [record["id"] for record in archived_list.json()] == [relation_body["id"]]
+
+        with db() as conn:
+            statuses = conn.execute(
+                "SELECT status FROM knowledge_units WHERE id IN (?, ?) ORDER BY id ASC",
+                ku_ids,
+            ).fetchall()
+        assert {row["status"] for row in statuses} == {"confirmed"}
+
+
 def test_batch_organization_and_selected_knowledge_export(monkeypatch, tmp_path):
     monkeypatch.setenv("KB_APP_DATA_DIR", str(tmp_path))
     monkeypatch.setenv("KB_LOCAL_TOKEN", "test-token")

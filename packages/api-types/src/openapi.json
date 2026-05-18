@@ -1239,6 +1239,286 @@
         }
       }
     },
+    "/api/relations": {
+      "get": {
+        "summary": "Get Relations",
+        "operationId": "get_relations_api_relations_get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "default-space",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "confirmed",
+              "title": "Status"
+            }
+          },
+          {
+            "name": "folder_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Folder Id"
+            }
+          },
+          {
+            "name": "tag_ids",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Tag Ids"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/KnowledgeRelationRecord"
+                  },
+                  "title": "Response Get Relations Api Relations Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Post Relation",
+        "operationId": "post_relation_api_relations_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KnowledgeRelationCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgeRelationRecord"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/relations/{relation_id}": {
+      "patch": {
+        "summary": "Patch Relation",
+        "operationId": "patch_relation_api_relations__relation_id__patch",
+        "parameters": [
+          {
+            "name": "relation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Relation Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KnowledgeRelationPatchRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgeRelationRecord"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete Relation",
+        "operationId": "delete_relation_api_relations__relation_id__delete",
+        "parameters": [
+          {
+            "name": "relation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Relation Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgeRelationDeleteResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/graph/preview": {
+      "get": {
+        "summary": "Get Graph Preview",
+        "operationId": "get_graph_preview_api_graph_preview_get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "default-space",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "folder_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Folder Id"
+            }
+          },
+          {
+            "name": "tag_ids",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Tag Ids"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GraphPreviewResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/exports/knowledge-units": {
       "post": {
         "summary": "Post Knowledge Unit Export",
@@ -4789,6 +5069,228 @@
         ],
         "title": "FolderRecord"
       },
+      "GraphPreviewEdge": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "source_knowledge_unit_id": {
+            "type": "string",
+            "title": "Source Knowledge Unit Id"
+          },
+          "target_knowledge_unit_id": {
+            "type": "string",
+            "title": "Target Knowledge Unit Id"
+          },
+          "relation_type": {
+            "type": "string",
+            "enum": [
+              "supports",
+              "contradicts",
+              "derived_from",
+              "example_of",
+              "part_of",
+              "depends_on",
+              "similar_to",
+              "used_for",
+              "updates",
+              "replaces"
+            ],
+            "title": "Relation Type"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "source_title": {
+            "type": "string",
+            "title": "Source Title"
+          },
+          "target_title": {
+            "type": "string",
+            "title": "Target Title"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "source_knowledge_unit_id",
+          "target_knowledge_unit_id",
+          "relation_type",
+          "status",
+          "description",
+          "source_title",
+          "target_title",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "GraphPreviewEdge"
+      },
+      "GraphPreviewNode": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "project_id": {
+            "type": "string",
+            "title": "Project Id"
+          },
+          "primary_folder_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Primary Folder Id"
+          },
+          "tags": {
+            "items": {
+              "$ref": "#/components/schemas/TagRecord"
+            },
+            "type": "array",
+            "title": "Tags"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "type",
+          "status",
+          "project_id",
+          "primary_folder_id"
+        ],
+        "title": "GraphPreviewNode"
+      },
+      "GraphPreviewResponse": {
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "title": "Project Id"
+          },
+          "filters": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Filters"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/GraphPreviewSummary"
+          },
+          "nodes": {
+            "items": {
+              "$ref": "#/components/schemas/GraphPreviewNode"
+            },
+            "type": "array",
+            "title": "Nodes"
+          },
+          "edges": {
+            "items": {
+              "$ref": "#/components/schemas/GraphPreviewEdge"
+            },
+            "type": "array",
+            "title": "Edges"
+          },
+          "provider_status": {
+            "type": "string",
+            "title": "Provider Status"
+          },
+          "fallback_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fallback Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "project_id",
+          "filters",
+          "summary",
+          "nodes",
+          "edges",
+          "provider_status",
+          "fallback_reason"
+        ],
+        "title": "GraphPreviewResponse"
+      },
+      "GraphPreviewSummary": {
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "title": "Project Id"
+          },
+          "node_count": {
+            "type": "integer",
+            "title": "Node Count"
+          },
+          "edge_count": {
+            "type": "integer",
+            "title": "Edge Count"
+          },
+          "relation_type_counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Relation Type Counts"
+          },
+          "filters": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Filters"
+          }
+        },
+        "type": "object",
+        "required": [
+          "project_id",
+          "node_count",
+          "edge_count",
+          "relation_type_counts",
+          "filters"
+        ],
+        "title": "GraphPreviewSummary"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -5166,6 +5668,234 @@
           "fallback_reason"
         ],
         "title": "KnowledgeExtractResponse"
+      },
+      "KnowledgeRelationCreateRequest": {
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "title": "Project Id",
+            "default": "default-space"
+          },
+          "source_knowledge_unit_id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Source Knowledge Unit Id"
+          },
+          "target_knowledge_unit_id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Target Knowledge Unit Id"
+          },
+          "relation_type": {
+            "type": "string",
+            "enum": [
+              "supports",
+              "contradicts",
+              "derived_from",
+              "example_of",
+              "part_of",
+              "depends_on",
+              "similar_to",
+              "used_for",
+              "updates",
+              "replaces"
+            ],
+            "title": "Relation Type"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "source_knowledge_unit_id",
+          "target_knowledge_unit_id",
+          "relation_type"
+        ],
+        "title": "KnowledgeRelationCreateRequest"
+      },
+      "KnowledgeRelationDeleteResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "updated_at": {
+            "type": "string",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "status",
+          "updated_at"
+        ],
+        "title": "KnowledgeRelationDeleteResponse"
+      },
+      "KnowledgeRelationPatchRequest": {
+        "properties": {
+          "relation_type": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "supports",
+                  "contradicts",
+                  "derived_from",
+                  "example_of",
+                  "part_of",
+                  "depends_on",
+                  "similar_to",
+                  "used_for",
+                  "updates",
+                  "replaces"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Relation Type"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "confirmed",
+                  "archived"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "KnowledgeRelationPatchRequest"
+      },
+      "KnowledgeRelationRecord": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "project_id": {
+            "type": "string",
+            "title": "Project Id"
+          },
+          "source_knowledge_unit_id": {
+            "type": "string",
+            "title": "Source Knowledge Unit Id"
+          },
+          "target_knowledge_unit_id": {
+            "type": "string",
+            "title": "Target Knowledge Unit Id"
+          },
+          "relation_type": {
+            "type": "string",
+            "enum": [
+              "supports",
+              "contradicts",
+              "derived_from",
+              "example_of",
+              "part_of",
+              "depends_on",
+              "similar_to",
+              "used_for",
+              "updates",
+              "replaces"
+            ],
+            "title": "Relation Type"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "source_title": {
+            "type": "string",
+            "title": "Source Title"
+          },
+          "target_title": {
+            "type": "string",
+            "title": "Target Title"
+          },
+          "created_by": {
+            "type": "string",
+            "title": "Created By"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Metadata"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "project_id",
+          "source_knowledge_unit_id",
+          "target_knowledge_unit_id",
+          "relation_type",
+          "status",
+          "description",
+          "source_title",
+          "target_title",
+          "created_by",
+          "metadata",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "KnowledgeRelationRecord"
       },
       "KnowledgeUnitDetail": {
         "properties": {

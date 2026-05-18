@@ -402,6 +402,32 @@ CREATE TABLE IF NOT EXISTS knowledge_unit_tags (
   FOREIGN KEY(tag_id) REFERENCES tags(id)
 );
 
+CREATE TABLE IF NOT EXISTS knowledge_relations (
+  id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL,
+  source_knowledge_unit_id TEXT NOT NULL,
+  target_knowledge_unit_id TEXT NOT NULL,
+  relation_type TEXT NOT NULL,
+  status TEXT NOT NULL,
+  description TEXT,
+  created_by TEXT NOT NULL,
+  metadata_json TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  FOREIGN KEY(project_id) REFERENCES projects(id),
+  FOREIGN KEY(source_knowledge_unit_id) REFERENCES knowledge_units(id),
+  FOREIGN KEY(target_knowledge_unit_id) REFERENCES knowledge_units(id)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_knowledge_relations_active_unique
+ON knowledge_relations (
+  project_id,
+  source_knowledge_unit_id,
+  target_knowledge_unit_id,
+  relation_type
+)
+WHERE status != 'archived';
+
 CREATE TABLE IF NOT EXISTS review_tasks (
   id TEXT PRIMARY KEY,
   target_type TEXT NOT NULL,

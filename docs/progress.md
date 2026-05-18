@@ -1,5 +1,33 @@
 # 进度记录
 
+## 2026-05-18（D-121 Knowledge Relations / Graph Preview Z0b-lite）
+
+### 已实现
+
+- 新增 `knowledge_relations` 最小表和 active relation 唯一索引，保存 confirmed KU 之间的手动关系、状态、说明、project 归属和审计元数据。
+- 新增 `GET/POST/PATCH/DELETE /api/relations` 与 `GET /api/graph/preview`；只允许 confirmed KU 创建关系，self relation、pending_review KU、跨 project relation、重复 active relation 均返回 error envelope。
+- Graph Preview 支持 `project_id`、`folder_id`、`tag_ids` 过滤，只返回 confirmed relation 与参与关系的 confirmed KU node，不引入 GraphRAG、外部图数据库或自动关系抽取。
+- Renderer 新增 `relationsApi` / `relationsStore`，`/graph` 从占位页升级为真实低保真关系工作台：组织过滤、关系摘要、已确认 KU 节点列表、关系边列表、创建 / 编辑 / 归档操作和 degraded/error/empty/done 状态。
+- 新增 `scripts/smoke-p0-relations-graph.mjs` 与 `pnpm smoke:p0-relations-graph`；完整 smoke 顺序更新为 `smoke:p0-core` → `smoke:p0-desktop-runtime` → `smoke:p0-packaged-runtime` → `smoke:p0-i18n-settings` → `smoke:p0-ui-polish` → `smoke:p0-file` → `smoke:p0-parse` → `smoke:p0-ku` → `smoke:p0-space-tag-metadata` → `smoke:p0-relations-graph` → `smoke:p0-text-to-sql` → `smoke:p0-knowledge-export` → `smoke:p0-knowledge-export-history` → `smoke:p0-search-ask` → `smoke:p0-citation-detail` → `smoke:p0-citation-focus` → `smoke:p0-citation-annotate-compare` → `smoke:p0-batch-actions` → `smoke:p0-feedback-memory` → `smoke:p0-feedback-diagnostics` → `smoke:p0-feedback-export` → `smoke:p0-feedback-filters-history` → `smoke:p0-z0a`。
+
+### 验收
+
+- `pnpm generate:api-types` 通过，已更新 `packages/api-types`。
+- `pnpm typecheck` 通过。
+- `pnpm api:ruff` 通过。
+- `pnpm api:test` 通过，当前 15 个 API 测试全部通过。
+- `apps/api/tests/test_p0_core.py -k relations` 通过，覆盖 confirmed relation、pending/self/cross-project/duplicate validation、graph preview filter 和 archive 行为。
+- `pnpm smoke:p0-relations-graph` 通过，输出 `SMOKE_P0_RELATIONS_GRAPH_OK`。
+- 完整 smoke 顺序通过：`smoke:p0-core` → `smoke:p0-desktop-runtime` → `smoke:p0-packaged-runtime` → `smoke:p0-i18n-settings` → `smoke:p0-ui-polish` → `smoke:p0-file` → `smoke:p0-parse` → `smoke:p0-ku` → `smoke:p0-space-tag-metadata` → `smoke:p0-relations-graph` → `smoke:p0-text-to-sql` → `smoke:p0-knowledge-export` → `smoke:p0-knowledge-export-history` → `smoke:p0-search-ask` → `smoke:p0-citation-detail` → `smoke:p0-citation-focus` → `smoke:p0-citation-annotate-compare` → `smoke:p0-batch-actions` → `smoke:p0-feedback-memory` → `smoke:p0-feedback-diagnostics` → `smoke:p0-feedback-export` → `smoke:p0-feedback-filters-history` → `smoke:p0-z0a`。
+- `pnpm --filter @knowledgebase-dev/renderer build`、`pnpm --filter @knowledgebase-dev/desktop-preload build`、`pnpm --filter @knowledgebase-dev/desktop-main build` 通过。
+- `git diff --check` 通过。
+- in-app browser 已检查 `http://127.0.0.1:5173/graph`：默认中文、英文临时切换、关系创建面板、关系摘要 / 节点 / 边列表和普通浏览器 bridge degraded 状态均可见。
+
+### 边界
+
+- D-121 不接真实 LLM、自动关系抽取、GraphRAG、外部图数据库、relation expansion retrieval、reranker 或 ranking 写回。
+- 删除关系采用 `status=archived`，不物理删除，默认关系列表和 Graph Preview 不显示 archived relation。
+
 ## 2026-05-18（代码审查优化：导出路径、runtime config、UI 状态类型）
 
 ### 审查结论

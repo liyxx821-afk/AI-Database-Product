@@ -278,6 +278,43 @@ export type ApiSchemas = {
   "created_at": string;
   "updated_at": string;
 };
+  "GraphPreviewEdge": {
+  "id": string;
+  "source_knowledge_unit_id": string;
+  "target_knowledge_unit_id": string;
+  "relation_type": "supports" | "contradicts" | "derived_from" | "example_of" | "part_of" | "depends_on" | "similar_to" | "used_for" | "updates" | "replaces";
+  "status": string;
+  "description": string | null;
+  "source_title": string;
+  "target_title": string;
+  "created_at": string;
+  "updated_at": string;
+};
+  "GraphPreviewNode": {
+  "id": string;
+  "title": string;
+  "type": string;
+  "status": string;
+  "project_id": string;
+  "primary_folder_id": string | null;
+  "tags"?: TagRecord[];
+};
+  "GraphPreviewResponse": {
+  "project_id": string;
+  "filters": Record<string, unknown>;
+  "summary": GraphPreviewSummary;
+  "nodes": GraphPreviewNode[];
+  "edges": GraphPreviewEdge[];
+  "provider_status": string;
+  "fallback_reason": string | null;
+};
+  "GraphPreviewSummary": {
+  "project_id": string;
+  "node_count": number;
+  "edge_count": number;
+  "relation_type_counts": Record<string, unknown>;
+  "filters": Record<string, unknown>;
+};
   "HTTPValidationError": {
   "detail"?: ValidationError[];
 };
@@ -344,6 +381,38 @@ export type ApiSchemas = {
   "status": string;
   "reused": boolean;
   "fallback_reason": string | null;
+};
+  "KnowledgeRelationCreateRequest": {
+  "project_id"?: string;
+  "source_knowledge_unit_id": string;
+  "target_knowledge_unit_id": string;
+  "relation_type": "supports" | "contradicts" | "derived_from" | "example_of" | "part_of" | "depends_on" | "similar_to" | "used_for" | "updates" | "replaces";
+  "description"?: string | null;
+};
+  "KnowledgeRelationDeleteResponse": {
+  "id": string;
+  "status": string;
+  "updated_at": string;
+};
+  "KnowledgeRelationPatchRequest": {
+  "relation_type"?: "supports" | "contradicts" | "derived_from" | "example_of" | "part_of" | "depends_on" | "similar_to" | "used_for" | "updates" | "replaces" | null;
+  "description"?: string | null;
+  "status"?: "confirmed" | "archived" | null;
+};
+  "KnowledgeRelationRecord": {
+  "id": string;
+  "project_id": string;
+  "source_knowledge_unit_id": string;
+  "target_knowledge_unit_id": string;
+  "relation_type": "supports" | "contradicts" | "derived_from" | "example_of" | "part_of" | "depends_on" | "similar_to" | "used_for" | "updates" | "replaces";
+  "status": string;
+  "description": string | null;
+  "source_title": string;
+  "target_title": string;
+  "created_by": string;
+  "metadata": Record<string, unknown>;
+  "created_at": string;
+  "updated_at": string;
 };
   "KnowledgeUnitDetail": {
   "id": string;
@@ -995,6 +1064,47 @@ export type FolderRecord = {
   "updated_at": string;
 };
 
+export type GraphPreviewEdge = {
+  "id": string;
+  "source_knowledge_unit_id": string;
+  "target_knowledge_unit_id": string;
+  "relation_type": "supports" | "contradicts" | "derived_from" | "example_of" | "part_of" | "depends_on" | "similar_to" | "used_for" | "updates" | "replaces";
+  "status": string;
+  "description": string | null;
+  "source_title": string;
+  "target_title": string;
+  "created_at": string;
+  "updated_at": string;
+};
+
+export type GraphPreviewNode = {
+  "id": string;
+  "title": string;
+  "type": string;
+  "status": string;
+  "project_id": string;
+  "primary_folder_id": string | null;
+  "tags"?: TagRecord[];
+};
+
+export type GraphPreviewResponse = {
+  "project_id": string;
+  "filters": Record<string, unknown>;
+  "summary": GraphPreviewSummary;
+  "nodes": GraphPreviewNode[];
+  "edges": GraphPreviewEdge[];
+  "provider_status": string;
+  "fallback_reason": string | null;
+};
+
+export type GraphPreviewSummary = {
+  "project_id": string;
+  "node_count": number;
+  "edge_count": number;
+  "relation_type_counts": Record<string, unknown>;
+  "filters": Record<string, unknown>;
+};
+
 export type HTTPValidationError = {
   "detail"?: ValidationError[];
 };
@@ -1068,6 +1178,42 @@ export type KnowledgeExtractResponse = {
   "status": string;
   "reused": boolean;
   "fallback_reason": string | null;
+};
+
+export type KnowledgeRelationCreateRequest = {
+  "project_id"?: string;
+  "source_knowledge_unit_id": string;
+  "target_knowledge_unit_id": string;
+  "relation_type": "supports" | "contradicts" | "derived_from" | "example_of" | "part_of" | "depends_on" | "similar_to" | "used_for" | "updates" | "replaces";
+  "description"?: string | null;
+};
+
+export type KnowledgeRelationDeleteResponse = {
+  "id": string;
+  "status": string;
+  "updated_at": string;
+};
+
+export type KnowledgeRelationPatchRequest = {
+  "relation_type"?: "supports" | "contradicts" | "derived_from" | "example_of" | "part_of" | "depends_on" | "similar_to" | "used_for" | "updates" | "replaces" | null;
+  "description"?: string | null;
+  "status"?: "confirmed" | "archived" | null;
+};
+
+export type KnowledgeRelationRecord = {
+  "id": string;
+  "project_id": string;
+  "source_knowledge_unit_id": string;
+  "target_knowledge_unit_id": string;
+  "relation_type": "supports" | "contradicts" | "derived_from" | "example_of" | "part_of" | "depends_on" | "similar_to" | "used_for" | "updates" | "replaces";
+  "status": string;
+  "description": string | null;
+  "source_title": string;
+  "target_title": string;
+  "created_by": string;
+  "metadata": Record<string, unknown>;
+  "created_at": string;
+  "updated_at": string;
 };
 
 export type KnowledgeUnitDetail = {
@@ -1477,6 +1623,9 @@ export type ApiPath =
   | "/api/knowledge-units:extract"
   | "/api/knowledge-units"
   | "/api/knowledge-units/{knowledge_unit_id}"
+  | "/api/relations"
+  | "/api/relations/{relation_id}"
+  | "/api/graph/preview"
   | "/api/exports/knowledge-units"
   | "/api/exports/project"
   | "/api/exports/history"
