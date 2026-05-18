@@ -1,5 +1,28 @@
 # 进度记录
 
+## 2026-05-18（Renderer UI state 类型边界优化）
+
+### 审查结论
+
+- 多个 renderer 面板 props 重复声明同一组 `loading / empty / degraded / recoverable_error / done` UI 状态联合类型。
+- 这不是当前运行缺陷，但后续继续新增面板或状态时容易产生漏改和类型漂移。
+
+### 已优化
+
+- 在 `apps/renderer/src/app/App.tsx` 中新增共享 `UiState` 类型。
+- 将 Memory Draft、Knowledge Export、Feedback Diagnostics、File / Source / Review、Text-to-SQL、Evidence、Citation Detail 和 PageFrame 的重复状态 props 收敛到 `UiState`。
+
+### 验收
+
+- `pnpm typecheck` 通过。
+- `pnpm smoke:p0-ui-polish` 通过，输出 `SMOKE_P0_UI_POLISH_OK`。
+- `pnpm --filter @knowledgebase-dev/renderer build` 通过。
+- `git diff --check` 通过。
+
+### 边界
+
+- 本轮只做 renderer 类型边界优化，不改 API schema、后端、路由、业务语义、状态机行为或视觉设计方向。
+
 ## 2026-05-18（D-120 UI polish 审查优化）
 
 ### 审查结论

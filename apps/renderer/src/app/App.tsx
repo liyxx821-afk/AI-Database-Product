@@ -110,6 +110,8 @@ type UploadQueueItem = {
   fileId?: string | null;
 };
 
+type UiState = "loading" | "empty" | "degraded" | "recoverable_error" | "done";
+
 type FeedbackFilterValue = FeedbackRequest["feedback_type"] | "all";
 type FeedbackTargetFilterValue = "evidence_pack" | "ai_answer" | "evidence_item" | "all";
 type FeedbackRankingEffectFilterValue = FeedbackRankingEffect | "all";
@@ -1404,7 +1406,7 @@ function MemoryDraftList({
   state
 }: {
   memories: MemoryDraftRecord[];
-  state: "loading" | "empty" | "degraded" | "recoverable_error" | "done";
+  state: UiState;
 }) {
   const t = useT();
   return (
@@ -1471,7 +1473,7 @@ function KnowledgeExportPanel({
   projects: ProjectRecord[];
   folders: FolderRecord[];
   tags: TagRecord[];
-  organizationState: "loading" | "empty" | "degraded" | "recoverable_error" | "done";
+  organizationState: UiState;
   organizationErrorCode: string | null;
   selectedProjectId: string;
   selectedFolderId: string | null;
@@ -1482,11 +1484,11 @@ function KnowledgeExportPanel({
   includeSources: boolean;
   includePendingReview: boolean;
   selectedKnowledgeUnitIds: string[];
-  exportState: "loading" | "empty" | "degraded" | "recoverable_error" | "done";
+  exportState: UiState;
   exportErrorCode?: string;
   lastExport?: KnowledgeExportResponse;
   history: KnowledgeExportHistoryRecord[];
-  historyState: "loading" | "empty" | "degraded" | "recoverable_error" | "done";
+  historyState: UiState;
   historyErrorCode?: string;
   onSelectProject: (projectId: string) => void;
   onSelectFolder: (folderId: string | null) => void;
@@ -1853,7 +1855,7 @@ function FeedbackDiagnosticsPanel({
 }: {
   events: FeedbackEventRecord[];
   summary?: FeedbackDiagnosticsSummary;
-  state: "loading" | "empty" | "degraded" | "recoverable_error" | "done";
+  state: UiState;
   errorCode?: string;
   feedbackTypeFilter: FeedbackFilterValue;
   targetTypeFilter: FeedbackTargetFilterValue;
@@ -1865,10 +1867,10 @@ function FeedbackDiagnosticsPanel({
   sortFilter: FeedbackSortOrder;
   limitFilter: number;
   exportFormat: FeedbackExportFormat;
-  exportState: "loading" | "empty" | "degraded" | "recoverable_error" | "done";
+  exportState: UiState;
   exportErrorCode?: string;
   exportHistory: FeedbackExportHistoryRecord[];
-  exportHistoryState: "loading" | "empty" | "degraded" | "recoverable_error" | "done";
+  exportHistoryState: UiState;
   exportHistoryErrorCode?: string;
   onFeedbackTypeChange: (value: FeedbackFilterValue) => void;
   onTargetTypeChange: (value: FeedbackTargetFilterValue) => void;
@@ -2199,7 +2201,7 @@ function FileListPanel({
   onParsed
 }: {
   files: FileRecord[];
-  state: "loading" | "empty" | "degraded" | "recoverable_error" | "done";
+  state: UiState;
   onRefresh: () => Promise<void>;
   onVerify: (fileId: string) => Promise<void>;
   onParse: (fileId: string) => Promise<void>;
@@ -2283,7 +2285,7 @@ function OrganizationPanel({
   folders: FolderRecord[];
   tags: TagRecord[];
   sources: SourceRecord[];
-  state: "loading" | "empty" | "degraded" | "recoverable_error" | "done";
+  state: UiState;
   errorCode: string | null;
   selectedProjectId: string;
   selectedFolderId: string | null;
@@ -2657,7 +2659,7 @@ function SourceListPanel({
   onExtract
 }: {
   sources: SourceRecord[];
-  state: "loading" | "empty" | "degraded" | "recoverable_error" | "done";
+  state: UiState;
   onRefresh: () => Promise<void>;
   onExtract: (sourceId: string) => Promise<void>;
 }) {
@@ -2708,7 +2710,7 @@ function ReviewQueuePanel({
   onIgnore
 }: {
   tasks: ReviewTask[];
-  state: "loading" | "empty" | "degraded" | "recoverable_error" | "done";
+  state: UiState;
   onRefresh: () => Promise<void>;
   onConfirm: (taskId: string) => Promise<void>;
   onIgnore: (taskId: string) => Promise<void>;
@@ -2761,7 +2763,7 @@ function TextToSqlPanel({
   errorCode
 }: {
   preview?: TextToSqlPreviewResponse;
-  state: "loading" | "empty" | "degraded" | "recoverable_error" | "done";
+  state: UiState;
   errorCode?: string;
 }) {
   const t = useT();
@@ -2865,7 +2867,7 @@ function EvidenceItemsPanel({
   onOpenDetail
 }: {
   items: EvidenceItemRecord[];
-  state: "loading" | "empty" | "degraded" | "recoverable_error" | "done";
+  state: UiState;
   evidencePackId?: string;
   onOpenDetail?: (evidencePackId: string, evidenceItemId?: string) => void;
 }) {
@@ -2934,13 +2936,13 @@ function CitationDetailPanel({
   onClearComparison
 }: {
   detail?: EvidencePackDetail;
-  state: "loading" | "empty" | "degraded" | "recoverable_error" | "done";
+  state: UiState;
   errorCode?: string;
   annotations?: CitationAnnotationListResponse;
-  annotationState?: "loading" | "empty" | "degraded" | "recoverable_error" | "done";
+  annotationState?: UiState;
   annotationErrorCode?: string;
   comparison?: CitationCompareResponse;
-  compareState?: "loading" | "empty" | "degraded" | "recoverable_error" | "done";
+  compareState?: UiState;
   compareErrorCode?: string;
   focusedEvidenceItemId?: string;
   onFocusItem?: (evidenceItemId: string) => void;
@@ -3640,7 +3642,7 @@ function PageFrame({
   sections
 }: {
   title: string;
-  state: "loading" | "empty" | "degraded" | "recoverable_error" | "done";
+  state: UiState;
   sections: [string, string][];
 }) {
   return (
