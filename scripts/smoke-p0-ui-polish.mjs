@@ -17,14 +17,40 @@ function readRepoFile(...parts) {
   return readFileSync(join(root, ...parts), "utf8");
 }
 
-function localeBlock(source, locale, endMarker) {
+function localeBlock(source, locale) {
   const marker = `  "${locale}": {`;
   const start = source.indexOf(marker);
   assert(start >= 0, `${locale} messages block is missing`);
-  const bodyStart = start + marker.length;
-  const end = source.indexOf(endMarker, bodyStart);
-  assert(end >= 0, `${locale} messages block end is missing`);
-  return source.slice(bodyStart, end);
+  const openBrace = source.indexOf("{", start);
+  let depth = 0;
+  let inString = false;
+  let escaping = false;
+
+  for (let index = openBrace; index < source.length; index += 1) {
+    const character = source[index];
+    if (inString) {
+      if (escaping) {
+        escaping = false;
+      } else if (character === "\\") {
+        escaping = true;
+      } else if (character === "\"") {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (character === "\"") {
+      inString = true;
+      continue;
+    }
+    if (character === "{") depth += 1;
+    if (character === "}") {
+      depth -= 1;
+      if (depth === 0) return source.slice(openBrace + 1, index);
+    }
+  }
+
+  throw new Error(`${locale} messages block end is missing`);
 }
 
 function collectMessageKeys(block) {
@@ -41,8 +67,8 @@ function main() {
   const i18n = readRepoFile("apps", "renderer", "src", "services", "i18n.ts");
   const packageJson = JSON.parse(readRepoFile("package.json"));
 
-  const zhKeys = collectMessageKeys(localeBlock(i18n, "zh-CN", "\n  },\n  \"en-US\""));
-  const enKeys = collectMessageKeys(localeBlock(i18n, "en-US", "\n  }\n} as const"));
+  const zhKeys = collectMessageKeys(localeBlock(i18n, "zh-CN"));
+  const enKeys = collectMessageKeys(localeBlock(i18n, "en-US"));
   const usedKeys = collectUsedTranslationKeys(app);
 
   for (const key of usedKeys) {

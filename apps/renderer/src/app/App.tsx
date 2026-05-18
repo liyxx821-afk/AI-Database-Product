@@ -268,7 +268,12 @@ const stateLabelKeys: Partial<Record<string, MessageKey>> = {
 function StateChip({ state, label }: { state: string; label?: string }) {
   const t = useT();
   const key = stateLabelKeys[state];
-  return <span className={`state-chip state-${state}`}>{label ?? (key ? t(key) : state)}</span>;
+  const safeStateClass = state.replace(/[^a-zA-Z0-9_-]/g, "_");
+  return (
+    <span className={`state-chip state-${safeStateClass}`} title={state}>
+      {label ?? (key ? t(key) : state)}
+    </span>
+  );
 }
 
 function BridgeNotice() {

@@ -1,5 +1,28 @@
 # 进度记录
 
+## 2026-05-18（D-120 UI polish 审查优化）
+
+### 审查结论
+
+- `StateChip` 直接把状态值拼入 CSS class，当前枚举可用，但后续如果出现带空格、斜杠或 provider 原始状态的值，会生成不稳定 class。
+- `scripts/smoke-p0-ui-polish.mjs` 用固定文本边界切分 `zh-CN` / `en-US` message block，后续 i18n 文件格式或结尾略调整时容易产生误报。
+
+### 已优化
+
+- `StateChip` 对 CSS class 后缀做安全字符归一化，并保留原始 state 到 `title`，避免显示语义和样式选择互相污染。
+- `smoke:p0-ui-polish` 改为按花括号深度读取 locale block，保留原有 i18n key parity、route shell marker、CSS marker 和 renderer build 检查。
+
+### 验收
+
+- `pnpm typecheck` 通过。
+- `pnpm smoke:p0-ui-polish` 通过，输出 `SMOKE_P0_UI_POLISH_OK`。
+- `pnpm --filter @knowledgebase-dev/renderer build` 通过。
+- `git diff --check` 通过。
+
+### 边界
+
+- 本轮只做 D-120 UI shell 代码健壮性优化，不改 API schema、后端、路由、业务语义或视觉设计方向。
+
 ## 2026-05-18（D-120 UI Interaction Polish / Design-Ready Shell Z0b-lite）
 
 ### 已实现
