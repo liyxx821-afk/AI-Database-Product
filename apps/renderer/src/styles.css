@@ -332,7 +332,7 @@ button {
 
 .query-bar {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   gap: 10px;
 }
 
@@ -349,6 +349,59 @@ button {
 .memory-label .query-input {
   min-width: 180px;
   width: 100%;
+}
+
+.compact-title-row {
+  margin: 14px 0 8px;
+}
+
+.compact-title-row h3 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.sql-trace-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.sql-preview-code {
+  min-height: 116px;
+  max-height: 240px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-muted);
+  color: var(--text);
+  padding: 12px;
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.sql-results {
+  margin-top: 12px;
+}
+
+.sql-result-table {
+  display: grid;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.sql-result-cell {
+  min-width: 0;
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  padding: 9px 10px;
+  font-size: 12px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
 }
 
 .feedback-actions {
@@ -623,6 +676,7 @@ button {
     .metric-row,
     .panel-grid,
     .query-bar,
+    .sql-trace-grid,
     .upload-zone,
     .file-row,
     .review-row {

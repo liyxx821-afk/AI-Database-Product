@@ -603,6 +603,28 @@ export type ApiSchemas = {
   "candidate_knowledge_unit_ids": string[];
   "review_task_ids": string[];
 };
+  "TextToSqlPreviewRequest": {
+  "query": string;
+  "project_id"?: string;
+  "folder_id"?: string | null;
+  "tag_ids"?: string[];
+  "limit"?: number;
+};
+  "TextToSqlPreviewResponse": {
+  "retrieval_log_id": string;
+  "template_id": string;
+  "intent": string;
+  "generated_sql": string;
+  "parameters": Record<string, unknown>;
+  "readonly": boolean;
+  "safety_status": string;
+  "columns": string[];
+  "rows": Record<string, unknown>[];
+  "row_count": number;
+  "query_explanation": Record<string, unknown>;
+  "provider_status": string;
+  "fallback_reason": string | null;
+};
   "UploadCreateRequest": {
   "filename": string;
   "size_bytes": number;
@@ -1335,6 +1357,30 @@ export type TextImportResponse = {
   "review_task_ids": string[];
 };
 
+export type TextToSqlPreviewRequest = {
+  "query": string;
+  "project_id"?: string;
+  "folder_id"?: string | null;
+  "tag_ids"?: string[];
+  "limit"?: number;
+};
+
+export type TextToSqlPreviewResponse = {
+  "retrieval_log_id": string;
+  "template_id": string;
+  "intent": string;
+  "generated_sql": string;
+  "parameters": Record<string, unknown>;
+  "readonly": boolean;
+  "safety_status": string;
+  "columns": string[];
+  "rows": Record<string, unknown>[];
+  "row_count": number;
+  "query_explanation": Record<string, unknown>;
+  "provider_status": string;
+  "fallback_reason": string | null;
+};
+
 export type UploadCreateRequest = {
   "filename": string;
   "size_bytes": number;
@@ -1442,6 +1488,7 @@ export type ApiPath =
   | "/api/feedback/export-history/{history_id}"
   | "/api/memory-drafts"
   | "/api/memory-drafts/{memory_id}"
+  | "/api/text-to-sql/preview"
   | "/api/text-imports"
   | "/api/jobs/{job_id}"
   | "/api/jobs/{job_id}/events:stream"

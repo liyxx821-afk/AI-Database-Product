@@ -16,6 +16,7 @@
     "smoke:p0-parse": "node scripts/smoke-p0-parse.mjs",
     "smoke:p0-ku": "node scripts/smoke-p0-ku.mjs",
     "smoke:p0-space-tag-metadata": "node scripts/smoke-p0-space-tag-metadata.mjs",
+    "smoke:p0-text-to-sql": "node scripts/smoke-p0-text-to-sql.mjs",
     "smoke:p0-knowledge-export": "node scripts/smoke-p0-knowledge-export.mjs",
     "smoke:p0-knowledge-export-history": "node scripts/smoke-p0-knowledge-export-history.mjs",
     "smoke:p0-search-ask": "node scripts/smoke-p0-search-ask.mjs",

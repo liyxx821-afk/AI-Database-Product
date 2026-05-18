@@ -1,8 +1,8 @@
 # API Route-Level 实施计划
 
-版本：v0.32-draft
-日期：2026-05-17  
-状态：P0 API 实施映射草案——四切片 + P0-Z0a/Z0b 竖切 + 切片前准备层 / 结构化整理检查门 / 知识切片质量闭环 / 安全运维横切层 / 检查门映射单一来源 / 事件枚举单一来源 / ProcessingJob / sensitive grant / evidence-only / 切片执行 profile / AI 结构化整理 profile / D-079 存储映射契约对齐 / D-080 知识调用 profile 与 implicit_agent / D-081-D085 调用边界、profile schema、Z0a 锚点与前端状态契约对齐 / D-092 OpenAPI 类型生成、trace chain 与 migration 波次命名 / D-093 桌面运行时 API 约束 / D-094 P0-Core 工程骨架 API 顺序 / D-098 页面到 API 组映射 / D-105 Citation Detail replay / D-106 Settings language config 持久化 / D-107 Feedback Events 与 Memory Draft Review / D-108 Feedback Diagnostics 只读复盘 / D-110 Feedback Diagnostics Export 脱敏导出 / D-111 Feedback Advanced Filters 与 Export History / D-112 Citation Detail Focus 与 Evidence Trace Interaction / D-113 Citation Annotation 与 Evidence Compare / D-114 OrganizationService 与 Folder-Tag metadata filters / D-115 KnowledgeExportService 与 Project ZIP export / D-116 KnowledgeExportHistory metadata replay / D-118 Batch Actions
+版本：v0.33-draft
+日期：2026-05-18
+状态：P0 API 实施映射草案——四切片 + P0-Z0a/Z0b 竖切 + 切片前准备层 / 结构化整理检查门 / 知识切片质量闭环 / 安全运维横切层 / 检查门映射单一来源 / 事件枚举单一来源 / ProcessingJob / sensitive grant / evidence-only / 切片执行 profile / AI 结构化整理 profile / D-079 存储映射契约对齐 / D-080 知识调用 profile 与 implicit_agent / D-081-D085 调用边界、profile schema、Z0a 锚点与前端状态契约对齐 / D-092 OpenAPI 类型生成、trace chain 与 migration 波次命名 / D-093 桌面运行时 API 约束 / D-094 P0-Core 工程骨架 API 顺序 / D-098 页面到 API 组映射 / D-105 Citation Detail replay / D-106 Settings language config 持久化 / D-107 Feedback Events 与 Memory Draft Review / D-108 Feedback Diagnostics 只读复盘 / D-110 Feedback Diagnostics Export 脱敏导出 / D-111 Feedback Advanced Filters 与 Export History / D-112 Citation Detail Focus 与 Evidence Trace Interaction / D-113 Citation Annotation 与 Evidence Compare / D-114 OrganizationService 与 Folder-Tag metadata filters / D-115 KnowledgeExportService 与 Project ZIP export / D-116 KnowledgeExportHistory metadata replay / D-118 Batch Actions / D-119 TextToSqlTemplateService preview
 
 ## 1. 文档目的
 
@@ -33,6 +33,8 @@ D-115 已新增 `POST /api/exports/knowledge-units` 与 `POST /api/exports/proje
 D-116 已新增 `GET /api/exports/history` 与 `DELETE /api/exports/history/{id}`：KnowledgeExportService 每次成功导出后只向 `config.json.knowledge_export_history` 写入最近 20 条 metadata，包含 export kind、filename、format、record_count、generated_at、filters、summary、content_sha256 和 redaction flags；history 不保存 Markdown / JSON / ZIP 正文，不新增 SQLite 表。
 
 D-118 已新增 batch actions：OrganizationService 支持 Source/KU 批量替换式 folder/tag 绑定；CitationAnnotationService 支持同一 Evidence Pack 内 1-20 个 evidence item 批量创建同内容批注；KnowledgeExportService 继续复用 `knowledge_unit_ids` 做 KU 选择导出，不新增 export endpoint。
+
+D-119 已新增 TextToSqlTemplateService preview：`POST /api/text-to-sql/preview` 只执行规则模板版参数化 SELECT，返回 SQL trace、参数、结果行和 query explanation，并写 `retrieval_logs.query_intent=structured_query_preview`；不接真实 Text-to-SQL provider，不新增表，不影响 Retrieval Preview ranking 或 Evidence Pack 组装。
 
 目标：
 
@@ -617,6 +619,7 @@ commit
 | Route | Service | Repository / Module | P0 关键行为 |
 |---|---|---|---|
 | `POST /api/retrieval/preview` | `RetrievalPreviewService.preview` | `QueryUnderstandingService`, `RetrievalStrategyService`, `TextToSqlTemplateService`, `KnowledgeUnitRepository`, `EmbeddingRepository`, `VectorStoreService`, `ProviderCapabilityService`, `RetrievalLogRepository`, `KnowledgeUnitTagRepository` | 规则 query understanding、strategy route、project/folder/tag filters、keyword/vector/hybrid merge、ranking/citation trace 摘要、检索解释、写 retrieval log |
+| `POST /api/text-to-sql/preview` | `TextToSqlTemplateService.preview` | `ProjectRepository`, `FolderRepository`, `TagRepository`, `KnowledgeUnitRepository`, `SourceRepository`, `RetrievalLogRepository` | D-119：规则模板版 structured query preview；只读 SELECT 模板，支持 project/folder/tag filters，返回 generated_sql / parameters / rows / safety explanation，并写 `structured_query_preview` retrieval log |
 | `GET /api/evidence-packs/{evidence_pack_id}` | `EvidencePackService.getDetail` | `EvidencePackRepository`, `EvidenceItemRepository`, `KnowledgeUnitRepository`, `ChunkRepository`, `SourceRepository`, `RetrievalLogRepository`, `CitationAnnotationRepository` | D-113 Z0b-lite 已实现：按 ID 返回 Evidence Pack replay，支持 `focus_item_id`、`detail_summary`、annotation summary、KU/Chunk/Source trace path 和 copy-safe citation payload；非法 focus 返回 `evidence_item_not_in_pack` |
 | `GET/POST /api/evidence-packs/{evidence_pack_id}/annotations` | `CitationAnnotationService` | `EvidencePackRepository`, `EvidenceItemRepository`, `CitationAnnotationRepository` | D-113：列出 / 创建本地 citation 批注；annotation item 必须属于 pack；不写 feedback、不改 ranking |
 | `POST /api/evidence-packs/{evidence_pack_id}/annotations:batch` | `CitationAnnotationService.createBatch` | `EvidencePackRepository`, `EvidenceItemRepository`, `CitationAnnotationRepository` | D-118：同一 pack 内 1-20 个 evidence item 批量创建同内容批注；跨 pack item 返回 `evidence_item_not_in_pack` |

@@ -1,5 +1,34 @@
 # 进度记录
 
+## 2026-05-18（D-119 Text-to-SQL Template / Structured Query Preview Z0b-lite）
+
+### 已实现
+
+- 新增 `POST /api/text-to-sql/preview`，在不接真实 Text-to-SQL provider 的前提下提供 confirmed KU lookup、source inventory、evidence history 三类只读 SQL 模板。
+- Response 返回 `retrieval_log_id`、`template_id`、`intent`、`generated_sql`、`parameters`、`readonly=true`、`safety_status`、`columns`、`rows`、`row_count`、`query_explanation`、`provider_status=degraded` 和 `fallback_reason=text_to_sql_model_unavailable`。
+- 后端只执行参数化 `SELECT` 模板；用户自然语言 query 仅作为参数和 intent 分类依据，不拼入自由 SQL；恶意输入如 `DROP TABLE` 只作为普通查询参数处理。
+- `retrieval_logs` 新增 `query_intent=structured_query_preview` 记录，用于复盘 query explanation；不新增数据库表，不修改 retrieval ranking 或 Evidence Pack 组装。
+- Renderer 新增 `textToSqlApi` / `textToSqlStore`，`/search` 增加“结构化查询”按钮与 SQL Trace 面板，展示模板、只读状态、SQL、参数、结果表、fallback reason 和 bridge degraded 状态。
+- 新增 `scripts/smoke-p0-text-to-sql.mjs` 与 `pnpm smoke:p0-text-to-sql`；完整 smoke 顺序更新为 `smoke:p0-core` → `smoke:p0-desktop-runtime` → `smoke:p0-packaged-runtime` → `smoke:p0-i18n-settings` → `smoke:p0-file` → `smoke:p0-parse` → `smoke:p0-ku` → `smoke:p0-space-tag-metadata` → `smoke:p0-text-to-sql` → `smoke:p0-knowledge-export` → `smoke:p0-knowledge-export-history` → `smoke:p0-search-ask` → `smoke:p0-citation-detail` → `smoke:p0-citation-focus` → `smoke:p0-citation-annotate-compare` → `smoke:p0-batch-actions` → `smoke:p0-feedback-memory` → `smoke:p0-feedback-diagnostics` → `smoke:p0-feedback-export` → `smoke:p0-feedback-filters-history` → `smoke:p0-z0a`。
+
+### 验收
+
+- `pnpm generate:api-types` 通过，已更新 `packages/api-types`。
+- `pnpm typecheck` 通过。
+- `pnpm api:ruff` 通过。
+- `pnpm api:test` 通过，14 个 API 测试全部通过。
+- `pnpm smoke:p0-text-to-sql` 通过，输出 `SMOKE_P0_TEXT_TO_SQL_OK`。
+- 完整 smoke 顺序通过：
+  `pnpm smoke:p0-core`、`pnpm smoke:p0-desktop-runtime`、`pnpm smoke:p0-packaged-runtime`、`pnpm smoke:p0-i18n-settings`、`pnpm smoke:p0-file`、`pnpm smoke:p0-parse`、`pnpm smoke:p0-ku`、`pnpm smoke:p0-space-tag-metadata`、`pnpm smoke:p0-text-to-sql`、`pnpm smoke:p0-knowledge-export`、`pnpm smoke:p0-knowledge-export-history`、`pnpm smoke:p0-search-ask`、`pnpm smoke:p0-citation-detail`、`pnpm smoke:p0-citation-focus`、`pnpm smoke:p0-citation-annotate-compare`、`pnpm smoke:p0-batch-actions`、`pnpm smoke:p0-feedback-memory`、`pnpm smoke:p0-feedback-diagnostics`、`pnpm smoke:p0-feedback-export`、`pnpm smoke:p0-feedback-filters-history`、`pnpm smoke:p0-z0a`。
+- `pnpm --filter @knowledgebase-dev/renderer build`、`pnpm --filter @knowledgebase-dev/desktop-preload build`、`pnpm --filter @knowledgebase-dev/desktop-main build` 通过。
+- `git diff --check` 通过。
+- in-app browser 检查 `/search` 通过：默认中文可见检索预览、组织过滤、“结构化查询”按钮和结构化查询预览面板；普通浏览器无 Electron preload 时触发结构化查询后显示预期 bridge degraded。
+
+### 边界
+
+- D-119 只做规则模板 / mock query plan，不接真实 Text-to-SQL 模型、不开放 SQL 编辑器、不新增数据库表。
+- 本阶段不做 GraphRAG、关系推理、provider-backed RAG、真实 LLM、云同步、Obsidian 双向同步或 UI 设计稿级优化。
+
 ## 2026-05-18（Renderer 错误码工具边界优化）
 
 ### 审查结论

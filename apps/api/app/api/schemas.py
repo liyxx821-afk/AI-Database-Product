@@ -632,6 +632,32 @@ class RetrievalPreviewRequest(BaseModel):
     tag_ids: List[str] = Field(default_factory=list)
 
 
+class TextToSqlPreviewRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    query: str = Field(min_length=1)
+    project_id: str = "default-space"
+    folder_id: Optional[str] = None
+    tag_ids: List[str] = Field(default_factory=list)
+    limit: int = Field(default=50, ge=1, le=50)
+
+
+class TextToSqlPreviewResponse(BaseModel):
+    retrieval_log_id: str
+    template_id: str
+    intent: str
+    generated_sql: str
+    parameters: Dict[str, Any]
+    readonly: bool
+    safety_status: str
+    columns: List[str]
+    rows: List[Dict[str, Any]]
+    row_count: int
+    query_explanation: Dict[str, Any]
+    provider_status: str
+    fallback_reason: Optional[str]
+
+
 class EvidenceItemRecord(BaseModel):
     id: str
     evidence_pack_id: str

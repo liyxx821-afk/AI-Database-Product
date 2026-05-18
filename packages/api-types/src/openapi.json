@@ -2294,6 +2294,44 @@
         }
       }
     },
+    "/api/text-to-sql/preview": {
+      "post": {
+        "summary": "Text To Sql Preview",
+        "operationId": "text_to_sql_preview_api_text_to_sql_preview_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TextToSqlPreviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TextToSqlPreviewResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/text-imports": {
       "post": {
         "summary": "Create Text Import",
@@ -6707,6 +6745,140 @@
           "review_task_ids"
         ],
         "title": "TextImportResponse"
+      },
+      "TextToSqlPreviewRequest": {
+        "properties": {
+          "query": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Query"
+          },
+          "project_id": {
+            "type": "string",
+            "title": "Project Id",
+            "default": "default-space"
+          },
+          "folder_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Folder Id"
+          },
+          "tag_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Tag Ids"
+          },
+          "limit": {
+            "type": "integer",
+            "maximum": 50.0,
+            "minimum": 1.0,
+            "title": "Limit",
+            "default": 50
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "query"
+        ],
+        "title": "TextToSqlPreviewRequest"
+      },
+      "TextToSqlPreviewResponse": {
+        "properties": {
+          "retrieval_log_id": {
+            "type": "string",
+            "title": "Retrieval Log Id"
+          },
+          "template_id": {
+            "type": "string",
+            "title": "Template Id"
+          },
+          "intent": {
+            "type": "string",
+            "title": "Intent"
+          },
+          "generated_sql": {
+            "type": "string",
+            "title": "Generated Sql"
+          },
+          "parameters": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Parameters"
+          },
+          "readonly": {
+            "type": "boolean",
+            "title": "Readonly"
+          },
+          "safety_status": {
+            "type": "string",
+            "title": "Safety Status"
+          },
+          "columns": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Columns"
+          },
+          "rows": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Rows"
+          },
+          "row_count": {
+            "type": "integer",
+            "title": "Row Count"
+          },
+          "query_explanation": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Query Explanation"
+          },
+          "provider_status": {
+            "type": "string",
+            "title": "Provider Status"
+          },
+          "fallback_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fallback Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "retrieval_log_id",
+          "template_id",
+          "intent",
+          "generated_sql",
+          "parameters",
+          "readonly",
+          "safety_status",
+          "columns",
+          "rows",
+          "row_count",
+          "query_explanation",
+          "provider_status",
+          "fallback_reason"
+        ],
+        "title": "TextToSqlPreviewResponse"
       },
       "UploadCreateRequest": {
         "properties": {

@@ -52,7 +52,8 @@ import type {
   ProjectRecord,
   ReviewTask,
   SourceRecord,
-  TagRecord
+  TagRecord,
+  TextToSqlPreviewResponse
 } from "@knowledgebase-dev/api-types";
 import { appIdentity, defaultRendererRoute } from "@knowledgebase-dev/shared-config";
 import { uploadFile } from "../services/fileApi";
@@ -66,6 +67,7 @@ import { useSettingsStore } from "../stores/settingsStore";
 import { useFeedbackMemoryStore } from "../stores/feedbackMemoryStore";
 import { useOrganizationStore } from "../stores/organizationStore";
 import { useKnowledgeExportStore } from "../stores/exportsStore";
+import { useTextToSqlStore } from "../stores/textToSqlStore";
 import { hasBridge } from "../services/apiClient";
 import { listKnowledgeUnits } from "../services/knowledgeApi";
 import type {
@@ -603,6 +605,7 @@ function LibraryPage() {
 function SearchPage() {
   const t = useT();
   const retrieval = useRetrievalStore();
+  const textToSql = useTextToSqlStore();
   const organization = useOrganizationStore();
   const [query, setQuery] = useState(retrieval.lastQuery || "Evidence Pack Source Chunk");
   const preview = retrieval.preview;
@@ -624,6 +627,12 @@ function SearchPage() {
     const trimmed = query.trim();
     if (!trimmed) return;
     await retrieval.previewQuery(trimmed, activeFilters);
+  }
+
+  async function runStructuredQuery() {
+    const trimmed = query.trim();
+    if (!trimmed) return;
+    await textToSql.previewQuery(trimmed, activeFilters);
   }
 
   return (
@@ -655,6 +664,15 @@ function SearchPage() {
           >
             <Search aria-hidden="true" size={16} />
             <span>{t("action.search")}</span>
+          </button>
+          <button
+            className="icon-command"
+            type="button"
+            disabled={!query.trim() || textToSql.state === "loading"}
+            onClick={runStructuredQuery}
+          >
+            <FileText aria-hidden="true" size={16} />
+            <span>{t("action.sqlPreview")}</span>
           </button>
         </form>
         {retrieval.previewErrorCode ? (
@@ -704,6 +722,12 @@ function SearchPage() {
           </article>
         </div>
       </section>
+
+      <TextToSqlPanel
+        preview={textToSql.preview}
+        state={textToSql.state}
+        errorCode={textToSql.errorCode}
+      />
 
       <section className="page-frame">
         <div className="section-title-row">
@@ -2698,6 +2722,109 @@ function ReviewQueuePanel({
           <EmptyState message={state === "degraded" ? t("empty.bridgeUnavailable") : t("review.noTasks")} />
         )}
       </div>
+    </section>
+  );
+}
+
+function TextToSqlPanel({
+  preview,
+  state,
+  errorCode
+}: {
+  preview?: TextToSqlPreviewResponse;
+  state: "loading" | "empty" | "degraded" | "recoverable_error" | "done";
+  errorCode?: string;
+}) {
+  const t = useT();
+  const displayColumns = preview?.columns.slice(0, 6) ?? [];
+  const displayRows = preview?.rows.slice(0, 8) ?? [];
+
+  return (
+    <section className="page-frame">
+      <div className="section-title-row">
+        <h2>{t("textToSql.title")}</h2>
+        <div className="inline-actions">
+          <span className={`state-chip state-${state}`}>{state}</span>
+          <StatusPill label="provider" value={preview?.provider_status ?? "not_ready"} />
+        </div>
+      </div>
+      {errorCode ? (
+        <div className="row-note">
+          <AlertCircle aria-hidden="true" size={15} />
+          <span>{errorCode}</span>
+        </div>
+      ) : null}
+      {!preview ? (
+        <EmptyState
+          message={state === "degraded" ? t("empty.bridgeUnavailable") : t("textToSql.noPreview")}
+        />
+      ) : (
+        <>
+          <div className="panel-grid">
+            <article className="panel">
+              <h3>{t("textToSql.template")}</h3>
+              <p>{preview.template_id}</p>
+            </article>
+            <article className="panel">
+              <h3>{t("textToSql.readonly")}</h3>
+              <p>{`${preview.readonly} · ${preview.safety_status}`}</p>
+            </article>
+            <article className="panel">
+              <h3>{t("textToSql.fallback")}</h3>
+              <p>{preview.fallback_reason ?? t("empty.none")}</p>
+            </article>
+          </div>
+          <div className="sql-trace-grid">
+            <section>
+              <div className="section-title-row compact-title-row">
+                <h3>{t("textToSql.trace")}</h3>
+                <StatusPill label="rows" value={String(preview.row_count)} />
+              </div>
+              <pre className="sql-preview-code">{preview.generated_sql}</pre>
+            </section>
+            <section>
+              <div className="section-title-row compact-title-row">
+                <h3>{t("textToSql.parameters")}</h3>
+              </div>
+              <pre className="sql-preview-code">
+                {JSON.stringify(preview.parameters, null, 2)}
+              </pre>
+            </section>
+          </div>
+          <section className="sql-results">
+            <div className="section-title-row compact-title-row">
+              <h3>{t("textToSql.results")}</h3>
+              <StatusPill
+                label="count"
+                value={t("textToSql.rows", { count: preview.row_count })}
+              />
+            </div>
+            {displayRows.length && displayColumns.length ? (
+              <div
+                className="sql-result-table"
+                style={{
+                  gridTemplateColumns: `repeat(${displayColumns.length}, minmax(130px, 1fr))`
+                }}
+              >
+                {displayColumns.map((column) => (
+                  <strong className="sql-result-cell" key={column}>
+                    {column}
+                  </strong>
+                ))}
+                {displayRows.flatMap((row, rowIndex) =>
+                  displayColumns.map((column) => (
+                    <span className="sql-result-cell" key={`${rowIndex}-${column}`}>
+                      {formatMaybe(row[column])}
+                    </span>
+                  ))
+                )}
+              </div>
+            ) : (
+              <EmptyState message={t("textToSql.noRows")} />
+            )}
+          </section>
+        </>
+      )}
     </section>
   );
 }

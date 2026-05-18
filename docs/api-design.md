@@ -1,8 +1,8 @@
 # API 设计草案
 
-版本：v0.30-draft
-日期：2026-05-17  
-状态：P0 API 边界草案——完整上传/文件处理/File Inspection/切片前准备层/切片执行 profile/AI 结构化整理 profile/D-079 structuring summary 子字段/结构化整理检查门/知识切片质量闭环/AI/RAG API + D-080 知识调用 profile / implicit_agent / D-081 Z0a-Z2 持久化边界 / D-082 InvocationProfileSchema / D-083 前端状态与反馈策略 / D-085 Z0a 调用锚点、feedback 与 citation 边界修正 + D-098 页面到现有 API 组映射 + D-105 Citation Detail / Evidence Pack replay 实现边界 + D-106 Settings language 持久化边界 + D-107 Feedback Events / Memory Draft Review Z0b-lite + D-108 Feedback Diagnostics / Event Replay Z0b-lite + D-110 Feedback Diagnostics Export Z0b-lite + D-111 Feedback Diagnostics Advanced Filters / Export History Z0b-lite + D-112 Citation Detail Focus / Evidence Trace Interaction Z0b-lite + D-113 Citation Annotation / Evidence Compare Z0b-lite + D-114 Knowledge Space / Folder-Tag / Metadata Filters Z0b-lite + D-115 Knowledge Unit / Project Export Z0b-lite + D-116 Knowledge Export History / Replay Z0b-lite + D-118 Batch Actions Z0b-lite + 安全运维横切层 + 检查门映射单一来源 + 事件枚举单一来源 + P0-Z0a/ProcessingJob/sensitive grant 契约收紧
+版本：v0.31-draft
+日期：2026-05-18
+状态：P0 API 边界草案——完整上传/文件处理/File Inspection/切片前准备层/切片执行 profile/AI 结构化整理 profile/D-079 structuring summary 子字段/结构化整理检查门/知识切片质量闭环/AI/RAG API + D-080 知识调用 profile / implicit_agent / D-081 Z0a-Z2 持久化边界 / D-082 InvocationProfileSchema / D-083 前端状态与反馈策略 / D-085 Z0a 调用锚点、feedback 与 citation 边界修正 + D-098 页面到现有 API 组映射 + D-105 Citation Detail / Evidence Pack replay 实现边界 + D-106 Settings language 持久化边界 + D-107 Feedback Events / Memory Draft Review Z0b-lite + D-108 Feedback Diagnostics / Event Replay Z0b-lite + D-110 Feedback Diagnostics Export Z0b-lite + D-111 Feedback Diagnostics Advanced Filters / Export History Z0b-lite + D-112 Citation Detail Focus / Evidence Trace Interaction Z0b-lite + D-113 Citation Annotation / Evidence Compare Z0b-lite + D-114 Knowledge Space / Folder-Tag / Metadata Filters Z0b-lite + D-115 Knowledge Unit / Project Export Z0b-lite + D-116 Knowledge Export History / Replay Z0b-lite + D-118 Batch Actions Z0b-lite + D-119 Text-to-SQL Template / Structured Query Preview Z0b-lite + 安全运维横切层 + 检查门映射单一来源 + 事件枚举单一来源 + P0-Z0a/ProcessingJob/sensitive grant 契约收紧
 
 ## 1. 文档目的
 
@@ -116,7 +116,7 @@ D-098 不新增 endpoint，只规定 8 个 Renderer 内部页面如何消费既�
 | `/dashboard` | 首页 / 总览 Dashboard | `/api/system/runtime`、`/api/system/status`、`/api/ai-providers/capabilities`、Sources / Retrieval / AIAnswer summary 查询 | 最近导入、知识库概览、文档数量、AI 摘要数量、最近搜索/问答、provider/fallback summary |
 | `/import` | 资料导入 | `/api/uploads`、`/api/files`、`/api/jobs/{id}/events`、`/api/ai-providers/capabilities` | 上传进度、解析状态、格式能力状态、recoverable failure、P1/P2 导入入口 disabled reason |
 | `/library` | 知识库 / 文件管理 | `/api/projects`、`/api/folders`、`/api/tags`、`/api/sources`、`/api/files`、`/api/chunks`、`/api/knowledge-units`、`/api/review-tasks` | 分类树、文档列表、标签/时间/项目筛选、自动分类结果、文件状态 |
-| `/search` | 智能搜索 | `/api/retrieval/preview`、Evidence Pack / Citation 查询、`/api/feedback` | Query Explanation、Evidence Pack、Citation Trace、ranking summary、空结果/证据不足原因 |
+| `/search` | 智能搜索 | `/api/retrieval/preview`、`/api/text-to-sql/preview`、Evidence Pack / Citation 查询、`/api/feedback` | Query Explanation、Evidence Pack、Citation Trace、SQL Trace、ranking summary、空结果/证据不足原因 |
 | `/ask` | AI 问答 | Z0a 使用 `/api/retrieval/evidence-only`；Z2 再启用 `/api/rag/answers`、Evidence Pack / Citation 查询、`/api/feedback`、Memory Draft / KU from answer 可选回流 | evidence-only / provider answer、引用来源、相关文档卡片、追问状态、provider/fallback 状态 |
 | `/graph` | 知识图谱 / 关系网络 | `/api/relations`、Tags / Sources / KUs summary、Evidence / Citation summary | confirmed relation / relation suggestion evidence、节点点击回源、无关系 disabled reason |
 | `/outputs` | 生成结果 | `/api/rag/answers`、`/api/memory-drafts`、`/api/exports`、Review / Citation summary | 生成物绑定 Evidence/Citation、pending review、无 evidence 时 disabled reason |
@@ -1059,6 +1059,22 @@ D-104 Z0a 实现口径：
 - 排序使用 token overlap / metadata fallback；真实 reranker、provider-backed vector search 和 Text-to-SQL provider 后置。
 - sqlite-vec 不可用时返回 `provider_status=degraded` 与 `fallback_reason`，但 source/chunk/citation binding 不降级。
 - 无证据时返回 `evidence_pack.status=empty`、`failure_type=no_retrieval_result` 和 no evidence reason，不生成伪答案。
+
+D-119 Z0b-lite structured query preview 口径：
+
+```text
+POST /api/text-to-sql/preview
+```
+
+请求字段为 `query`、`project_id`、`folder_id`、`tag_ids`、`limit`；`project_id` 默认 `default-space`，`limit` 最大 50。P0 只实现规则模板，不接真实 Text-to-SQL provider，不开放 SQL 编辑器。
+
+Response 返回 `retrieval_log_id`、`template_id`、`intent`、`generated_sql`、`parameters`、`readonly=true`、`safety_status`、`columns`、`rows`、`row_count`、`query_explanation`、`provider_status=degraded` 和 `fallback_reason=text_to_sql_model_unavailable`。第一版模板只覆盖：
+
+- `confirmed_ku_lookup_v1`：只查询 confirmed KU、source、folder、tag 绑定。
+- `source_inventory_v1`：查询 source / file 组织与 chunk 摘要。
+- `evidence_history_v1`：查询 retrieval log / evidence pack / answer 复盘摘要。
+
+所有模板必须是参数化只读 `SELECT`，用户 query 只能作为参数或 intent 分类依据，不得拼接自由 SQL，不得访问 local token、SQLite path、app data path 或 provider secret。每次预览写入 `retrieval_logs.query_intent=structured_query_preview`。
 
 响应：
 

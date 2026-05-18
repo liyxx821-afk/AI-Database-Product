@@ -1,8 +1,8 @@
 # Text-to-SQL P0 查询契约
 
-版本：v0.4-draft  
-日期：2026-05-17  
-状态：P0 只读查询契约草案——已适配 SQLite 方言、修复 evidence_packs.project_id 关联，并按 D-081/D-085 区分 P0-Z0a retrieval_log 锚点与 P0-Z2 持久化调用对象
+版本：v0.5-draft
+日期：2026-05-18
+状态：P0 只读查询契约草案——已适配 SQLite 方言、修复 evidence_packs.project_id 关联，按 D-081/D-085 区分 P0-Z0a retrieval_log 锚点与 P0-Z2 持久化调用对象，并落地 D-119 规则模板版 structured query preview
 
 ## 1. 文档目的
 
@@ -647,7 +647,20 @@ POST /api/retrieval/preview
 → results + Query Explanation
 ```
 
-### 10.2 Invocation Evidence Pack
+### 10.2 Structured Query Preview
+
+```text
+POST /api/text-to-sql/preview
+→ query
+→ rule template intent classification
+→ parameterized SELECT
+→ RetrievalLog(query_intent=structured_query_preview)
+→ generated_sql + parameters + rows + safety explanation
+```
+
+D-119 只实现三类模板：confirmed KU lookup、source inventory、evidence history。所有模板都必须返回 `readonly=true`、`provider_status=degraded`、`fallback_reason=text_to_sql_model_unavailable`，并禁止访问 token、DB path、app data path、provider secret 或完整本地文件路径。
+
+### 10.3 Invocation Evidence Pack
 
 ```text
 POST /api/retrieval/preview
@@ -660,7 +673,7 @@ POST /api/retrieval/preview
 
 P0-Z2 启用持久化调用对象后，可扩展为 `POST /api/invocations → POST /api/invocations/{request_id}/retrieval-plan → POST /api/invocations/{request_id}/evidence-pack`。Z0a 不要求这些对象存在。
 
-### 10.3 Feedback / Memory Draft
+### 10.4 Feedback / Memory Draft
 
 ```text
 Evidence Pack

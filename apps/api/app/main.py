@@ -16,6 +16,7 @@ from app.api.routes import (
     settings,
     sources,
     system,
+    text_to_sql,
     uploads,
     z0a,
 )
@@ -60,6 +61,7 @@ def create_app() -> FastAPI:
     app.include_router(knowledge.router, prefix="/api")
     app.include_router(exports.router, prefix="/api")
     app.include_router(feedback_memory.router, prefix="/api")
+    app.include_router(text_to_sql.router, prefix="/api")
     app.include_router(z0a.router, prefix="/api")
 
     return app

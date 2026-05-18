@@ -1841,3 +1841,170 @@ def test_p0_parse_unsupported_and_blocked_files_are_recoverable(monkeypatch, tmp
         blocked = client.post(f"/api/files/{script_completed['file_id']}:parse", headers=headers)
         assert blocked.status_code == 409
         assert blocked.json()["error"]["code"] == "file_blocked_by_risk_policy"
+
+
+def test_text_to_sql_preview_templates_are_readonly_and_filtered(monkeypatch, tmp_path):
+    monkeypatch.setenv("KB_APP_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("KB_LOCAL_TOKEN", "test-token")
+    headers = {"x-kb-local-token": "test-token"}
+    json_headers = {"content-type": "application/json", **headers}
+
+    with TestClient(create_app()) as client:
+        unauthorized = client.post(
+            "/api/text-to-sql/preview",
+            json={"query": "D119 structured query"},
+        )
+        assert unauthorized.status_code == 401
+        assert unauthorized.json()["error"]["code"] == "sidecar_auth_failed"
+
+        folder = client.post(
+            "/api/folders",
+            headers=json_headers,
+            json={"project_id": "default-space", "name": "D119 SQL Folder"},
+        )
+        assert folder.status_code == 200
+        folder_id = folder.json()["id"]
+
+        tag = client.post(
+            "/api/tags",
+            headers=json_headers,
+            json={
+                "project_id": "default-space",
+                "name": "D119 SQL Tag",
+                "namespace": "topic",
+                "tag_type": "topic_tag",
+            },
+        )
+        assert tag.status_code == 200
+        tag_id = tag.json()["id"]
+
+        imported = client.post(
+            "/api/text-imports",
+            headers=json_headers,
+            json={
+                "title": "D119 Structured SQL Source",
+                "content": (
+                    "D119 structured SQL preview confirmed knowledge "
+                    "with safe readonly trace."
+                ),
+            },
+        )
+        assert imported.status_code == 200
+        source_id = imported.json()["source_id"]
+        ku_id = imported.json()["candidate_knowledge_unit_ids"][0]
+
+        organization = client.patch(
+            f"/api/sources/{source_id}/organization",
+            headers=json_headers,
+            json={"folder_id": folder_id, "tag_ids": [tag_id]},
+        )
+        assert organization.status_code == 200
+        assert ku_id in organization.json()["synced_knowledge_unit_ids"]
+
+        pending = client.post(
+            "/api/text-to-sql/preview",
+            headers=json_headers,
+            json={
+                "query": "D119 structured SQL preview",
+                "folder_id": folder_id,
+                "tag_ids": [tag_id],
+            },
+        )
+        assert pending.status_code == 200
+        assert pending.json()["template_id"] == "confirmed_ku_lookup_v1"
+        assert pending.json()["row_count"] == 0
+
+        confirmed = client.post(
+            f"/api/review-tasks/{imported.json()['review_task_ids'][0]}:confirm",
+            headers=headers,
+        )
+        assert confirmed.status_code == 200
+
+        ku_preview = client.post(
+            "/api/text-to-sql/preview",
+            headers=json_headers,
+            json={
+                "query": "D119 structured SQL preview",
+                "folder_id": folder_id,
+                "tag_ids": [tag_id],
+                "limit": 10,
+            },
+        )
+        assert ku_preview.status_code == 200
+        ku_body = ku_preview.json()
+        assert ku_body["readonly"] is True
+        assert ku_body["safety_status"] == "readonly_template"
+        assert ku_body["provider_status"] == "degraded"
+        assert ku_body["fallback_reason"] == "text_to_sql_model_unavailable"
+        assert ku_body["row_count"] == 1
+        assert ku_body["rows"][0]["knowledge_unit_id"] == ku_id
+        assert "SELECT" in ku_body["generated_sql"]
+        assert "DROP" not in ku_body["generated_sql"].upper()
+        assert ku_body["query_explanation"]["filters"]["folder_id"] == folder_id
+        assert ku_body["query_explanation"]["filters"]["tag_ids"] == [tag_id]
+
+        source_inventory = client.post(
+            "/api/text-to-sql/preview",
+            headers=json_headers,
+            json={
+                "query": "source inventory for D119",
+                "folder_id": folder_id,
+                "tag_ids": [tag_id],
+            },
+        )
+        assert source_inventory.status_code == 200
+        source_body = source_inventory.json()
+        assert source_body["template_id"] == "source_inventory_v1"
+        assert source_body["row_count"] == 1
+        assert source_body["rows"][0]["source_id"] == source_id
+        assert "storage_path" not in json.dumps(source_body)
+        assert "knowledgebase.sqlite" not in json.dumps(source_body)
+
+        retrieval = client.post(
+            "/api/retrieval/preview",
+            headers=json_headers,
+            json={"query": "D119 structured SQL preview"},
+        )
+        assert retrieval.status_code == 200
+        assert retrieval.json()["evidence_item_ids"]
+
+        evidence_history = client.post(
+            "/api/text-to-sql/preview",
+            headers=json_headers,
+            json={"query": "evidence history D119"},
+        )
+        assert evidence_history.status_code == 200
+        history_body = evidence_history.json()
+        assert history_body["template_id"] == "evidence_history_v1"
+        assert history_body["row_count"] >= 1
+        assert "retrieval_log_id" in history_body["columns"]
+
+        malicious = client.post(
+            "/api/text-to-sql/preview",
+            headers=json_headers,
+            json={"query": "DROP TABLE knowledge_units"},
+        )
+        assert malicious.status_code == 200
+        malicious_body = malicious.json()
+        assert malicious_body["readonly"] is True
+        assert "DROP TABLE" not in malicious_body["generated_sql"].upper()
+
+        still_available = client.get(
+            "/api/knowledge-units",
+            headers=headers,
+            params={"status": "confirmed"},
+        )
+        assert still_available.status_code == 200
+        assert any(ku["id"] == ku_id for ku in still_available.json())
+
+        with db() as conn:
+            log = conn.execute(
+                """
+                SELECT query_intent, filters_json
+                FROM retrieval_logs
+                WHERE id = ?
+                """,
+                (ku_body["retrieval_log_id"],),
+            ).fetchone()
+        assert log["query_intent"] == "structured_query_preview"
+        assert json.loads(log["filters_json"])["template_id"] == "confirmed_ku_lookup_v1"
