@@ -3,10 +3,11 @@ from __future__ import annotations
 import hashlib
 import uuid
 from datetime import datetime, timezone
-from typing import Dict, List
+from typing import Any, Dict, List
 
 from app.db.sqlite import db, json_dumps
-from app.services.embedding.fallback import ensure_mock_embedding
+
+P0_RULE_PROFILE = "p0_rule_text_import_v1"
 
 
 def now_iso() -> str:
@@ -40,15 +41,188 @@ def _chunk_text(content: str) -> List[str]:
     return chunks
 
 
+def create_source(
+    conn,
+    *,
+    title: str,
+    content: str,
+    project_id: str,
+    trace_id: str,
+    timestamp: str,
+) -> str:
+    source_id = new_id("source")
+    content_hash = hashlib.sha256(content.encode("utf-8")).hexdigest()
+    conn.execute(
+        """
+        INSERT INTO sources
+          (id, project_id, title, source_type, source_origin,
+           content_hash, metadata_json, created_at)
+        VALUES (?, ?, ?, 'text', 'text_import', ?, ?, ?)
+        """,
+        (
+            source_id,
+            project_id,
+            title,
+            content_hash,
+            json_dumps(
+                {
+                    "source_origin": "text_import",
+                    "trace_id": trace_id,
+                    "ingestion_profile": P0_RULE_PROFILE,
+                }
+            ),
+            timestamp,
+        ),
+    )
+    return source_id
+
+
+def create_chunks(
+    conn,
+    *,
+    source_id: str,
+    title: str,
+    content: str,
+    project_id: str,
+    trace_id: str,
+    timestamp: str,
+) -> List[dict[str, Any]]:
+    chunks: List[dict[str, Any]] = []
+    for index, chunk_content in enumerate(_chunk_text(content)):
+        chunk_id = new_id("chunk")
+        conn.execute(
+            """
+            INSERT INTO chunks
+              (id, source_id, project_id, content, chunk_index,
+               citation_label, metadata_json, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                chunk_id,
+                source_id,
+                project_id,
+                chunk_content,
+                index,
+                f"{title} - chunk {index + 1}",
+                json_dumps(
+                    {
+                        "trace_id": trace_id,
+                        "source_origin": "text_import",
+                        "ingestion_profile": P0_RULE_PROFILE,
+                    }
+                ),
+                timestamp,
+            ),
+        )
+        chunks.append(
+            {
+                "id": chunk_id,
+                "content": chunk_content,
+                "chunk_index": index,
+            }
+        )
+    return chunks
+
+
+def extract_knowledge_units(
+    conn,
+    *,
+    source_id: str,
+    chunks: List[dict[str, Any]],
+    title: str,
+    project_id: str,
+    trace_id: str,
+    timestamp: str,
+) -> List[dict[str, Any]]:
+    candidates: List[dict[str, Any]] = []
+    for chunk in chunks:
+        ku_id = new_id("ku")
+        chunk_index = int(chunk["chunk_index"])
+        ku_title = title if chunk_index == 0 else f"{title} #{chunk_index + 1}"
+        conn.execute(
+            """
+            INSERT INTO knowledge_units
+              (id, source_id, chunk_id, project_id, title, type, content, status,
+               user_verified, metadata_json, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, 'claim', ?, 'pending_review', 0, ?, ?, ?)
+            """,
+            (
+                ku_id,
+                source_id,
+                chunk["id"],
+                project_id,
+                ku_title,
+                chunk["content"],
+                json_dumps(
+                    {
+                        "trace_id": trace_id,
+                        "source_id": source_id,
+                        "chunk_id": chunk["id"],
+                        "source_origin": "text_import",
+                        "extraction_profile": P0_RULE_PROFILE,
+                        "extraction_method": "rule_based",
+                        "llm_used": False,
+                        "status": "pending_review",
+                    }
+                ),
+                timestamp,
+                timestamp,
+            ),
+        )
+        candidates.append(
+            {
+                "id": ku_id,
+                "title": ku_title,
+                "content": chunk["content"],
+                "chunk_id": chunk["id"],
+            }
+        )
+    return candidates
+
+
+def create_review_tasks(
+    conn,
+    *,
+    candidates: List[dict[str, Any]],
+    source_id: str,
+    trace_id: str,
+    timestamp: str,
+) -> List[str]:
+    review_task_ids: List[str] = []
+    for candidate in candidates:
+        review_task_id = new_id("review")
+        review_task_ids.append(review_task_id)
+        conn.execute(
+            """
+            INSERT INTO review_tasks
+              (id, target_type, target_id, status, payload_json, created_at, updated_at)
+            VALUES (?, 'knowledge_unit', ?, 'pending_review', ?, ?, ?)
+            """,
+            (
+                review_task_id,
+                candidate["id"],
+                json_dumps(
+                    {
+                        "title": candidate["title"],
+                        "content": candidate["content"],
+                        "source_id": source_id,
+                        "chunk_id": candidate["chunk_id"],
+                        "suggestion_type": "knowledge_unit",
+                        "review_reason": "p0_rule_text_import_candidate",
+                        "trace_id": trace_id,
+                    }
+                ),
+                timestamp,
+                timestamp,
+            ),
+        )
+    return review_task_ids
+
+
 def import_text(title: str, content: str, project_id: str = "default-space") -> Dict:
     job_id = new_id("job")
     trace_id = new_id("trace")
-    source_id = new_id("source")
     timestamp = now_iso()
-    content_hash = hashlib.sha256(content.encode("utf-8")).hexdigest()
-    chunk_ids: List[str] = []
-    ku_ids: List[str] = []
-    review_task_ids: List[str] = []
 
     with db() as conn:
         conn.execute(
@@ -67,21 +241,13 @@ def import_text(title: str, content: str, project_id: str = "default-space") -> 
         )
         _event(conn, job_id, 1, "job_created", "Text import job created.", {"trace_id": trace_id})
 
-        conn.execute(
-            """
-            INSERT INTO sources
-              (id, project_id, title, source_type, source_origin,
-               content_hash, metadata_json, created_at)
-            VALUES (?, ?, ?, 'text', 'text_import', ?, ?, ?)
-            """,
-            (
-                source_id,
-                project_id,
-                title,
-                content_hash,
-                json_dumps({"source_origin": "text_import", "trace_id": trace_id}),
-                timestamp,
-            ),
+        source_id = create_source(
+            conn,
+            title=title,
+            content=content,
+            project_id=project_id,
+            trace_id=trace_id,
+            timestamp=timestamp,
         )
         _event(
             conn,
@@ -92,120 +258,75 @@ def import_text(title: str, content: str, project_id: str = "default-space") -> 
             {"source_id": source_id},
         )
 
-        for index, chunk_content in enumerate(_chunk_text(content)):
-            chunk_id = new_id("chunk")
-            citation_label = f"{title} · chunk {index + 1}"
-            chunk_ids.append(chunk_id)
-            conn.execute(
-                """
-                INSERT INTO chunks
-                  (id, source_id, project_id, content, chunk_index,
-                   citation_label, metadata_json, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    chunk_id,
-                    source_id,
-                    project_id,
-                    chunk_content,
-                    index,
-                    citation_label,
-                    json_dumps({"trace_id": trace_id, "source_origin": "text_import"}),
-                    timestamp,
-                ),
-            )
-
-            ku_id = new_id("ku")
-            ku_ids.append(ku_id)
-            ku_title = title if index == 0 else f"{title} #{index + 1}"
-            conn.execute(
-                """
-                INSERT INTO knowledge_units
-                  (id, source_id, chunk_id, project_id, title, type, content, status,
-                   user_verified, metadata_json, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, 'claim', ?, 'pending_review', 0, ?, ?, ?)
-                """,
-                (
-                    ku_id,
-                    source_id,
-                    chunk_id,
-                    project_id,
-                    ku_title,
-                    chunk_content,
-                    json_dumps(
-                        {
-                            "trace_id": trace_id,
-                            "extraction_profile": "rule_text_import_v0",
-                            "ai_confidence": 0.42,
-                        }
-                    ),
-                    timestamp,
-                    timestamp,
-                ),
-            )
-
-            review_task_id = new_id("review")
-            review_task_ids.append(review_task_id)
-            conn.execute(
-                """
-                INSERT INTO review_tasks
-                  (id, target_type, target_id, status, payload_json, created_at, updated_at)
-                VALUES (?, 'knowledge_unit', ?, 'pending_review', ?, ?, ?)
-                """,
-                (
-                    review_task_id,
-                    ku_id,
-                    json_dumps(
-                        {
-                            "title": ku_title,
-                            "content": chunk_content,
-                            "source_id": source_id,
-                            "chunk_id": chunk_id,
-                            "review_reason": "rule_extracted_candidate",
-                        }
-                    ),
-                    timestamp,
-                    timestamp,
-                ),
-            )
-
-            ensure_mock_embedding(
-                conn,
-                owner_type="knowledge_unit",
-                owner_id=ku_id,
-                text=f"{ku_title}\n\n{chunk_content}",
-                timestamp=timestamp,
-            )
-            conn.execute(
-                """
-                INSERT INTO chunks_fts (content, chunk_id, source_id, knowledge_unit_id)
-                VALUES (?, ?, ?, ?)
-                """,
-                (chunk_content, chunk_id, source_id, ku_id),
-            )
-
+        chunks = create_chunks(
+            conn,
+            source_id=source_id,
+            title=title,
+            content=content,
+            project_id=project_id,
+            trace_id=trace_id,
+            timestamp=timestamp,
+        )
+        chunk_ids = [chunk["id"] for chunk in chunks]
         _event(
             conn,
             job_id,
             3,
+            "chunks_created",
+            "Chunk records created.",
+            {"chunk_ids": chunk_ids},
+        )
+
+        candidates = extract_knowledge_units(
+            conn,
+            source_id=source_id,
+            chunks=chunks,
+            title=title,
+            project_id=project_id,
+            trace_id=trace_id,
+            timestamp=timestamp,
+        )
+        ku_ids = [candidate["id"] for candidate in candidates]
+        _event(
+            conn,
+            job_id,
+            4,
             "candidate_knowledge_units_created",
             "Candidate knowledge units created.",
             {"candidate_knowledge_unit_ids": ku_ids},
         )
+
+        review_task_ids = create_review_tasks(
+            conn,
+            candidates=candidates,
+            source_id=source_id,
+            trace_id=trace_id,
+            timestamp=timestamp,
+        )
+        _event(
+            conn,
+            job_id,
+            5,
+            "review_tasks_created",
+            "Pending review tasks created.",
+            {"review_task_ids": review_task_ids},
+        )
+
         result = {
             "source_id": source_id,
             "chunk_ids": chunk_ids,
             "candidate_knowledge_unit_ids": ku_ids,
             "review_task_ids": review_task_ids,
         }
+        completed_at = now_iso()
         conn.execute(
             """
             UPDATE processing_jobs
             SET status = 'completed', result_json = ?, updated_at = ?
             WHERE id = ?
             """,
-            (json_dumps(result), now_iso(), job_id),
+            (json_dumps(result), completed_at, job_id),
         )
-        _event(conn, job_id, 4, "job_completed", "Text import job completed.", result)
+        _event(conn, job_id, 6, "job_completed", "Text import job completed.", result)
 
     return {"job_id": job_id, **result}
