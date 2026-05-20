@@ -106,6 +106,7 @@ export type ApiSchemas = {
   "knowledge_unit_status"?: string | null;
   "knowledge_unit_type"?: string | null;
   "chunk_citation_label"?: string | null;
+  "chunk_content"?: string;
   "chunk_content_excerpt"?: string;
   "source_title"?: string | null;
   "source_origin"?: string | null;
@@ -876,6 +877,7 @@ export type EvidenceItemRecord = {
   "knowledge_unit_status"?: string | null;
   "knowledge_unit_type"?: string | null;
   "chunk_citation_label"?: string | null;
+  "chunk_content"?: string;
   "chunk_content_excerpt"?: string;
   "source_title"?: string | null;
   "source_origin"?: string | null;

@@ -347,6 +347,7 @@ def _build_evidence_pack_response(
                 "knowledge_unit_status": item["knowledge_unit_status"],
                 "knowledge_unit_type": item["knowledge_unit_type"],
                 "chunk_citation_label": item["chunk_citation_label"],
+                "chunk_content": item["chunk_content"] or "",
                 "chunk_content_excerpt": (item["chunk_content"] or "")[:360],
                 "source_title": item["source_title"],
                 "source_origin": item["source_origin"],

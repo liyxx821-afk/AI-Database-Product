@@ -3331,6 +3331,7 @@ function EvidenceItemsPanel({
               </div>
               <StatusPill label="score" value={item.rank_score.toFixed(2)} />
               <StatusPill label="ku" value={item.knowledge_unit_id ?? "none"} />
+              <StatusPill label="source" value={item.source_title ?? item.source_id ?? "none"} />
               <button
                 className="icon-command"
                 type="button"
@@ -3342,7 +3343,7 @@ function EvidenceItemsPanel({
               </button>
               <div className="row-note evidence-excerpt">
                 <FileText aria-hidden="true" size={15} />
-                <span>{item.excerpt}</span>
+                <span>{item.chunk_content || item.chunk_content_excerpt || item.excerpt}</span>
               </div>
             </div>
           ))
@@ -3433,6 +3434,7 @@ function CitationDetailPanel({
         item.source_title,
         item.source_origin,
         item.excerpt,
+        item.chunk_content,
         item.chunk_content_excerpt
       ]
         .filter(Boolean)
@@ -3999,7 +4001,7 @@ function CitationDetailPanel({
                   </div>
                   <div className="row-note evidence-excerpt">
                     <FileText aria-hidden="true" size={15} />
-                    <span>{item.chunk_content_excerpt || item.excerpt}</span>
+                    <span>{item.chunk_content || item.chunk_content_excerpt || item.excerpt}</span>
                   </div>
                 </div>
               ))
