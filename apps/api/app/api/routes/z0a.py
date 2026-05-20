@@ -232,7 +232,7 @@ def ignore_review_task(task_id: str) -> dict:
             (timestamp, task_id),
         )
         conn.execute(
-            "UPDATE knowledge_units SET status = 'archived', updated_at = ? WHERE id = ?",
+            "UPDATE knowledge_units SET status = 'ignored', updated_at = ? WHERE id = ?",
             (timestamp, task["target_id"]),
         )
     return {"review_task_id": task_id, "target_id": task["target_id"], "status": "ignored"}
