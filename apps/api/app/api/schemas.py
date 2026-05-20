@@ -771,6 +771,7 @@ class EvidenceItemRecord(BaseModel):
     knowledge_unit_status: Optional[str] = None
     knowledge_unit_type: Optional[str] = None
     chunk_citation_label: Optional[str] = None
+    chunk_content: str = ""
     chunk_content_excerpt: str = ""
     source_title: Optional[str] = None
     source_origin: Optional[str] = None

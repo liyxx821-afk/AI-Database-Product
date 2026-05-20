@@ -3944,6 +3944,11 @@
             ],
             "title": "Chunk Citation Label"
           },
+          "chunk_content": {
+            "type": "string",
+            "title": "Chunk Content",
+            "default": ""
+          },
           "chunk_content_excerpt": {
             "type": "string",
             "title": "Chunk Content Excerpt",
