@@ -1,6 +1,9 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Request
+from collections.abc import Callable
+from typing import Any
+
+from fastapi import APIRouter, HTTPException, Request
 
 from app.api.schemas import (
     FileRecord,
@@ -10,15 +13,31 @@ from app.api.schemas import (
     UploadSnapshot,
 )
 from app.services.parsing.file_parser import parse_file
-from app.services.uploads.file_upload import (
-    complete_upload,
-    create_upload_task,
-    get_file_record,
-    get_upload_snapshot,
-    list_files,
-    store_upload_part,
-    verify_file,
-)
+
+try:
+    from app.services.uploads.file_upload import (
+        complete_upload,
+        create_upload_task,
+        get_file_record,
+        get_upload_snapshot,
+        list_files,
+        store_upload_part,
+        verify_file,
+    )
+except ModuleNotFoundError as exc:
+    if exc.name not in {"app.services.uploads", "app.services.uploads.file_upload"}:
+        raise
+
+    def _uploads_unavailable(*_args: Any, **_kwargs: Any) -> None:
+        raise HTTPException(status_code=503, detail="Upload service is unavailable in this build.")
+
+    complete_upload: Callable[..., Any] = _uploads_unavailable
+    create_upload_task: Callable[..., Any] = _uploads_unavailable
+    get_file_record: Callable[..., Any] = _uploads_unavailable
+    get_upload_snapshot: Callable[..., Any] = _uploads_unavailable
+    list_files: Callable[..., Any] = _uploads_unavailable
+    store_upload_part: Callable[..., Any] = _uploads_unavailable
+    verify_file: Callable[..., Any] = _uploads_unavailable
 
 router = APIRouter()
 
