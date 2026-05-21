@@ -118,10 +118,42 @@ type UploadQueueItem = {
 };
 
 type DemoChunk = {
-  id: number;
+  chunkId: string;
+  sourceId: string;
   content: string;
   charCount: number;
 };
+
+type DemoCandidateKnowledgeUnit = {
+  id: string;
+  chunkId: string;
+  title: string;
+  summary: string;
+  keywords: string[];
+  tags: string[];
+};
+
+type DemoIngestionResult = {
+  fileName: string;
+  source: {
+    sourceId: string;
+    sourceType: string;
+    status: string;
+  };
+  metadata: {
+    uploadedAt: string;
+    rawLength: number;
+    cleanedLength: number;
+    chunkCount: number;
+    candidateKnowledgeUnitCount: number;
+  };
+  rawText: string;
+  cleanedText: string;
+  chunks: DemoChunk[];
+  candidateKnowledgeUnits: DemoCandidateKnowledgeUnit[];
+};
+
+type DemoProcessingStatus = "idle" | "processing" | "completed";
 
 type FeedbackFilterValue = FeedbackRequest["feedback_type"] | "all";
 type FeedbackTargetFilterValue = "evidence_pack" | "ai_answer" | "evidence_item" | "all";
@@ -348,16 +380,40 @@ function RoutePanel({ path }: { path: RouteKey }) {
 
 function DemoIngestionPage() {
   const [inputText, setInputText] = useState("");
-  const [processedText, setProcessedText] = useState("");
-  const [chunks, setChunks] = useState<DemoChunk[]>([]);
+  const [processingStatus, setProcessingStatus] = useState<DemoProcessingStatus>("idle");
+  const [result, setResult] = useState<DemoIngestionResult | null>(null);
 
   const inputCharCount = countTextChars(inputText);
-  const processedCharCount = countTextChars(processedText);
 
   function processText() {
-    const normalized = inputText.trim();
-    setProcessedText(normalized);
-    setChunks(splitTextIntoDemoChunks(normalized));
+    const rawText = inputText;
+    setProcessingStatus("processing");
+    window.setTimeout(() => {
+      const cleanedText = cleanDemoText(rawText);
+      const sourceId = createDemoId("src");
+      const chunks = splitTextIntoDemoChunks(cleanedText, sourceId);
+      const candidateKnowledgeUnits = chunks.map(createDemoCandidateKnowledgeUnit);
+      setResult({
+        fileName: createDemoFileName(),
+        source: {
+          sourceId,
+          sourceType: "browser_text_input",
+          status: "parsed"
+        },
+        metadata: {
+          uploadedAt: new Date().toLocaleString(),
+          rawLength: countTextChars(rawText),
+          cleanedLength: countTextChars(cleanedText),
+          chunkCount: chunks.length,
+          candidateKnowledgeUnitCount: candidateKnowledgeUnits.length
+        },
+        rawText,
+        cleanedText,
+        chunks,
+        candidateKnowledgeUnits
+      });
+      setProcessingStatus("completed");
+    }, 80);
   }
 
   return (
@@ -365,10 +421,10 @@ function DemoIngestionPage() {
       <section className="page-frame">
         <div className="section-title-row">
           <h2>知识入库预处理 Demo</h2>
-          <StateChip state={chunks.length ? "done" : "empty"} />
+          <StateChip state={processingStatus === "completed" ? "done" : processingStatus === "processing" ? "loading" : "empty"} />
         </div>
         <p className="section-note">
-          这个 Demo 只在浏览器内存中把文本切成 chunk，不连接数据库，不解析文件，不生成知识结构。
+          这个 Demo 只在浏览器内存中完成文本清洗、chunk 切分和候选知识单元模拟生成，不连接数据库，不做文件解析，不生成 RAG。
         </p>
         <div className="demo-ingestion-form">
           <label className="memory-label demo-input-label">
@@ -381,8 +437,14 @@ function DemoIngestionPage() {
             />
           </label>
           <div className="inline-actions">
+            <StatusPill label="处理状态" value={formatDemoStatus(processingStatus)} />
             <StatusPill label="当前字数" value={String(inputCharCount)} />
-            <button className="icon-command" type="button" disabled={!inputText.trim()} onClick={processText}>
+            <button
+              className="icon-command"
+              type="button"
+              disabled={!inputText.trim() || processingStatus === "processing"}
+              onClick={processText}
+            >
               <FileText aria-hidden="true" size={16} />
               <span>开始处理</span>
             </button>
@@ -391,18 +453,58 @@ function DemoIngestionPage() {
       </section>
 
       <div className="metric-row">
-        <Metric label="原文字数" value={processedCharCount} />
-        <Metric label="Chunk 数量" value={chunks.length} />
+        <Metric label="原文字数" value={result?.metadata.rawLength ?? 0} />
+        <Metric label="清洗后字数" value={result?.metadata.cleanedLength ?? 0} />
+        <Metric label="Chunk 数量" value={result?.metadata.chunkCount ?? 0} />
+        <Metric label="候选 KU 数量" value={result?.metadata.candidateKnowledgeUnitCount ?? 0} />
       </div>
 
       <section className="page-frame">
         <div className="section-title-row">
-          <h2>原始输入文本</h2>
+          <h2>文件与 Source 信息</h2>
         </div>
-        {processedText ? (
-          <pre className="demo-original-text">{processedText}</pre>
+        {result ? (
+          <div className="demo-info-grid">
+            <article className="panel">
+              <h3>文件名</h3>
+              <p>{result.fileName}</p>
+            </article>
+            <article className="panel">
+              <h3>Source</h3>
+              <p>{result.source.sourceId}</p>
+              <p>{result.source.sourceType} / {result.source.status}</p>
+            </article>
+            <article className="panel">
+              <h3>基础 metadata</h3>
+              <p>上传时间：{result.metadata.uploadedAt}</p>
+              <p>文本长度：{result.metadata.rawLength} 字</p>
+              <p>清洗后长度：{result.metadata.cleanedLength} 字</p>
+            </article>
+          </div>
+        ) : (
+          <EmptyState message="尚未生成 Source 信息。" />
+        )}
+      </section>
+
+      <section className="page-frame">
+        <div className="section-title-row">
+          <h2>解析文本（原始输入）</h2>
+        </div>
+        {result?.rawText ? (
+          <pre className="demo-original-text">{result.rawText}</pre>
         ) : (
           <EmptyState message="尚未处理文本。" />
+        )}
+      </section>
+
+      <section className="page-frame">
+        <div className="section-title-row">
+          <h2>清洗文本</h2>
+        </div>
+        {result?.cleanedText ? (
+          <pre className="demo-original-text">{result.cleanedText}</pre>
+        ) : (
+          <EmptyState message="尚未生成清洗文本。" />
         )}
       </section>
 
@@ -411,12 +513,15 @@ function DemoIngestionPage() {
           <h2>Chunk 列表</h2>
         </div>
         <div className="file-table">
-          {chunks.length ? (
-            chunks.map((chunk) => (
-              <article className="demo-chunk-row" key={chunk.id}>
+          {result?.chunks.length ? (
+            result.chunks.map((chunk) => (
+              <article className="demo-chunk-row" key={chunk.chunkId}>
                 <div className="section-title-row compact-title-row">
-                  <h3>Chunk {chunk.id}</h3>
-                  <StatusPill label="字数" value={String(chunk.charCount)} />
+                  <h3>{chunk.chunkId}</h3>
+                  <div className="inline-actions">
+                    <StatusPill label="source_id" value={chunk.sourceId} />
+                    <StatusPill label="字数" value={String(chunk.charCount)} />
+                  </div>
                 </div>
                 <p>{chunk.content}</p>
               </article>
@@ -426,53 +531,135 @@ function DemoIngestionPage() {
           )}
         </div>
       </section>
+
+      <section className="page-frame">
+        <div className="section-title-row">
+          <h2>候选知识单元</h2>
+        </div>
+        <div className="file-table">
+          {result?.candidateKnowledgeUnits.length ? (
+            result.candidateKnowledgeUnits.map((unit) => (
+              <article className="demo-chunk-row" key={unit.id}>
+                <div className="section-title-row compact-title-row">
+                  <h3>{unit.title}</h3>
+                  <StatusPill label="来自 chunk" value={unit.chunkId} />
+                </div>
+                <p>{unit.summary}</p>
+                <div className="tag-select-row">
+                  {unit.keywords.map((keyword) => (
+                    <span className="mini-badge" key={`${unit.id}-${keyword}`}>
+                      关键词：{keyword}
+                    </span>
+                  ))}
+                  {unit.tags.map((tag) => (
+                    <span className="mini-badge" key={`${unit.id}-${tag}`}>
+                      #{tag}
+                    </span>
+                  ))}
+                </div>
+              </article>
+            ))
+          ) : (
+            <EmptyState message="点击“开始处理”后，这里会显示模拟生成的候选知识单元。" />
+          )}
+        </div>
+      </section>
     </section>
   );
 }
 
-function splitTextIntoDemoChunks(text: string): DemoChunk[] {
+function cleanDemoText(text: string) {
+  return text
+    .replace(/\r\n/g, "\n")
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "")
+    .replace(/[�]+/g, "")
+    .replace(/锟斤拷/g, "")
+    .replace(/[ \t]+/g, " ")
+    .replace(/ *\n */g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function splitTextIntoDemoChunks(text: string, sourceId: string): DemoChunk[] {
   if (!text.trim()) return [];
-  const maxChunkChars = 120;
-  const normalized = text.replace(/\r\n/g, "\n").replace(/[ \t]+/g, " ");
-  const sentenceLikeSegments = normalized
-    .split(/\n{2,}/)
-    .flatMap((paragraph) => paragraph.match(/[^。！？!?；;.!?]+[。！？!?；;.!?]?/g) ?? [paragraph])
-    .map((segment) => segment.trim())
-    .filter(Boolean);
-  const chunks: string[] = [];
-  let current = "";
+  const maxChunkChars = 400;
+  const overlapChars = 50;
+  const chars = Array.from(text);
+  const chunks: DemoChunk[] = [];
+  let start = 0;
+  let index = 1;
 
-  function pushCurrent() {
-    if (current.trim()) chunks.push(current.trim());
-    current = "";
+  while (start < chars.length) {
+    const end = Math.min(start + maxChunkChars, chars.length);
+    const content = chars.slice(start, end).join("").trim();
+    if (content) {
+      chunks.push({
+        chunkId: `${sourceId}-chunk-${String(index).padStart(3, "0")}`,
+        sourceId,
+        content,
+        charCount: countTextChars(content)
+      });
+      index += 1;
+    }
+    if (end >= chars.length) break;
+    start = Math.max(end - overlapChars, start + 1);
   }
 
-  for (const segment of sentenceLikeSegments) {
-    if (countTextChars(segment) > maxChunkChars) {
-      pushCurrent();
-      const chars = Array.from(segment);
-      for (let index = 0; index < chars.length; index += maxChunkChars) {
-        chunks.push(chars.slice(index, index + maxChunkChars).join("").trim());
-      }
-      continue;
-    }
+  return chunks;
+}
 
-    const next = current ? `${current} ${segment}` : segment;
-    if (current && countTextChars(next) > maxChunkChars) {
-      pushCurrent();
-      current = segment;
-    } else {
-      current = next;
-    }
-  }
+function createDemoCandidateKnowledgeUnit(chunk: DemoChunk, index: number): DemoCandidateKnowledgeUnit {
+  const keywords = extractDemoKeywords(chunk.content);
+  const titleSeed = chunk.content.replace(/\n/g, " ").slice(0, 32).trim();
+  return {
+    id: `${chunk.sourceId}-candidate-ku-${String(index + 1).padStart(3, "0")}`,
+    chunkId: chunk.chunkId,
+    title: titleSeed ? `候选 KU：${titleSeed}` : `候选 KU ${index + 1}`,
+    summary: createDemoSummary(chunk.content),
+    keywords,
+    tags: createDemoTags(keywords)
+  };
+}
 
-  pushCurrent();
+function extractDemoKeywords(text: string) {
+  const normalized = text.replace(/[，。！？；：,.!?;:()[\]{}"'“”‘’]/g, " ");
+  const tokens = normalized
+    .split(/\s+/)
+    .map((token) => token.trim())
+    .filter((token) => countTextChars(token) >= 2);
+  const fallback = Array.from(new Set(Array.from(text.matchAll(/[\u4e00-\u9fa5]{2,6}/g)).map((match) => match[0])));
+  return Array.from(new Set([...tokens, ...fallback])).slice(0, 5);
+}
 
-  return chunks.map((content, index) => ({
-    id: index + 1,
-    content,
-    charCount: countTextChars(content)
-  }));
+function createDemoTags(keywords: string[]) {
+  return Array.from(new Set(["demo1", "入库预处理", "candidate-ku", ...keywords.slice(0, 2)])).slice(0, 5);
+}
+
+function createDemoSummary(text: string) {
+  const normalized = text.replace(/\s+/g, " ").trim();
+  return normalized.length > 96 ? `${normalized.slice(0, 96)}...` : normalized || "暂无摘要";
+}
+
+function createDemoFileName() {
+  const now = new Date();
+  const stamp = [
+    now.getFullYear(),
+    String(now.getMonth() + 1).padStart(2, "0"),
+    String(now.getDate()).padStart(2, "0"),
+    String(now.getHours()).padStart(2, "0"),
+    String(now.getMinutes()).padStart(2, "0")
+  ].join("");
+  return `demo1-text-input-${stamp}.txt`;
+}
+
+function createDemoId(prefix: string) {
+  return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function formatDemoStatus(status: DemoProcessingStatus) {
+  if (status === "processing") return "处理中";
+  if (status === "completed") return "完成";
+  return "等待输入";
 }
 
 function countTextChars(text: string) {

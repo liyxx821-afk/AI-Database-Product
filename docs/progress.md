@@ -2,6 +2,15 @@
 
 ## 2026-05-22：Demo 1 知识入库预处理页面
 
+### 增量升级
+
+- `/demo1-ingestion` 已从简单 chunk 展示升级为浏览器端预处理 Demo。
+- 新增文本清洗：去首尾空格、合并多余空行、合并连续空格、去掉明显乱码字符。
+- Chunk 切分改为 400 字窗口、50 字重叠，并为每个 chunk 生成 `chunk_id` 和 `source_id`。
+- 新增模拟 Candidate KU：标题、摘要、关键词、标签。
+- 页面新增文件名、Source 信息、基础 metadata、解析文本、清洗文本、chunk 列表、候选知识单元和处理状态。
+- 新增 `docs/demo1-ingestion-page.md` 记录分支、路径、运行命令、测试方式、功能说明、限制和验收方式。
+
 ### 已实现
 
 - 已从 `main` 新建并切换到 `demo1-ingestion-page` 分支。

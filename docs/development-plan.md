@@ -2,6 +2,13 @@
 
 ## 2026-05-22：Demo 1 知识入库预处理页面
 
+### 增量升级
+
+- 在 `demo1-ingestion-page` 分支继续升级 `/demo1-ingestion`，保留已有可视化页面和文本输入框。
+- 扩展浏览器端处理链路：文本清洗、400 字 chunk、50 字重叠、`source_id` / `chunk_id`、模拟 Candidate KU。
+- 页面新增文件名、Source 信息、基础 metadata、解析文本、清洗文本、chunk 列表、候选知识单元和处理状态展示。
+- 补充 `docs/demo1-ingestion-page.md`，记录运行命令、测试方式、功能说明、当前限制和验收方式。
+
 ### 目标
 
 - 在新分支 `demo1-ingestion-page` 中新增一个最小网页 Demo，用来展示“文本输入 -> chunk 切分 -> 结果展示”的入库预处理概念。

@@ -653,6 +653,16 @@ button {
   gap: 12px;
 }
 
+.demo-info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.demo-info-grid .panel {
+  min-height: 126px;
+}
+
 .demo-input-label {
   display: grid;
   align-items: stretch;
@@ -687,6 +697,10 @@ button {
   display: grid;
   gap: 8px;
   padding: 14px;
+}
+
+.demo-chunk-row .status-pill {
+  min-width: 0;
 }
 
 .demo-chunk-row p {
