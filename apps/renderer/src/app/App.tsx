@@ -91,6 +91,7 @@ import type { UiState } from "../types/uiState";
 
 type RouteKey =
   | "/dashboard"
+  | "/demo1-ingestion"
   | "/import"
   | "/library"
   | "/search"
@@ -116,6 +117,12 @@ type UploadQueueItem = {
   fileId?: string | null;
 };
 
+type DemoChunk = {
+  id: number;
+  content: string;
+  charCount: number;
+};
+
 type FeedbackFilterValue = FeedbackRequest["feedback_type"] | "all";
 type FeedbackTargetFilterValue = "evidence_pack" | "ai_answer" | "evidence_item" | "all";
 type FeedbackRankingEffectFilterValue = FeedbackRankingEffect | "all";
@@ -123,6 +130,12 @@ type FeedbackCommentFilterValue = "all" | "with_comment" | "without_comment";
 
 const routes: RouteConfig[] = [
   { path: "/dashboard", labelKey: "route.dashboard", icon: Gauge, summaryKey: "route.dashboard.summary" },
+  {
+    path: "/demo1-ingestion",
+    labelKey: "route.demo1Ingestion",
+    icon: FileText,
+    summaryKey: "route.demo1Ingestion.summary"
+  },
   { path: "/import", labelKey: "route.import", icon: Upload, summaryKey: "route.import.summary" },
   { path: "/library", labelKey: "route.library", icon: Archive, summaryKey: "route.library.summary" },
   { path: "/search", labelKey: "route.search", icon: Search, summaryKey: "route.search.summary" },
@@ -314,6 +327,8 @@ function RoutePanel({ path }: { path: RouteKey }) {
   switch (path) {
     case "/dashboard":
       return <DashboardPage />;
+    case "/demo1-ingestion":
+      return <DemoIngestionPage />;
     case "/import":
       return <ImportPage />;
     case "/library":
@@ -329,6 +344,139 @@ function RoutePanel({ path }: { path: RouteKey }) {
     case "/settings":
       return <SettingsPage />;
   }
+}
+
+function DemoIngestionPage() {
+  const [inputText, setInputText] = useState("");
+  const [processedText, setProcessedText] = useState("");
+  const [chunks, setChunks] = useState<DemoChunk[]>([]);
+
+  const inputCharCount = countTextChars(inputText);
+  const processedCharCount = countTextChars(processedText);
+
+  function processText() {
+    const normalized = inputText.trim();
+    setProcessedText(normalized);
+    setChunks(splitTextIntoDemoChunks(normalized));
+  }
+
+  return (
+    <section className="page-grid">
+      <section className="page-frame">
+        <div className="section-title-row">
+          <h2>知识入库预处理 Demo</h2>
+          <StateChip state={chunks.length ? "done" : "empty"} />
+        </div>
+        <p className="section-note">
+          这个 Demo 只在浏览器内存中把文本切成 chunk，不连接数据库，不解析文件，不生成知识结构。
+        </p>
+        <div className="demo-ingestion-form">
+          <label className="memory-label demo-input-label">
+            <span>输入文本</span>
+            <textarea
+              className="memory-textarea demo-textarea"
+              value={inputText}
+              placeholder="粘贴一段笔记、对话或研究摘录，然后点击开始处理。"
+              onChange={(event) => setInputText(event.target.value)}
+            />
+          </label>
+          <div className="inline-actions">
+            <StatusPill label="当前字数" value={String(inputCharCount)} />
+            <button className="icon-command" type="button" disabled={!inputText.trim()} onClick={processText}>
+              <FileText aria-hidden="true" size={16} />
+              <span>开始处理</span>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <div className="metric-row">
+        <Metric label="原文字数" value={processedCharCount} />
+        <Metric label="Chunk 数量" value={chunks.length} />
+      </div>
+
+      <section className="page-frame">
+        <div className="section-title-row">
+          <h2>原始输入文本</h2>
+        </div>
+        {processedText ? (
+          <pre className="demo-original-text">{processedText}</pre>
+        ) : (
+          <EmptyState message="尚未处理文本。" />
+        )}
+      </section>
+
+      <section className="page-frame">
+        <div className="section-title-row">
+          <h2>Chunk 列表</h2>
+        </div>
+        <div className="file-table">
+          {chunks.length ? (
+            chunks.map((chunk) => (
+              <article className="demo-chunk-row" key={chunk.id}>
+                <div className="section-title-row compact-title-row">
+                  <h3>Chunk {chunk.id}</h3>
+                  <StatusPill label="字数" value={String(chunk.charCount)} />
+                </div>
+                <p>{chunk.content}</p>
+              </article>
+            ))
+          ) : (
+            <EmptyState message="点击“开始处理”后，这里会显示切分结果。" />
+          )}
+        </div>
+      </section>
+    </section>
+  );
+}
+
+function splitTextIntoDemoChunks(text: string): DemoChunk[] {
+  if (!text.trim()) return [];
+  const maxChunkChars = 120;
+  const normalized = text.replace(/\r\n/g, "\n").replace(/[ \t]+/g, " ");
+  const sentenceLikeSegments = normalized
+    .split(/\n{2,}/)
+    .flatMap((paragraph) => paragraph.match(/[^。！？!?；;.!?]+[。！？!?；;.!?]?/g) ?? [paragraph])
+    .map((segment) => segment.trim())
+    .filter(Boolean);
+  const chunks: string[] = [];
+  let current = "";
+
+  function pushCurrent() {
+    if (current.trim()) chunks.push(current.trim());
+    current = "";
+  }
+
+  for (const segment of sentenceLikeSegments) {
+    if (countTextChars(segment) > maxChunkChars) {
+      pushCurrent();
+      const chars = Array.from(segment);
+      for (let index = 0; index < chars.length; index += maxChunkChars) {
+        chunks.push(chars.slice(index, index + maxChunkChars).join("").trim());
+      }
+      continue;
+    }
+
+    const next = current ? `${current} ${segment}` : segment;
+    if (current && countTextChars(next) > maxChunkChars) {
+      pushCurrent();
+      current = segment;
+    } else {
+      current = next;
+    }
+  }
+
+  pushCurrent();
+
+  return chunks.map((content, index) => ({
+    id: index + 1,
+    content,
+    charCount: countTextChars(content)
+  }));
+}
+
+function countTextChars(text: string) {
+  return Array.from(text.replace(/\s/g, "")).length;
 }
 
 function GraphPage() {

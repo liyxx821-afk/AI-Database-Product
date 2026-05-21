@@ -648,6 +648,54 @@ button {
   line-height: 1.55;
 }
 
+.demo-ingestion-form {
+  display: grid;
+  gap: 12px;
+}
+
+.demo-input-label {
+  display: grid;
+  align-items: stretch;
+}
+
+.demo-input-label > span {
+  flex-basis: auto;
+}
+
+.demo-textarea {
+  min-height: 180px;
+}
+
+.demo-original-text,
+.demo-chunk-row {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.demo-original-text {
+  margin: 0;
+  min-height: 120px;
+  padding: 14px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: inherit;
+  line-height: 1.6;
+}
+
+.demo-chunk-row {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+}
+
+.demo-chunk-row p {
+  margin: 0;
+  color: var(--text);
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
 .answer-box {
   min-height: 128px;
   border: 1px solid var(--border);

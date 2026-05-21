@@ -1,5 +1,25 @@
 # 进度记录
 
+## 2026-05-22：Demo 1 知识入库预处理页面
+
+### 已实现
+
+- 已从 `main` 新建并切换到 `demo1-ingestion-page` 分支。
+- Renderer 新增 `/demo1-ingestion` 页面入口。
+- 页面支持输入文本、点击“开始处理”、按段落/句子边界和约 120 字上限切分 chunk。
+- 页面展示原始输入文本、chunk 列表、每个 chunk 的编号和字数。
+- 本 Demo 仅使用浏览器内存状态，不连接数据库，不修改原有数据，不做文件解析、知识结构化或 RAG 问答。
+
+### 验证
+
+- `pnpm --filter @knowledgebase-dev/renderer typecheck` 未能执行：当前 PowerShell 找不到 `pnpm`。
+- `corepack pnpm --filter @knowledgebase-dev/renderer typecheck` 未能执行：Corepack 下载 `pnpm@10.26.1` 访问 npm registry 超时。
+- 待执行：`git diff --check`。
+
+### 边界
+
+- 本轮只做最小可视化网页 Demo，不改后端 API、数据库 schema、真实入库流程或 RAG 流程。
+
 ## 2026-05-18（D-121 Knowledge Relations / Graph Preview Z0b-lite）
 
 ### 已实现

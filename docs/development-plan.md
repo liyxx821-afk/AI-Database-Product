@@ -1,5 +1,32 @@
 # 开发计划
 
+## 2026-05-22：Demo 1 知识入库预处理页面
+
+### 目标
+
+- 在新分支 `demo1-ingestion-page` 中新增一个最小网页 Demo，用来展示“文本输入 -> chunk 切分 -> 结果展示”的入库预处理概念。
+
+### 范围
+
+- 只修改 renderer 前端页面、路由文案和少量样式。
+- 不连接真实数据库。
+- 不修改原有数据。
+- 不做 PDF、Word、OCR、知识结构化或 RAG 问答。
+- 不大改项目结构。
+
+### 实施步骤
+
+1. 从当前 `main` 切出 `demo1-ingestion-page`。
+2. 在 renderer 中新增 `/demo1-ingestion` 页面入口。
+3. 在页面内实现纯前端文本切片、原文展示、chunk 列表、chunk 编号和字数展示。
+4. 运行前端类型检查、构建或可用的替代验证。
+
+### 验证方式
+
+- 优先运行 `pnpm --filter @knowledgebase-dev/renderer typecheck`。
+- 优先运行 `pnpm --filter @knowledgebase-dev/renderer build`。
+- 若本机缺少 pnpm 或依赖包，记录阻塞原因，并至少运行 `git diff --check`。
+
 版本：v0.75
 日期：2026-05-18
 状态：已完成完整 P0 架构升级、技术选型细化、File Inspection 架构细化、切片前准备层、结构化整理检查门、知识切片质量闭环、安全运维横切层、实现前契约去重、检查门映射收敛、P0-Z0a/Z0b 竖切、ProcessingJob 契约收紧、切片执行 profile、AI 结构化整理 profile、D-077 实现边界收敛、D-079 结构化整理与存储映射收敛、D-080 知识调用 / AI 智能体 / 前端交互收敛、D-081/D-082/D-083 实现前边界修正、D-084 跨文档同步、D-085 Z0a 调用锚点与反馈 / citation 边界修正、D-086 后续 Agent 项目背景说明书、D-087 本地 Git 管理基础、D-088 README 对齐后的技术栈优化、D-089 GitHub private repo 上传、D-090 技术栈执行优化、D-091 技术栈工程化验收门槛、D-092 代码骨架前置契约优化、D-093 桌面运行时硬化、D-094 P0-Core 桌面工程骨架开工契约、D-095 架构审查实现验收强化、D-096 分布式开发计划、D-097 分布式开发计划优化、D-098 前端页面信息架构与工作台契约收敛、D-099 前后端交付边界与分布式开发计划强化、D-100 P0 代码阶段首轮实现、D-101 P0-File 上传与 File Inspection Z0a、D-102 Parser Router / Source / Chunk Z0a、D-103 Candidate KU / Review / fallback embedding Z0a、D-104 Retrieval Preview / Search-Ask Integration Z0a、D-105 Citation Detail / Evidence Pack Replay Z0b-lite、D-106 UI i18n / Bilingual Settings Z0b-lite、D-107 Feedback Events / Memory Draft Review Z0b-lite、D-108 Feedback Diagnostics / Event Replay Z0b-lite、D-109 Desktop Runtime Smoke / Pseudo-Packaged Sidecar Z0b-lite、D-110 Feedback Diagnostics Export Z0b-lite、D-111 Feedback Diagnostics Advanced Filters / Export History Z0b-lite、D-112 Citation Detail Focus / Evidence Trace Interaction Z0b-lite、D-113 Citation Annotation / Evidence Compare Z0b-lite、D-114 Knowledge Space / Folder-Tag / Metadata Filters Z0b-lite、D-115 Knowledge Unit / Project Export Z0b-lite、D-116 Knowledge Export History / Replay Z0b-lite、D-117 Packaged Runtime Static Renderer / Sidecar Artifact Spike Z0b-lite、D-118 Citation / Organization / Export Batch Actions Z0b-lite、D-119 Text-to-SQL Template / Structured Query Preview Z0b-lite、D-120 UI Interaction Polish / Design-Ready Shell Z0b-lite，以及 D-121 Knowledge Relations / Graph Preview Z0b-lite（D-066 - D-121）
