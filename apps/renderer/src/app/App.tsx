@@ -126,12 +126,17 @@ type DemoChunk = {
 };
 
 type DemoCandidateKnowledgeUnit = {
-  id: string;
+  kuId: string;
+  sourceId: string;
   chunkId: string;
   title: string;
   summary: string;
   keywords: string[];
   tags: string[];
+  status: "pending";
+  qualityNote: string;
+  confidence: number;
+  contentType: "very_short_text" | "short_note" | "paragraph_note" | "long_chunk";
 };
 
 type DemoIngestionResult = {
@@ -147,7 +152,6 @@ type DemoIngestionResult = {
     cleanedLength: number;
     chunkCount: number;
     candidateKnowledgeUnitCount: number;
-    qualityStatus: "too_short_for_candidate_ku" | "candidate_ready";
   };
   rawText: string;
   cleanedText: string;
@@ -395,8 +399,7 @@ function DemoIngestionPage() {
       const cleanedText = cleanDemoText(rawText);
       const sourceId = createDemoId("src");
       const chunks = splitTextIntoDemoChunks(cleanedText, sourceId);
-      const canCreateCandidateKu = countTextChars(cleanedText) >= 50;
-      const candidateKnowledgeUnits = canCreateCandidateKu ? chunks.map(createDemoCandidateKnowledgeUnit) : [];
+      const candidateKnowledgeUnits = chunks.map(createDemoCandidateKnowledgeUnit);
       setResult({
         fileName: createDemoFileName(),
         source: {
@@ -409,16 +412,14 @@ function DemoIngestionPage() {
           rawLength: countTextChars(rawText),
           cleanedLength: countTextChars(cleanedText),
           chunkCount: chunks.length,
-          candidateKnowledgeUnitCount: candidateKnowledgeUnits.length,
-          qualityStatus: canCreateCandidateKu ? "candidate_ready" : "too_short_for_candidate_ku"
+          candidateKnowledgeUnitCount: candidateKnowledgeUnits.length
         },
         rawText,
         cleanedText,
         chunks,
         candidateKnowledgeUnits,
-        candidateKuMessage: canCreateCandidateKu
-          ? "候选 KU 为基于 chunk 的初步材料；后续由 Demo 2 进行 schema 匹配、标签优化、实体关系抽取和人工确认。"
-          : "文本过短，暂不生成候选知识单元。"
+        candidateKuMessage:
+          "候选知识单元是基于 chunk 自动生成的初步候选材料，不代表最终知识结论，后续需要进入 Demo 2 做结构化、标签优化、实体关系抽取和人工确认。"
       });
       setProcessingStatus("completed");
     }, 80);
@@ -487,10 +488,6 @@ function DemoIngestionPage() {
               <p>上传时间：{result.metadata.uploadedAt}</p>
               <p>文本长度：{result.metadata.rawLength} 字</p>
               <p>清洗后长度：{result.metadata.cleanedLength} 字</p>
-              <p>
-                质量判断：
-                {result.metadata.qualityStatus === "candidate_ready" ? "可生成候选 KU" : "文本过短"}
-              </p>
             </article>
           </div>
         ) : (
@@ -556,16 +553,26 @@ function DemoIngestionPage() {
         <div className="file-table">
           {result?.candidateKnowledgeUnits.length ? (
             result.candidateKnowledgeUnits.map((unit) => (
-              <article className="demo-chunk-row" key={unit.id}>
+              <article className="demo-chunk-row" key={unit.kuId}>
                 <div className="section-title-row compact-title-row">
                   <h3>{unit.title}</h3>
-                  <StatusPill label="来自 chunk" value={unit.chunkId} />
+                  <div className="inline-actions">
+                    <StatusPill label="status" value={unit.status} />
+                    <StatusPill label="confidence" value={unit.confidence.toFixed(2)} />
+                    <StatusPill label="content_type" value={unit.contentType} />
+                  </div>
+                </div>
+                <div className="demo-ku-trace">
+                  <StatusPill label="ku_id" value={unit.kuId} />
+                  <StatusPill label="source_id" value={unit.sourceId} />
+                  <StatusPill label="chunk_id" value={unit.chunkId} />
                 </div>
                 <p>{unit.summary}</p>
+                <p className="section-note">{unit.qualityNote}</p>
                 <div className="tag-select-row">
                   {unit.keywords.length ? (
                     unit.keywords.map((keyword) => (
-                      <span className="mini-badge" key={`${unit.id}-${keyword}`}>
+                      <span className="mini-badge" key={`${unit.kuId}-${keyword}`}>
                         关键词：{keyword}
                       </span>
                     ))
@@ -573,15 +580,13 @@ function DemoIngestionPage() {
                     <span className="mini-badge">未检测到有效关键词</span>
                   )}
                   {unit.tags.map((tag) => (
-                    <span className="mini-badge" key={`${unit.id}-${tag}`}>
+                    <span className="mini-badge" key={`${unit.kuId}-${tag}`}>
                       #{tag}
                     </span>
                   ))}
                 </div>
               </article>
             ))
-          ) : result?.candidateKuMessage ? (
-            <EmptyState message={result.candidateKuMessage} />
           ) : (
             <EmptyState message="点击“开始处理”后，这里会显示模拟生成的候选知识单元。" />
           )}
@@ -633,18 +638,37 @@ function splitTextIntoDemoChunks(text: string, sourceId: string): DemoChunk[] {
 }
 
 function createDemoCandidateKnowledgeUnit(chunk: DemoChunk, index: number): DemoCandidateKnowledgeUnit {
-  const keywords = extractDemoKeywords(chunk.content);
-  const titleSeed = keywords.length
-    ? keywords.slice(0, 3).join(" / ")
-    : `chunk ${index + 1} 初步摘要`;
+  const contentType = getDemoContentType(chunk.charCount);
+  const keywords = contentType === "very_short_text" ? [] : extractDemoKeywords(chunk.content);
+  const titleSeed = createDemoTitleSeed(chunk.content, keywords, index);
   return {
-    id: `${chunk.sourceId}-candidate-ku-${String(index + 1).padStart(3, "0")}`,
+    kuId: `${chunk.sourceId}-candidate-ku-${String(index + 1).padStart(3, "0")}`,
+    sourceId: chunk.sourceId,
     chunkId: chunk.chunkId,
-    title: titleSeed ? `候选 KU：${titleSeed}` : `候选 KU ${index + 1}`,
-    summary: createDemoSummary(chunk.content),
+    title: `候选 KU：${titleSeed}`,
+    summary: createDemoSummary(chunk.content, contentType),
     keywords,
-    tags: createDemoTags(keywords)
+    tags: createDemoTags(keywords, contentType),
+    status: "pending",
+    qualityNote: createDemoQualityNote(contentType),
+    confidence: createDemoConfidence(contentType),
+    contentType
   };
+}
+
+function getDemoContentType(charCount: number): DemoCandidateKnowledgeUnit["contentType"] {
+  if (charCount <= 12) return "very_short_text";
+  if (charCount < 80) return "short_note";
+  if (charCount < 320) return "paragraph_note";
+  return "long_chunk";
+}
+
+function createDemoTitleSeed(text: string, keywords: string[], index: number) {
+  if (keywords.length) return keywords.slice(0, 3).join(" / ");
+  const compact = text.replace(/\s+/g, "").replace(/[，。！？；：,.!?;:]/g, "");
+  if (compact.length >= 16) return compact.slice(0, 12);
+  if (compact.length) return `短文本候选 ${index + 1}`;
+  return `chunk ${index + 1} 候选材料`;
 }
 
 function extractDemoKeywords(text: string) {
@@ -705,13 +729,41 @@ function extractDemoKeywords(text: string) {
     .slice(0, 5);
 }
 
-function createDemoTags(_keywords: string[]) {
-  return ["demo1", "入库预处理", "candidate-ku"];
+function createDemoTags(
+  _keywords: string[],
+  contentType: DemoCandidateKnowledgeUnit["contentType"]
+) {
+  const topicTags = contentType === "paragraph_note" || contentType === "long_chunk"
+    ? _keywords.slice(0, 2).filter((keyword) => countTextChars(keyword) <= 12)
+    : [];
+  return Array.from(new Set(["demo1", "入库预处理", "candidate-ku", "pending", ...topicTags]));
 }
 
-function createDemoSummary(text: string) {
+function createDemoSummary(text: string, contentType: DemoCandidateKnowledgeUnit["contentType"]) {
   const normalized = text.replace(/\s+/g, " ").trim();
-  return normalized.length > 96 ? `${normalized.slice(0, 96)}...` : normalized || "暂无摘要";
+  if (contentType === "very_short_text") {
+    return "这是一条极短文本，可作为候选材料进入人工判断，但当前语义信息有限。";
+  }
+  if (contentType === "short_note") {
+    return `这是一条简短笔记，主要表达：${normalized.slice(0, 36)}${normalized.length > 36 ? "..." : ""}`;
+  }
+  if (contentType === "paragraph_note") {
+    return `这是一段普通段落候选材料，包含可供后续结构化分析的主题线索：${normalized.slice(0, 72)}${normalized.length > 72 ? "..." : ""}`;
+  }
+  return `这是一段较长 chunk，包含多句内容，适合在后续流程中继续拆解、抽取实体关系和匹配 schema：${normalized.slice(0, 72)}...`;
+}
+
+function createDemoQualityNote(contentType: DemoCandidateKnowledgeUnit["contentType"]) {
+  if (contentType === "very_short_text") return "信息密度较低，建议人工判断是否保留。";
+  if (contentType === "short_note") return "可作为候选材料进入后续确认流程。";
+  return "可进入后续结构化流程。";
+}
+
+function createDemoConfidence(contentType: DemoCandidateKnowledgeUnit["contentType"]) {
+  if (contentType === "very_short_text") return 0.3;
+  if (contentType === "short_note") return 0.45;
+  if (contentType === "paragraph_note") return 0.68;
+  return 0.8;
 }
 
 function createDemoFileName() {

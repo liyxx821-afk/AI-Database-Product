@@ -7,8 +7,8 @@
 - 在 `demo1-ingestion-page` 分支继续升级 `/demo1-ingestion`，保留已有可视化页面和文本输入框。
 - 扩展浏览器端处理链路：文本清洗、400 字 chunk、50 字重叠、`source_id` / `chunk_id`、模拟 Candidate KU。
 - 页面新增文件名、Source 信息、基础 metadata、解析文本、清洗文本、chunk 列表、候选知识单元和处理状态展示。
-- 候选 KU 生成加入 50 字质量门槛；短文本只生成 chunk 并提示暂不生成候选知识单元。
-- 关键词和标签规则收紧：关键词最多 5 个有效词，标签只保留固定系统标签。
+- 候选 KU 生成改为每个 chunk 都生成待确认候选材料；短文本通过 `quality_note`、`confidence` 和 `content_type` 表达质量差异。
+- 关键词和标签规则收紧：关键词最多 5 个有效词，标签保留固定系统标签和少量短主题标签。
 - 补充 `docs/demo1-ingestion-page.md`，记录运行命令、测试方式、功能说明、当前限制和验收方式。
 
 ### 目标

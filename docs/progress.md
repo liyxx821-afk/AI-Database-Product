@@ -13,11 +13,12 @@
 
 ### 候选 KU 质量规则优化
 
-- 清洗后文本少于 50 字时，不生成候选 KU，只生成 Source、metadata、解析文本、清洗文本和短文本 chunk。
-- 候选知识单元区域会显示“文本过短，暂不生成候选知识单元。”。
-- 关键词提取改为最多 5 个有效词，优先领域词、高频中文短词和英文词；无法提取时显示“未检测到有效关键词”。
-- 标签不再混入用户文本或关键词，只保留固定系统标签 `#demo1`、`#入库预处理`、`#candidate-ku`。
-- 页面补充说明：Candidate KU 只是基于 chunk 的初步材料，后续由 Demo 2 进行 schema 匹配、标签优化、实体关系抽取和人工确认。
+- Candidate KU 逻辑已纠正为“每个 chunk 都生成待确认候选材料”，不再因文本短而过滤。
+- Candidate KU 字段补齐 `ku_id`、`source_id`、`chunk_id`、`status=pending`、`quality_note`、`confidence`、`content_type`。
+- 短文本 Candidate KU 会显示低置信度、低信息密度提示和 `very_short_text` / `short_note` 类型。
+- 关键词提取最多 5 个有效短词，无法提取时显示“未检测到有效关键词”。
+- 标签保留固定系统标签 `#demo1`、`#入库预处理`、`#candidate-ku`、`#pending`，并可附加少量短主题标签。
+- 页面补充说明：Candidate KU 是基于 chunk 的初步候选材料，不代表最终知识结论，后续由 Demo 2 进行 schema 匹配、标签优化、实体关系抽取和人工确认。
 
 ### 已实现
 
