@@ -7,14 +7,14 @@ import type {
   CitationAnnotationRecord,
   CitationAnnotationRequest,
   CitationCompareResponse,
-  EvidenceOnlyResponse,
   EvidencePackDetail,
+  RagAskResponse,
   RetrievalPreviewResponse
 } from "@knowledgebase-dev/api-types";
 import { hasBridge } from "../services/apiClient";
 import type { OrganizationFilters } from "../services/organizationApi";
 import {
-  askEvidenceOnly,
+  askRagDemo,
   compareEvidenceItems,
   createCitationAnnotation,
   createCitationAnnotationsBatch,
@@ -42,7 +42,7 @@ type RetrievalState = {
   annotationErrorCode?: string;
   compareErrorCode?: string;
   preview?: RetrievalPreviewResponse;
-  answer?: EvidenceOnlyResponse;
+  answer?: RagAskResponse;
   detail?: EvidencePackDetail;
   annotations?: CitationAnnotationListResponse;
   comparison?: CitationCompareResponse;
@@ -140,7 +140,7 @@ export const useRetrievalStore = create<RetrievalState>((set) => ({
       answerErrorCode: undefined
     });
     try {
-      const answer = await askEvidenceOnly(query, filters);
+      const answer = await askRagDemo(query, filters);
       const nextState = answer.evidence_item_ids.length ? "done" : "empty";
       set({
         answer,

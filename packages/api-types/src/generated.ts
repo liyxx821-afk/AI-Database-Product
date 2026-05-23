@@ -557,6 +557,72 @@ export type ApiSchemas = {
   "created_at": string;
   "updated_at": string;
 };
+  "RagAskRequest": {
+  "query": string;
+  "project_id"?: string;
+  "folder_id"?: string | null;
+  "tag_ids"?: string[];
+  "top_k"?: number;
+};
+  "RagAskResponse": {
+  "query": string;
+  "project_id": string;
+  "top_k": number;
+  "retrieval_log_id": string;
+  "evidence_pack_id": string;
+  "answer_id": string;
+  "output_type": string;
+  "answer": string;
+  "answer_generation_profile": string;
+  "llm_used": boolean;
+  "status": "answered" | "no_evidence";
+  "evidence_item_ids": string[];
+  "citation_labels": string[];
+  "top_k_snippets": RagTopKSnippet[];
+  "prompt_context": RagPromptContext;
+  "citations": RagCitation[];
+  "citation_trace_summary": string;
+  "provider_status": string;
+  "fallback_reason": string | null;
+  "no_evidence_reason": string | null;
+};
+  "RagCitation": {
+  "citation_label": string;
+  "evidence_item_id": string;
+  "source_id": string | null;
+  "source_title": string | null;
+  "chunk_id": string | null;
+  "knowledge_unit_id": string | null;
+  "rank_score": number;
+  "source_jump": RagSourceJump;
+};
+  "RagPromptContext": {
+  "question": string;
+  "instruction": string;
+  "context_blocks": Record<string, unknown>[];
+};
+  "RagSourceJump": {
+  "source_id": string | null;
+  "chunk_id": string | null;
+  "knowledge_unit_id": string | null;
+  "source_api_path": string | null;
+  "evidence_focus_api_path": string;
+};
+  "RagTopKSnippet": {
+  "rank": number;
+  "evidence_item_id": string;
+  "citation_label": string;
+  "rank_score": number;
+  "excerpt": string;
+  "source_id": string | null;
+  "source_title": string | null;
+  "source_origin": string | null;
+  "chunk_id": string | null;
+  "chunk_citation_label": string | null;
+  "knowledge_unit_id": string | null;
+  "knowledge_unit_title": string | null;
+  "source_jump": RagSourceJump;
+};
   "RetrievalPreviewRequest": {
   "query": string;
   "project_id"?: string;
@@ -1373,6 +1439,78 @@ export type ProjectRecord = {
   "updated_at": string;
 };
 
+export type RagAskRequest = {
+  "query": string;
+  "project_id"?: string;
+  "folder_id"?: string | null;
+  "tag_ids"?: string[];
+  "top_k"?: number;
+};
+
+export type RagAskResponse = {
+  "query": string;
+  "project_id": string;
+  "top_k": number;
+  "retrieval_log_id": string;
+  "evidence_pack_id": string;
+  "answer_id": string;
+  "output_type": string;
+  "answer": string;
+  "answer_generation_profile": string;
+  "llm_used": boolean;
+  "status": "answered" | "no_evidence";
+  "evidence_item_ids": string[];
+  "citation_labels": string[];
+  "top_k_snippets": RagTopKSnippet[];
+  "prompt_context": RagPromptContext;
+  "citations": RagCitation[];
+  "citation_trace_summary": string;
+  "provider_status": string;
+  "fallback_reason": string | null;
+  "no_evidence_reason": string | null;
+};
+
+export type RagCitation = {
+  "citation_label": string;
+  "evidence_item_id": string;
+  "source_id": string | null;
+  "source_title": string | null;
+  "chunk_id": string | null;
+  "knowledge_unit_id": string | null;
+  "rank_score": number;
+  "source_jump": RagSourceJump;
+};
+
+export type RagPromptContext = {
+  "question": string;
+  "instruction": string;
+  "context_blocks": Record<string, unknown>[];
+};
+
+export type RagSourceJump = {
+  "source_id": string | null;
+  "chunk_id": string | null;
+  "knowledge_unit_id": string | null;
+  "source_api_path": string | null;
+  "evidence_focus_api_path": string;
+};
+
+export type RagTopKSnippet = {
+  "rank": number;
+  "evidence_item_id": string;
+  "citation_label": string;
+  "rank_score": number;
+  "excerpt": string;
+  "source_id": string | null;
+  "source_title": string | null;
+  "source_origin": string | null;
+  "chunk_id": string | null;
+  "chunk_citation_label": string | null;
+  "knowledge_unit_id": string | null;
+  "knowledge_unit_title": string | null;
+  "source_jump": RagSourceJump;
+};
+
 export type RetrievalPreviewRequest = {
   "query": string;
   "project_id"?: string;
@@ -1646,6 +1784,7 @@ export type ApiPath =
   | "/api/review-tasks/{task_id}:ignore"
   | "/api/retrieval/evidence-only"
   | "/api/retrieval/preview"
+  | "/api/rag/ask"
   | "/api/evidence-packs/{evidence_pack_id}"
   | "/api/evidence-packs/{evidence_pack_id}/annotations"
   | "/api/evidence-packs/{evidence_pack_id}/annotations:batch"

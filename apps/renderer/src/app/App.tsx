@@ -1396,6 +1396,50 @@ function AskPage() {
 
       <section className="page-frame">
         <div className="section-title-row">
+          <h2>Top-k 检索片段</h2>
+          <div className="inline-actions">
+            <StatusPill label="status" value={answer?.status ?? "not_ready"} />
+            <StatusPill label="top_k" value={answer?.top_k ? String(answer.top_k) : "0"} />
+          </div>
+        </div>
+        <div className="file-table">
+          {answer?.top_k_snippets.length ? (
+            answer.top_k_snippets.map((snippet) => (
+              <div className="review-row" key={snippet.evidence_item_id}>
+                <div>
+                  <strong>
+                    #{snippet.rank} {snippet.citation_label}
+                  </strong>
+                  <span>{snippet.source_title ?? snippet.source_id ?? t("empty.none")}</span>
+                </div>
+                <StatusPill label="score" value={snippet.rank_score.toFixed(2)} />
+                <StatusPill label="chunk" value={snippet.chunk_id ?? "none"} />
+                <StatusPill label="source" value={snippet.source_id ?? "none"} />
+                <button
+                  className="icon-command"
+                  type="button"
+                  disabled={!answer.evidence_pack_id}
+                  onClick={() =>
+                    retrieval.loadDetail(answer.evidence_pack_id, snippet.evidence_item_id)
+                  }
+                >
+                  <FileText aria-hidden="true" size={16} />
+                  <span>{t("action.openDetail")}</span>
+                </button>
+                <div className="row-note evidence-excerpt">
+                  <FileText aria-hidden="true" size={15} />
+                  <span>{snippet.excerpt}</span>
+                </div>
+              </div>
+            ))
+          ) : (
+            <EmptyState message={answer ? answer.no_evidence_reason ?? t("evidence.noItems") : t("evidence.noItems")} />
+          )}
+        </div>
+      </section>
+
+      <section className="page-frame">
+        <div className="section-title-row">
           <h2>{t("feedback.title")}</h2>
           <StateChip state={feedbackMemory.feedbackState} />
         </div>

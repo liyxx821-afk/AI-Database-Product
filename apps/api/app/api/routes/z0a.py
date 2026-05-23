@@ -19,6 +19,8 @@ from app.api.schemas import (
     EvidenceOnlyResponse,
     EvidencePackDetail,
     JobSnapshot,
+    RagAskRequest,
+    RagAskResponse,
     RetrievalPreviewRequest,
     RetrievalPreviewResponse,
     ReviewActionResponse,
@@ -31,6 +33,7 @@ from app.db.sqlite import db, json_dumps
 from app.services.ingestion.text_import import import_text, now_iso
 from app.services.retrieval.evidence import (
     build_evidence_only_answer,
+    build_rag_qa_demo,
     build_retrieval_preview,
     compare_evidence_items,
     create_citation_annotation,
@@ -255,6 +258,17 @@ def retrieval_preview(payload: RetrievalPreviewRequest) -> dict:
         payload.project_id,
         payload.folder_id,
         payload.tag_ids,
+    )
+
+
+@router.post("/rag/ask", response_model=RagAskResponse)
+def rag_ask(payload: RagAskRequest) -> dict:
+    return build_rag_qa_demo(
+        payload.query,
+        payload.project_id,
+        payload.folder_id,
+        payload.tag_ids,
+        payload.top_k,
     )
 
 

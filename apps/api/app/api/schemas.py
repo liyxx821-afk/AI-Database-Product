@@ -732,6 +732,16 @@ class RetrievalPreviewRequest(BaseModel):
     tag_ids: List[str] = Field(default_factory=list)
 
 
+class RagAskRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    query: str = Field(min_length=1)
+    project_id: str = "default-space"
+    folder_id: Optional[str] = None
+    tag_ids: List[str] = Field(default_factory=list)
+    top_k: int = Field(default=3, ge=1, le=10)
+
+
 class TextToSqlPreviewRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -819,6 +829,70 @@ class RetrievalPreviewResponse(BaseModel):
     citation_trace_summary: str
     provider_status: str
     fallback_reason: Optional[str]
+
+
+class RagSourceJump(BaseModel):
+    source_id: Optional[str]
+    chunk_id: Optional[str]
+    knowledge_unit_id: Optional[str]
+    source_api_path: Optional[str]
+    evidence_focus_api_path: str
+
+
+class RagTopKSnippet(BaseModel):
+    rank: int
+    evidence_item_id: str
+    citation_label: str
+    rank_score: float
+    excerpt: str
+    source_id: Optional[str]
+    source_title: Optional[str]
+    source_origin: Optional[str]
+    chunk_id: Optional[str]
+    chunk_citation_label: Optional[str]
+    knowledge_unit_id: Optional[str]
+    knowledge_unit_title: Optional[str]
+    source_jump: RagSourceJump
+
+
+class RagPromptContext(BaseModel):
+    question: str
+    instruction: str
+    context_blocks: List[Dict[str, Any]]
+
+
+class RagCitation(BaseModel):
+    citation_label: str
+    evidence_item_id: str
+    source_id: Optional[str]
+    source_title: Optional[str]
+    chunk_id: Optional[str]
+    knowledge_unit_id: Optional[str]
+    rank_score: float
+    source_jump: RagSourceJump
+
+
+class RagAskResponse(BaseModel):
+    query: str
+    project_id: str
+    top_k: int
+    retrieval_log_id: str
+    evidence_pack_id: str
+    answer_id: str
+    output_type: str
+    answer: str
+    answer_generation_profile: str
+    llm_used: bool
+    status: Literal["answered", "no_evidence"]
+    evidence_item_ids: List[str]
+    citation_labels: List[str]
+    top_k_snippets: List[RagTopKSnippet]
+    prompt_context: RagPromptContext
+    citations: List[RagCitation]
+    citation_trace_summary: str
+    provider_status: str
+    fallback_reason: Optional[str]
+    no_evidence_reason: Optional[str]
 
 
 class CitationAnnotationRequest(BaseModel):

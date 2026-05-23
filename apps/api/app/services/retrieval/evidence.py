@@ -136,7 +136,11 @@ def _validate_retrieval_filters(
             raise AppError("tag_not_found", "Tag was not found.", status_code=404)
 
 
-def _rank_evidence_rows(query: str, rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def _rank_evidence_rows(
+    query: str,
+    rows: List[Dict[str, Any]],
+    top_k: int = 3,
+) -> List[Dict[str, Any]]:
     scored_rows: List[Dict[str, Any]] = []
     for row in rows:
         score = _token_score(query, f"{row['title']} {row['content']} {row['source_title']}")
@@ -147,7 +151,7 @@ def _rank_evidence_rows(query: str, rows: List[Dict[str, Any]]) -> List[Dict[str
         scored_rows,
         key=lambda row: (row["rank_score"], row["source_title"], row["title"]),
         reverse=True,
-    )[:3]
+    )[:top_k]
 
 
 def _pack_summary(evidence_count: int, provider_status: str) -> str:
@@ -721,6 +725,7 @@ def build_retrieval_preview(
     project_id: str = "default-space",
     folder_id: Optional[str] = None,
     tag_ids: Optional[List[str]] = None,
+    top_k: int = 3,
 ) -> Dict[str, Any]:
     tag_ids = tag_ids or []
     vector = sqlite_vec_status()
@@ -730,6 +735,7 @@ def build_retrieval_preview(
     ranked_rows = _rank_evidence_rows(
         query,
         _load_confirmed_rows(project_id, folder_id, tag_ids),
+        top_k,
     )
     evidence_count = len(ranked_rows)
     query_explanation = _query_explanation(
@@ -877,4 +883,146 @@ def build_evidence_only_answer(
         "citation_trace_summary": preview["citation_trace_summary"],
         "provider_status": preview["provider_status"],
         "fallback_reason": preview["fallback_reason"],
+    }
+
+
+def _rag_source_jump(item: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "source_id": item["source_id"],
+        "chunk_id": item["chunk_id"],
+        "knowledge_unit_id": item["knowledge_unit_id"],
+        "source_api_path": f"/api/sources/{item['source_id']}" if item["source_id"] else None,
+        "evidence_focus_api_path": (
+            f"/api/evidence-packs/{item['evidence_pack_id']}?focus_item_id={item['id']}"
+        ),
+    }
+
+
+def _rag_top_k_snippet(item: Dict[str, Any], rank: int) -> Dict[str, Any]:
+    return {
+        "rank": rank,
+        "evidence_item_id": item["id"],
+        "citation_label": item["citation_label"],
+        "rank_score": item["rank_score"],
+        "excerpt": item["excerpt"],
+        "source_id": item["source_id"],
+        "source_title": item["source_title"],
+        "source_origin": item["source_origin"],
+        "chunk_id": item["chunk_id"],
+        "chunk_citation_label": item["chunk_citation_label"],
+        "knowledge_unit_id": item["knowledge_unit_id"],
+        "knowledge_unit_title": item["knowledge_unit_title"],
+        "source_jump": _rag_source_jump(item),
+    }
+
+
+def _rag_prompt_context(query: str, snippets: List[Dict[str, Any]]) -> Dict[str, Any]:
+    return {
+        "question": query,
+        "instruction": (
+            "Answer only from the supplied evidence. If there is no evidence, say that no "
+            "evidence was found."
+        ),
+        "context_blocks": [
+            {
+                "label": snippet["citation_label"],
+                "rank": snippet["rank"],
+                "rank_score": snippet["rank_score"],
+                "source_title": snippet["source_title"],
+                "chunk_id": snippet["chunk_id"],
+                "text": snippet["excerpt"],
+            }
+            for snippet in snippets
+        ],
+    }
+
+
+def _rag_answer_text(snippets: List[Dict[str, Any]]) -> str:
+    if not snippets:
+        return "未找到可引用的已确认知识。系统不会在无证据时生成回答。"
+    evidence_sentences = [
+        f"{snippet['excerpt']} [{snippet['citation_label']}]" for snippet in snippets
+    ]
+    return "基于已确认知识回答：" + " ".join(evidence_sentences)
+
+
+def build_rag_qa_demo(
+    query: str,
+    project_id: str = "default-space",
+    folder_id: Optional[str] = None,
+    tag_ids: Optional[List[str]] = None,
+    top_k: int = 3,
+) -> Dict[str, Any]:
+    preview = build_retrieval_preview(query, project_id, folder_id, tag_ids, top_k)
+    evidence_items = preview["evidence_pack"]["items"]
+    snippets = [
+        _rag_top_k_snippet(item, index + 1)
+        for index, item in enumerate(evidence_items[:top_k])
+    ]
+    prompt_context = _rag_prompt_context(query, snippets)
+    answer_id = new_id("answer")
+    answer_text = _rag_answer_text(snippets)
+    citation_labels = [snippet["citation_label"] for snippet in snippets]
+    citation_trace_summary = (
+        "RAG QA Demo uses " + ", ".join(citation_labels)
+        if citation_labels
+        else "No evidence items were attached."
+    )
+    timestamp = now_iso()
+
+    with db() as conn:
+        conn.execute(
+            """
+            INSERT INTO ai_answers
+              (id, retrieval_log_id, evidence_pack_id, output_type, answer,
+               evidence_item_ids_json, citation_labels_json, citation_trace_summary, created_at)
+            VALUES (?, ?, ?, 'rag_qa_demo_rule_answer', ?, ?, ?, ?, ?)
+            """,
+            (
+                answer_id,
+                preview["retrieval_log_id"],
+                preview["evidence_pack_id"],
+                answer_text,
+                json.dumps([snippet["evidence_item_id"] for snippet in snippets]),
+                json.dumps(citation_labels, ensure_ascii=False),
+                citation_trace_summary,
+                timestamp,
+            ),
+        )
+
+    return {
+        "query": query,
+        "project_id": project_id,
+        "top_k": top_k,
+        "retrieval_log_id": preview["retrieval_log_id"],
+        "evidence_pack_id": preview["evidence_pack_id"],
+        "answer_id": answer_id,
+        "output_type": "rag_qa_demo_rule_answer",
+        "answer": answer_text,
+        "answer_generation_profile": "p0_rag_qa_demo_rule_v1",
+        "llm_used": False,
+        "status": "answered" if snippets else "no_evidence",
+        "evidence_item_ids": [snippet["evidence_item_id"] for snippet in snippets],
+        "citation_labels": citation_labels,
+        "top_k_snippets": snippets,
+        "prompt_context": prompt_context,
+        "citations": [
+            {
+                "citation_label": snippet["citation_label"],
+                "evidence_item_id": snippet["evidence_item_id"],
+                "source_id": snippet["source_id"],
+                "source_title": snippet["source_title"],
+                "chunk_id": snippet["chunk_id"],
+                "knowledge_unit_id": snippet["knowledge_unit_id"],
+                "rank_score": snippet["rank_score"],
+                "source_jump": snippet["source_jump"],
+            }
+            for snippet in snippets
+        ],
+        "citation_trace_summary": citation_trace_summary,
+        "provider_status": preview["provider_status"],
+        "fallback_reason": preview["fallback_reason"],
+        "no_evidence_reason": (
+            preview["evidence_pack"]["failure_type"] if not snippets else None
+        ),
     }

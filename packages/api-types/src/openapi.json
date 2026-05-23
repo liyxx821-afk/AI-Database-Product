@@ -2924,6 +2924,44 @@
         }
       }
     },
+    "/api/rag/ask": {
+      "post": {
+        "summary": "Rag Ask",
+        "operationId": "rag_ask_api_rag_ask_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RagAskRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RagAskResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/evidence-packs/{evidence_pack_id}": {
       "get": {
         "summary": "Evidence Pack Detail",
@@ -6794,6 +6832,472 @@
           "updated_at"
         ],
         "title": "ProjectRecord"
+      },
+      "RagAskRequest": {
+        "properties": {
+          "query": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Query"
+          },
+          "project_id": {
+            "type": "string",
+            "title": "Project Id",
+            "default": "default-space"
+          },
+          "folder_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Folder Id"
+          },
+          "tag_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Tag Ids"
+          },
+          "top_k": {
+            "type": "integer",
+            "maximum": 10.0,
+            "minimum": 1.0,
+            "title": "Top K",
+            "default": 3
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "query"
+        ],
+        "title": "RagAskRequest"
+      },
+      "RagAskResponse": {
+        "properties": {
+          "query": {
+            "type": "string",
+            "title": "Query"
+          },
+          "project_id": {
+            "type": "string",
+            "title": "Project Id"
+          },
+          "top_k": {
+            "type": "integer",
+            "title": "Top K"
+          },
+          "retrieval_log_id": {
+            "type": "string",
+            "title": "Retrieval Log Id"
+          },
+          "evidence_pack_id": {
+            "type": "string",
+            "title": "Evidence Pack Id"
+          },
+          "answer_id": {
+            "type": "string",
+            "title": "Answer Id"
+          },
+          "output_type": {
+            "type": "string",
+            "title": "Output Type"
+          },
+          "answer": {
+            "type": "string",
+            "title": "Answer"
+          },
+          "answer_generation_profile": {
+            "type": "string",
+            "title": "Answer Generation Profile"
+          },
+          "llm_used": {
+            "type": "boolean",
+            "title": "Llm Used"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "answered",
+              "no_evidence"
+            ],
+            "title": "Status"
+          },
+          "evidence_item_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Evidence Item Ids"
+          },
+          "citation_labels": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Citation Labels"
+          },
+          "top_k_snippets": {
+            "items": {
+              "$ref": "#/components/schemas/RagTopKSnippet"
+            },
+            "type": "array",
+            "title": "Top K Snippets"
+          },
+          "prompt_context": {
+            "$ref": "#/components/schemas/RagPromptContext"
+          },
+          "citations": {
+            "items": {
+              "$ref": "#/components/schemas/RagCitation"
+            },
+            "type": "array",
+            "title": "Citations"
+          },
+          "citation_trace_summary": {
+            "type": "string",
+            "title": "Citation Trace Summary"
+          },
+          "provider_status": {
+            "type": "string",
+            "title": "Provider Status"
+          },
+          "fallback_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fallback Reason"
+          },
+          "no_evidence_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "No Evidence Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "query",
+          "project_id",
+          "top_k",
+          "retrieval_log_id",
+          "evidence_pack_id",
+          "answer_id",
+          "output_type",
+          "answer",
+          "answer_generation_profile",
+          "llm_used",
+          "status",
+          "evidence_item_ids",
+          "citation_labels",
+          "top_k_snippets",
+          "prompt_context",
+          "citations",
+          "citation_trace_summary",
+          "provider_status",
+          "fallback_reason",
+          "no_evidence_reason"
+        ],
+        "title": "RagAskResponse"
+      },
+      "RagCitation": {
+        "properties": {
+          "citation_label": {
+            "type": "string",
+            "title": "Citation Label"
+          },
+          "evidence_item_id": {
+            "type": "string",
+            "title": "Evidence Item Id"
+          },
+          "source_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Id"
+          },
+          "source_title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Title"
+          },
+          "chunk_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chunk Id"
+          },
+          "knowledge_unit_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Knowledge Unit Id"
+          },
+          "rank_score": {
+            "type": "number",
+            "title": "Rank Score"
+          },
+          "source_jump": {
+            "$ref": "#/components/schemas/RagSourceJump"
+          }
+        },
+        "type": "object",
+        "required": [
+          "citation_label",
+          "evidence_item_id",
+          "source_id",
+          "source_title",
+          "chunk_id",
+          "knowledge_unit_id",
+          "rank_score",
+          "source_jump"
+        ],
+        "title": "RagCitation"
+      },
+      "RagPromptContext": {
+        "properties": {
+          "question": {
+            "type": "string",
+            "title": "Question"
+          },
+          "instruction": {
+            "type": "string",
+            "title": "Instruction"
+          },
+          "context_blocks": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Context Blocks"
+          }
+        },
+        "type": "object",
+        "required": [
+          "question",
+          "instruction",
+          "context_blocks"
+        ],
+        "title": "RagPromptContext"
+      },
+      "RagSourceJump": {
+        "properties": {
+          "source_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Id"
+          },
+          "chunk_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chunk Id"
+          },
+          "knowledge_unit_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Knowledge Unit Id"
+          },
+          "source_api_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Api Path"
+          },
+          "evidence_focus_api_path": {
+            "type": "string",
+            "title": "Evidence Focus Api Path"
+          }
+        },
+        "type": "object",
+        "required": [
+          "source_id",
+          "chunk_id",
+          "knowledge_unit_id",
+          "source_api_path",
+          "evidence_focus_api_path"
+        ],
+        "title": "RagSourceJump"
+      },
+      "RagTopKSnippet": {
+        "properties": {
+          "rank": {
+            "type": "integer",
+            "title": "Rank"
+          },
+          "evidence_item_id": {
+            "type": "string",
+            "title": "Evidence Item Id"
+          },
+          "citation_label": {
+            "type": "string",
+            "title": "Citation Label"
+          },
+          "rank_score": {
+            "type": "number",
+            "title": "Rank Score"
+          },
+          "excerpt": {
+            "type": "string",
+            "title": "Excerpt"
+          },
+          "source_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Id"
+          },
+          "source_title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Title"
+          },
+          "source_origin": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Origin"
+          },
+          "chunk_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chunk Id"
+          },
+          "chunk_citation_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chunk Citation Label"
+          },
+          "knowledge_unit_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Knowledge Unit Id"
+          },
+          "knowledge_unit_title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Knowledge Unit Title"
+          },
+          "source_jump": {
+            "$ref": "#/components/schemas/RagSourceJump"
+          }
+        },
+        "type": "object",
+        "required": [
+          "rank",
+          "evidence_item_id",
+          "citation_label",
+          "rank_score",
+          "excerpt",
+          "source_id",
+          "source_title",
+          "source_origin",
+          "chunk_id",
+          "chunk_citation_label",
+          "knowledge_unit_id",
+          "knowledge_unit_title",
+          "source_jump"
+        ],
+        "title": "RagTopKSnippet"
       },
       "RetrievalPreviewRequest": {
         "properties": {

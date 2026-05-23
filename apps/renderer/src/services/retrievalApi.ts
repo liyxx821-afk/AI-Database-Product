@@ -8,6 +8,7 @@ import type {
   CitationCompareResponse,
   EvidenceOnlyResponse,
   EvidencePackDetail,
+  RagAskResponse,
   RetrievalPreviewResponse
 } from "@knowledgebase-dev/api-types";
 import { apiFetch } from "./apiClient";
@@ -39,6 +40,17 @@ export async function askEvidenceOnly(
   return apiFetch<EvidenceOnlyResponse>("/retrieval/evidence-only", {
     method: "POST",
     body: JSON.stringify(retrievalPayload(query, filters))
+  });
+}
+
+export async function askRagDemo(
+  query: string,
+  filters?: OrganizationFilters,
+  topK = 3
+): Promise<RagAskResponse> {
+  return apiFetch<RagAskResponse>("/rag/ask", {
+    method: "POST",
+    body: JSON.stringify({ ...retrievalPayload(query, filters), top_k: topK })
   });
 }
 
