@@ -663,6 +663,33 @@ button {
   min-height: 126px;
 }
 
+.demo-status-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.demo-status-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  padding: 12px;
+}
+
+.demo-status-step div {
+  display: grid;
+  gap: 4px;
+}
+
+.demo-status-step span {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
 .demo-input-label {
   display: grid;
   align-items: stretch;

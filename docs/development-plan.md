@@ -9,6 +9,7 @@
 - 页面新增文件名、Source 信息、基础 metadata、解析文本、清洗文本、chunk 列表、候选知识单元和处理状态展示。
 - 候选 KU 生成改为每个 chunk 都生成待确认候选材料；短文本通过 `quality_note`、`confidence` 和 `content_type` 表达质量差异。
 - 关键词和标签规则收紧：关键词最多 5 个有效词，标签保留固定系统标签和少量短主题标签。
+- 页面重新对齐 Demo 1 原始链路，显式展示资料进入系统、source 记录、内容解析、文本清洗、chunk、Candidate KU 和七步处理状态。
 - 补充 `docs/demo1-ingestion-page.md`，记录运行命令、测试方式、功能说明、当前限制和验收方式。
 
 ### 目标

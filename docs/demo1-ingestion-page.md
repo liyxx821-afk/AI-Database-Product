@@ -27,21 +27,31 @@ http://127.0.0.1:5173/demo1-ingestion
 
 ## 功能说明
 
-该页面用于展示最小“知识入库预处理”流程，所有逻辑都在浏览器端完成。
+该页面用于展示最小“知识入库预处理”流程，覆盖：
+
+```text
+资料进入系统 → 来源记录 → 内容解析 → 文本清洗 → 知识切片 → 候选知识生成
+```
+
+所有逻辑都在浏览器端完成。
 
 当前支持：
 
 - 输入或粘贴文本；
+- 模拟资料进入系统记录：`file_name`、`input_type`、`received_at`、`raw_text_length`、`process_status`；
+- 每次处理生成独立 Source 记录：`source_id`、`file_name`、`input_type`、`created_at`、`status`、文本长度、chunk 数和候选 KU 数；
+- 内容解析：文本框输入即为解析文本，解析状态为 `parsed`，并说明当前未做 PDF / Word / OCR；
 - 清洗文本：去掉首尾空格、合并多余空行、合并连续空格、去掉明显乱码字符；
-- 每个 chunk 都生成一个 Candidate KU；
+- 清洗结果显示清洗前后字数变化；若文本本身干净，显示“清洗前后无明显变化”；
 - 生成 Source 信息：`source_id`、来源类型、解析状态；
 - 生成基础 metadata：上传时间、原文字数、清洗后字数、chunk 数、候选 KU 数；
 - 按 400 字切分 chunk，并保留 50 字重叠；
-- 短文本仍可生成 1 个 chunk，并在 chunk 区域标记为“短文本 chunk”；
-- 为每个 chunk 生成 `chunk_id`、`source_id`、字数和内容；
+- 短文本仍可生成 1 个 chunk，并按长度标记 chunk 类型；
+- 为每个 chunk 生成 `chunk_id`、`source_id`、`chunk_index`、`content`、`char_count`、`chunk_type`、`start_offset`、`end_offset`；
+- 每个 chunk 都生成一个 Candidate KU；
 - 基于 chunk 模拟生成 Candidate KU：`ku_id`、`source_id`、`chunk_id`、标题、摘要、关键词、标签、`status`、`quality_note`、`confidence`、`content_type`；
 - Candidate KU 仅作为初步候选材料，不代表最终知识结论；后续由 Demo 2 进行 schema 匹配、标签优化、实体关系抽取和人工确认；
-- 展示处理状态：等待输入、处理中、完成。
+- 展示完整处理状态：`received`、`source_created`、`parsed`、`cleaned`、`chunked`、`candidate_generated`、`completed`。
 
 ## 当前限制
 
@@ -53,6 +63,7 @@ http://127.0.0.1:5173/demo1-ingestion
 - Candidate KU 的标题、摘要、关键词、质量提示和置信度均为前端规则模拟生成；
 - 标签包含固定系统标签：`#demo1`、`#入库预处理`、`#candidate-ku`、`#pending`，并可附加少量短主题标签；
 - 不做真正深度语义分析或最终知识结构化。
+- 不接数据库、不做 RAG、不调用外部模型。
 
 ## 测试方式
 
@@ -61,6 +72,7 @@ http://127.0.0.1:5173/demo1-ingestion
 3. 在文本框中粘贴短文本或一段包含空行、多余空格或乱码符号的长文本；
 4. 点击“开始处理”；
 5. 检查页面是否显示：
+   - 资料进入系统记录；
    - 文件名；
    - source 信息；
    - 基础 metadata；
@@ -71,6 +83,7 @@ http://127.0.0.1:5173/demo1-ingestion
    - 处理状态。
 6. 输入“我是一个大学生。”时，仍应生成 Candidate KU，并显示 `pending`、低置信度、质量提示和内容类型。
 7. 输入 200 字以上文本时，应生成候选 KU、关键词、固定系统标签和追溯字段。
+8. 输入 800-1000 字文本时，应生成多个 chunk 和多个 Candidate KU，且 source 中的 `chunk_count` 与 `candidate_ku_count` 应一致。
 
 ## 验收方式
 

@@ -120,9 +120,12 @@ type UploadQueueItem = {
 type DemoChunk = {
   chunkId: string;
   sourceId: string;
+  chunkIndex: number;
   content: string;
   charCount: number;
-  chunkType: "short_text" | "standard";
+  chunkType: "very_short_chunk" | "short_chunk" | "normal_chunk" | "long_chunk";
+  startOffset: number;
+  endOffset: number;
 };
 
 type DemoCandidateKnowledgeUnit = {
@@ -140,27 +143,72 @@ type DemoCandidateKnowledgeUnit = {
 };
 
 type DemoIngestionResult = {
-  fileName: string;
-  source: {
-    sourceId: string;
-    sourceType: string;
-    status: string;
-  };
+  receivedFile: DemoReceivedFileRecord;
+  source: DemoSourceRecord;
   metadata: {
-    uploadedAt: string;
     rawLength: number;
     cleanedLength: number;
     chunkCount: number;
     candidateKnowledgeUnitCount: number;
   };
-  rawText: string;
-  cleanedText: string;
+  parsed: DemoParsedTextRecord;
+  cleaning: DemoCleaningRecord;
   chunks: DemoChunk[];
   candidateKnowledgeUnits: DemoCandidateKnowledgeUnit[];
   candidateKuMessage: string;
+  pipelineStatuses: DemoPipelineStatus[];
 };
 
 type DemoProcessingStatus = "idle" | "processing" | "completed";
+
+type DemoReceivedFileRecord = {
+  fileName: string;
+  inputType: "text_input";
+  receivedAt: string;
+  rawTextLength: number;
+  processStatus: "received" | "completed";
+};
+
+type DemoSourceRecord = {
+  sourceId: string;
+  fileName: string;
+  inputType: "text_input";
+  createdAt: string;
+  status: "source_created";
+  rawTextLength: number;
+  cleanTextLength: number;
+  chunkCount: number;
+  candidateKuCount: number;
+};
+
+type DemoParsedTextRecord = {
+  content: string;
+  status: "parsed";
+  note: string;
+};
+
+type DemoCleaningRecord = {
+  content: string;
+  status: "cleaned";
+  beforeCharCount: number;
+  afterCharCount: number;
+  note: string;
+};
+
+type DemoPipelineStatusKey =
+  | "received"
+  | "source_created"
+  | "parsed"
+  | "cleaned"
+  | "chunked"
+  | "candidate_generated"
+  | "completed";
+
+type DemoPipelineStatus = {
+  key: DemoPipelineStatusKey;
+  label: string;
+  state: "done" | "loading" | "empty";
+};
 
 type FeedbackFilterValue = FeedbackRequest["feedback_type"] | "all";
 type FeedbackTargetFilterValue = "evidence_pack" | "ai_answer" | "evidence_item" | "all";
@@ -396,30 +444,56 @@ function DemoIngestionPage() {
     const rawText = inputText;
     setProcessingStatus("processing");
     window.setTimeout(() => {
+      const processedAt = new Date().toLocaleString();
+      const fileName = createDemoFileName();
       const cleanedText = cleanDemoText(rawText);
       const sourceId = createDemoId("src");
       const chunks = splitTextIntoDemoChunks(cleanedText, sourceId);
       const candidateKnowledgeUnits = chunks.map(createDemoCandidateKnowledgeUnit);
+      const rawLength = countTextChars(rawText);
+      const cleanedLength = countTextChars(cleanedText);
       setResult({
-        fileName: createDemoFileName(),
+        receivedFile: {
+          fileName,
+          inputType: "text_input",
+          receivedAt: processedAt,
+          rawTextLength: rawLength,
+          processStatus: "completed"
+        },
         source: {
           sourceId,
-          sourceType: "browser_text_input",
-          status: "parsed"
+          fileName,
+          inputType: "text_input",
+          createdAt: processedAt,
+          status: "source_created",
+          rawTextLength: rawLength,
+          cleanTextLength: cleanedLength,
+          chunkCount: chunks.length,
+          candidateKuCount: candidateKnowledgeUnits.length
         },
         metadata: {
-          uploadedAt: new Date().toLocaleString(),
-          rawLength: countTextChars(rawText),
-          cleanedLength: countTextChars(cleanedText),
+          rawLength,
+          cleanedLength,
           chunkCount: chunks.length,
           candidateKnowledgeUnitCount: candidateKnowledgeUnits.length
         },
-        rawText,
-        cleanedText,
+        parsed: {
+          content: rawText,
+          status: "parsed",
+          note: "当前为文本输入模式，未做 PDF / Word / OCR 解析。"
+        },
+        cleaning: {
+          content: cleanedText,
+          status: "cleaned",
+          beforeCharCount: rawLength,
+          afterCharCount: cleanedLength,
+          note: rawText === cleanedText ? "清洗前后无明显变化。" : "已执行首尾空格、连续空格、多余空行、换行和异常字符清洗。"
+        },
         chunks,
         candidateKnowledgeUnits,
         candidateKuMessage:
-          "候选知识单元是基于 chunk 自动生成的初步候选材料，不代表最终知识结论，后续需要进入 Demo 2 做结构化、标签优化、实体关系抽取和人工确认。"
+          "候选知识单元是基于 chunk 自动生成的初步候选材料，不代表最终知识结论，后续需要进入 Demo 2 做结构化、标签优化、实体关系抽取和人工确认。",
+        pipelineStatuses: createDemoPipelineStatuses("completed")
       });
       setProcessingStatus("completed");
     }, 80);
@@ -433,7 +507,7 @@ function DemoIngestionPage() {
           <StateChip state={processingStatus === "completed" ? "done" : processingStatus === "processing" ? "loading" : "empty"} />
         </div>
         <p className="section-note">
-          这个 Demo 只在浏览器内存中完成文本清洗、chunk 切分和候选知识单元模拟生成，不连接数据库，不做文件解析，不生成 RAG。
+          验证链路：资料进入系统 → 来源记录 → 内容解析 → 文本清洗 → 知识切片 → 候选知识生成。当前仅支持文本输入，所有处理都在浏览器端完成。
         </p>
         <div className="demo-ingestion-form">
           <label className="memory-label demo-input-label">
@@ -461,6 +535,23 @@ function DemoIngestionPage() {
         </div>
       </section>
 
+      <section className="page-frame">
+        <div className="section-title-row">
+          <h2>处理状态</h2>
+        </div>
+        <div className="demo-status-list">
+          {(result?.pipelineStatuses ?? createDemoPipelineStatuses(processingStatus)).map((status) => (
+            <article className="demo-status-step" key={status.key}>
+              <StateChip state={status.state} />
+              <div>
+                <strong>{status.key}</strong>
+                <span>{status.label}</span>
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+
       <div className="metric-row">
         <Metric label="原文字数" value={result?.metadata.rawLength ?? 0} />
         <Metric label="清洗后字数" value={result?.metadata.cleanedLength ?? 0} />
@@ -470,37 +561,97 @@ function DemoIngestionPage() {
 
       <section className="page-frame">
         <div className="section-title-row">
-          <h2>文件与 Source 信息</h2>
+          <h2>资料进入系统</h2>
         </div>
         {result ? (
           <div className="demo-info-grid">
             <article className="panel">
-              <h3>文件名</h3>
-              <p>{result.fileName}</p>
+              <h3>file_name</h3>
+              <p>{result.receivedFile.fileName}</p>
             </article>
             <article className="panel">
-              <h3>Source</h3>
-              <p>{result.source.sourceId}</p>
-              <p>{result.source.sourceType} / {result.source.status}</p>
+              <h3>input_type</h3>
+              <p>{result.receivedFile.inputType}</p>
             </article>
             <article className="panel">
-              <h3>基础 metadata</h3>
-              <p>上传时间：{result.metadata.uploadedAt}</p>
-              <p>文本长度：{result.metadata.rawLength} 字</p>
-              <p>清洗后长度：{result.metadata.cleanedLength} 字</p>
+              <h3>received_at</h3>
+              <p>{result.receivedFile.receivedAt}</p>
+            </article>
+            <article className="panel">
+              <h3>raw_text_length</h3>
+              <p>{result.receivedFile.rawTextLength} 字</p>
+            </article>
+            <article className="panel">
+              <h3>process_status</h3>
+              <p>{result.receivedFile.processStatus}</p>
             </article>
           </div>
         ) : (
-          <EmptyState message="尚未生成 Source 信息。" />
+          <EmptyState message="尚未接收资料。" />
         )}
       </section>
 
       <section className="page-frame">
         <div className="section-title-row">
-          <h2>解析文本（原始输入）</h2>
+          <h2>Source 信息</h2>
         </div>
-        {result?.rawText ? (
-          <pre className="demo-original-text">{result.rawText}</pre>
+        {result ? (
+          <div className="demo-info-grid">
+            <article className="panel">
+              <h3>source_id</h3>
+              <p>{result.source.sourceId}</p>
+            </article>
+            <article className="panel">
+              <h3>file_name</h3>
+              <p>{result.source.fileName}</p>
+            </article>
+            <article className="panel">
+              <h3>input_type / status</h3>
+              <p>{result.source.inputType} / {result.source.status}</p>
+            </article>
+            <article className="panel">
+              <h3>created_at</h3>
+              <p>{result.source.createdAt}</p>
+            </article>
+            <article className="panel">
+              <h3>counts</h3>
+              <p>raw_text_length：{result.source.rawTextLength}</p>
+              <p>clean_text_length：{result.source.cleanTextLength}</p>
+              <p>chunk_count：{result.source.chunkCount}</p>
+              <p>candidate_ku_count：{result.source.candidateKuCount}</p>
+            </article>
+          </div>
+        ) : (
+          <EmptyState message="尚未创建 source 记录。" />
+        )}
+      </section>
+
+      <section className="page-frame">
+        <div className="section-title-row">
+          <h2>基础 metadata</h2>
+        </div>
+        {result ? (
+          <div className="panel-grid">
+            <Metric label="raw_text_length" value={result.metadata.rawLength} />
+            <Metric label="clean_text_length" value={result.metadata.cleanedLength} />
+            <Metric label="chunk_count" value={result.metadata.chunkCount} />
+            <Metric label="candidate_ku_count" value={result.metadata.candidateKnowledgeUnitCount} />
+          </div>
+        ) : (
+          <EmptyState message="尚未生成 metadata。" />
+        )}
+      </section>
+
+      <section className="page-frame">
+        <div className="section-title-row">
+          <h2>内容解析</h2>
+          {result ? <StateChip state="done" label={result.parsed.status} /> : null}
+        </div>
+        {result?.parsed.content ? (
+          <>
+            <p className="section-note">{result.parsed.note}</p>
+            <pre className="demo-original-text">{result.parsed.content}</pre>
+          </>
         ) : (
           <EmptyState message="尚未处理文本。" />
         )}
@@ -509,9 +660,21 @@ function DemoIngestionPage() {
       <section className="page-frame">
         <div className="section-title-row">
           <h2>清洗文本</h2>
+          {result ? <StateChip state="done" label={result.cleaning.status} /> : null}
         </div>
-        {result?.cleanedText ? (
-          <pre className="demo-original-text">{result.cleanedText}</pre>
+        {result?.cleaning.content ? (
+          <>
+            <div className="inline-actions">
+              <StatusPill label="清洗前" value={`${result.cleaning.beforeCharCount} 字`} />
+              <StatusPill label="清洗后" value={`${result.cleaning.afterCharCount} 字`} />
+              <StatusPill
+                label="变化"
+                value={`${result.cleaning.afterCharCount - result.cleaning.beforeCharCount} 字`}
+              />
+            </div>
+            <p className="section-note">{result.cleaning.note}</p>
+            <pre className="demo-original-text">{result.cleaning.content}</pre>
+          </>
         ) : (
           <EmptyState message="尚未生成清洗文本。" />
         )}
@@ -529,11 +692,11 @@ function DemoIngestionPage() {
                   <h3>{chunk.chunkId}</h3>
                   <div className="inline-actions">
                     <StatusPill label="source_id" value={chunk.sourceId} />
+                    <StatusPill label="chunk_index" value={String(chunk.chunkIndex)} />
                     <StatusPill label="字数" value={String(chunk.charCount)} />
-                    <StatusPill
-                      label="类型"
-                      value={chunk.chunkType === "short_text" ? "短文本 chunk" : "标准 chunk"}
-                    />
+                    <StatusPill label="chunk_type" value={chunk.chunkType} />
+                    <StatusPill label="start_offset" value={String(chunk.startOffset)} />
+                    <StatusPill label="end_offset" value={String(chunk.endOffset)} />
                   </div>
                 </div>
                 <p>{chunk.content}</p>
@@ -567,8 +730,14 @@ function DemoIngestionPage() {
                   <StatusPill label="source_id" value={unit.sourceId} />
                   <StatusPill label="chunk_id" value={unit.chunkId} />
                 </div>
-                <p>{unit.summary}</p>
-                <p className="section-note">{unit.qualityNote}</p>
+                <p>
+                  <strong>summary：</strong>
+                  {unit.summary}
+                </p>
+                <p className="section-note">
+                  <strong>quality_note：</strong>
+                  {unit.qualityNote}
+                </p>
                 <div className="tag-select-row">
                   {unit.keywords.length ? (
                     unit.keywords.map((keyword) => (
@@ -619,14 +788,18 @@ function splitTextIntoDemoChunks(text: string, sourceId: string): DemoChunk[] {
 
   while (start < chars.length) {
     const end = Math.min(start + maxChunkChars, chars.length);
-    const content = chars.slice(start, end).join("").trim();
+    const content = chars.slice(start, end).join("");
     if (content) {
+      const charCount = countTextChars(content);
       chunks.push({
         chunkId: `${sourceId}-chunk-${String(index).padStart(3, "0")}`,
         sourceId,
+        chunkIndex: index,
         content,
-        charCount: countTextChars(content),
-        chunkType: chars.length < 50 ? "short_text" : "standard"
+        charCount,
+        chunkType: getDemoChunkType(charCount),
+        startOffset: start,
+        endOffset: end
       });
       index += 1;
     }
@@ -635,6 +808,13 @@ function splitTextIntoDemoChunks(text: string, sourceId: string): DemoChunk[] {
   }
 
   return chunks;
+}
+
+function getDemoChunkType(charCount: number): DemoChunk["chunkType"] {
+  if (charCount <= 12) return "very_short_chunk";
+  if (charCount < 80) return "short_chunk";
+  if (charCount < 320) return "normal_chunk";
+  return "long_chunk";
 }
 
 function createDemoCandidateKnowledgeUnit(chunk: DemoChunk, index: number): DemoCandidateKnowledgeUnit {
@@ -786,6 +966,28 @@ function formatDemoStatus(status: DemoProcessingStatus) {
   if (status === "processing") return "处理中";
   if (status === "completed") return "完成";
   return "等待输入";
+}
+
+function createDemoPipelineStatuses(status: DemoProcessingStatus): DemoPipelineStatus[] {
+  const steps: Array<{ key: DemoPipelineStatusKey; label: string }> = [
+    { key: "received", label: "资料进入系统" },
+    { key: "source_created", label: "创建 source 来源记录" },
+    { key: "parsed", label: "内容解析为原始文本" },
+    { key: "cleaned", label: "执行基础文本清洗" },
+    { key: "chunked", label: "基于清洗文本生成 chunk" },
+    { key: "candidate_generated", label: "按 chunk 生成 pending Candidate KU" },
+    { key: "completed", label: "预处理链路完成" }
+  ];
+  if (status === "completed") {
+    return steps.map((step) => ({ ...step, state: "done" }));
+  }
+  if (status === "processing") {
+    return steps.map((step, index) => ({
+      ...step,
+      state: index === 0 ? "loading" : "empty"
+    }));
+  }
+  return steps.map((step) => ({ ...step, state: "empty" }));
 }
 
 function countTextChars(text: string) {

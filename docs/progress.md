@@ -20,6 +20,16 @@
 - 标签保留固定系统标签 `#demo1`、`#入库预处理`、`#candidate-ku`、`#pending`，并可附加少量短主题标签。
 - 页面补充说明：Candidate KU 是基于 chunk 的初步候选材料，不代表最终知识结论，后续由 Demo 2 进行 schema 匹配、标签优化、实体关系抽取和人工确认。
 
+### 入库预处理链路重新对齐
+
+- Demo 1 页面已按“资料进入系统 → 来源记录 → 内容解析 → 文本清洗 → 知识切片 → 候选知识生成”重新组织。
+- 新增资料进入系统记录展示：`file_name`、`input_type`、`received_at`、`raw_text_length`、`process_status`。
+- Source 信息独立展示，包含 `source_id`、`file_name`、`input_type`、`created_at`、`status`、文本长度、chunk 数和候选 KU 数。
+- 内容解析区域显示原始输入、`parsed` 状态和“文本输入模式，未做 PDF / Word / OCR 解析”的说明。
+- 文本清洗区域显示清洗文本、清洗前后字数变化、`cleaned` 状态和清洗说明。
+- Chunk 字段补齐 `chunk_index`、`chunk_type`、`start_offset`、`end_offset`，并按长度区分 `very_short_chunk` / `short_chunk` / `normal_chunk` / `long_chunk`。
+- 处理状态区域补齐七步：`received`、`source_created`、`parsed`、`cleaned`、`chunked`、`candidate_generated`、`completed`。
+
 ### 已实现
 
 - 已从 `main` 新建并切换到 `demo1-ingestion-page` 分支。
