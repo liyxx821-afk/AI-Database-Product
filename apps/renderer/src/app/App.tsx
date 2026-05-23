@@ -623,12 +623,12 @@ function createDemoCandidateKnowledgeUnit(chunk: DemoChunk, index: number): Demo
 
 function extractDemoKeywords(text: string) {
   const normalized = text.replace(/[，。！？；：,.!?;:()[\]{}"'“”‘’]/g, " ");
-  const tokens = normalized
+  const asciiTokens = normalized
     .split(/\s+/)
     .map((token) => token.trim())
-    .filter((token) => countTextChars(token) >= 2);
-  const fallback = Array.from(new Set(Array.from(text.matchAll(/[\u4e00-\u9fa5]{2,6}/g)).map((match) => match[0])));
-  return Array.from(new Set([...tokens, ...fallback])).slice(0, 5);
+    .filter((token) => /^[a-zA-Z0-9_-]{2,24}$/.test(token));
+  const cjkTokens = Array.from(text.matchAll(/[\u4e00-\u9fa5]{2,8}/g)).map((match) => match[0]);
+  return Array.from(new Set([...cjkTokens, ...asciiTokens])).slice(0, 5);
 }
 
 function createDemoTags(keywords: string[]) {
