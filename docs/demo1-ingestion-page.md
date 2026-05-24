@@ -44,7 +44,7 @@ Demo 1 使用 OpenAI-compatible Chat Completions 接口：
 该页面验证真实“知识入库预处理”链路：
 
 ```text
-资料进入系统
+文本 / 文件资料进入系统
 → 来源记录 source
 → 内容解析
 → 文本清洗
@@ -57,13 +57,18 @@ Demo 1 使用 OpenAI-compatible Chat Completions 接口：
 
 当前支持：
 
-- 文本输入模式，不做真实文件上传解析；
+- 文本输入模式；
+- 真实文件上传解析：支持 `.txt`、`.text`、`.md`、`.markdown`、`.csv`、`.tsv`、`.json`、`.log`、`.html`、`.htm`；
+- 文件内容由前端读取后发送到后端，后端完成文件类型判断、文本解码和解析；
+- `.html/.htm` 会去除 script/style/tag 并进行 HTML entity decode；
+- 暂不支持 PDF / Word / OCR；遇到 `.pdf/.docx` 等格式会返回 `demo1_file_type_unsupported`，不会假解析；
 - 生成资料进入系统记录：`file_name`、`input_type`、`received_at`、`raw_text_length`、`process_status`；
 - 生成 source 记录：`source_id`、`file_name`、`input_type`、`created_at`、`status`、`raw_text_length`、`clean_text_length`、`chunk_count`、`candidate_ku_count`；
-- 内容解析：文本框输入即为解析文本，解析状态为 `parsed`，并说明当前未做 PDF / Word / OCR；
-- 文本清洗：去首尾空格、合并连续空格、合并多余空行、统一换行、去掉明显异常字符；
+- 内容解析：文本框输入直接进入 parsed；文件上传由后端解析器生成 parsed text；
+- 文本清洗：Unicode 规范化、BOM/零宽字符移除、控制字符移除、明显乱码清理、连续空格合并、多余空行合并、首尾空格清理；
 - 显示清洗前后字数变化；若文本本身干净，显示“清洗前后无明显变化”；
 - 基于清洗文本生成 chunk，每个 chunk 包含 `chunk_id`、`source_id`、`chunk_index`、`content`、`char_count`、`chunk_type`、`start_offset`、`end_offset`；
+- chunk 切分当前不是模型能力，而是确定性规则：400 字固定窗口，50 字 overlap；
 - 调用外部模型为每个 chunk 生成 Candidate KU；
 - Candidate KU 字段包含 `ku_id`、`source_id`、`chunk_id`、`title`、`summary`、`keywords`、`tags`、`status`、`confidence`、`quality_note`、`content_type`；
 - Candidate KU 固定为 `pending`，仅代表待确认候选材料；
@@ -73,9 +78,10 @@ Demo 1 使用 OpenAI-compatible Chat Completions 接口：
 
 ## 当前限制
 
-- 只支持文本输入，不做 PDF、Word、OCR；
+- 只支持文本输入和文本类文件上传；
+- 不做 PDF、Word、OCR；
 - 不做 RAG，不做向量检索，不做最终知识确认；
-- 不调用外部模型以外的深度解析服务；
+- 暂未接入外部文档深度解析服务；当前真实解析能力为后端内置文本/HTML 解析；
 - Candidate KU 是待确认材料，后续 Demo 2 才做 schema matching、标签优化、实体关系抽取和人工确认；
 - 模型输出会做基础字段校验和标签/关键词清洗，但不代表最终知识结构化质量；
 - 模型未配置或调用失败时不生成假的 Candidate KU。
@@ -89,8 +95,10 @@ Demo 1 使用 OpenAI-compatible Chat Completions 接口：
 5. 检查页面是否显示 source、metadata、解析文本、清洗文本、chunk、Candidate KU、处理状态；
 6. 点击“确认写入本地库”；
 7. 检查页面显示 `commit_status: committed`、`job_id` 和 review task 结果；
-8. 输入 800-1000 字文本，确认多个 chunk 都有对应 Candidate KU；
-9. 浏览器控制台应无报错。
+8. 上传 `.md/.txt/.html` 文件，确认后端解析文本并展示 parser profile；
+9. 上传 `.pdf` 文件，确认页面显示 unsupported 错误，不生成假解析；
+10. 输入 800-1000 字文本，确认多个 chunk 都有对应 Candidate KU；
+11. 浏览器控制台应无报错。
 
 ## 验收方式
 

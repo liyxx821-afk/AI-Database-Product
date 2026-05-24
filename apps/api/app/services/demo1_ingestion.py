@@ -1,13 +1,18 @@
 from __future__ import annotations
 
+import base64
+import binascii
 import hashlib
+import html
 import json
 import os
 import re
+import unicodedata
 import urllib.error
 import urllib.request
 import uuid
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Optional
 
 from app.core.errors import AppError
@@ -15,6 +20,20 @@ from app.db.sqlite import db, json_dumps
 
 DEMO1_PROFILE = "demo1_model_ingestion_preprocess_v1"
 SYSTEM_TAGS = ["#demo1", "#入库预处理", "#candidate-ku", "#pending"]
+MAX_DEMO1_FILE_BYTES = 5 * 1024 * 1024
+SUPPORTED_TEXT_EXTENSIONS = {
+    ".txt",
+    ".text",
+    ".md",
+    ".markdown",
+    ".csv",
+    ".tsv",
+    ".json",
+    ".log",
+    ".html",
+    ".htm",
+}
+PLAIN_TEXT_EXTENSIONS = SUPPORTED_TEXT_EXTENSIONS - {".html", ".htm"}
 PIPELINE_STEPS = [
     ("received", "资料进入系统"),
     ("source_created", "创建 source 来源记录"),
@@ -35,10 +54,14 @@ def new_id(prefix: str) -> str:
 
 
 def preview_ingestion(payload: Any) -> dict[str, Any]:
+    parsed_input = parse_demo1_input(payload)
     return build_preview(
-        file_name=payload.file_name,
-        input_type=payload.input_type,
-        raw_text=payload.raw_text,
+        file_name=parsed_input["file_name"],
+        input_type=parsed_input["input_type"],
+        raw_text=parsed_input["raw_text"],
+        parse_note=parsed_input["parse_note"],
+        parser_profile=parsed_input["parser_profile"],
+        file_size_bytes=parsed_input["file_size_bytes"],
         project_id=payload.project_id,
         commit_status="preview_only",
     )
@@ -48,11 +71,15 @@ def commit_ingestion(payload: Any) -> dict[str, Any]:
     if payload.preview_result is not None:
         result = payload.preview_result.model_dump()
         project_id = payload.project_id
-    elif payload.file_name and payload.raw_text:
+    elif payload.file_name:
+        parsed_input = parse_demo1_input(payload)
         result = build_preview(
-            file_name=payload.file_name,
-            input_type=payload.input_type,
-            raw_text=payload.raw_text,
+            file_name=parsed_input["file_name"],
+            input_type=parsed_input["input_type"],
+            raw_text=parsed_input["raw_text"],
+            parse_note=parsed_input["parse_note"],
+            parser_profile=parsed_input["parser_profile"],
+            file_size_bytes=parsed_input["file_size_bytes"],
             project_id=payload.project_id,
             commit_status="preview_only",
         )
@@ -112,17 +139,23 @@ def commit_ingestion(payload: Any) -> dict[str, Any]:
         )
 
         content_hash = hashlib.sha256(cleaning["content"].encode("utf-8")).hexdigest()
+        source_type = "text" if source["input_type"] == "text" else "file"
+        source_origin = (
+            "demo1_text_input" if source["input_type"] == "text" else "demo1_file_upload"
+        )
         conn.execute(
             """
             INSERT INTO sources
               (id, project_id, title, source_type, source_origin,
                content_hash, metadata_json, created_at)
-            VALUES (?, ?, ?, 'text', 'demo1_text_input', ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 source["source_id"],
                 project_id,
                 source["file_name"],
+                source_type,
+                source_origin,
                 content_hash,
                 json_dumps(
                     {
@@ -131,6 +164,8 @@ def commit_ingestion(payload: Any) -> dict[str, Any]:
                         "clean_text_length": source["clean_text_length"],
                         "chunk_count": source["chunk_count"],
                         "candidate_ku_count": source["candidate_ku_count"],
+                        "parser_profile": result["metadata"]["parser_profile"],
+                        "file_size_bytes": result["metadata"].get("file_size_bytes"),
                         "ingestion_profile": DEMO1_PROFILE,
                         "trace_id": trace_id,
                     }
@@ -292,11 +327,97 @@ def commit_ingestion(payload: Any) -> dict[str, Any]:
     return result
 
 
+def parse_demo1_input(payload: Any) -> dict[str, Any]:
+    if payload.input_type == "text":
+        return {
+            "file_name": payload.file_name,
+            "input_type": "text",
+            "raw_text": payload.raw_text or "",
+            "parse_note": "当前为文本输入模式，未做 PDF / Word / OCR 解析。",
+            "parser_profile": "demo1_text_input_direct_v1",
+            "file_size_bytes": None,
+        }
+
+    file_bytes = decode_demo1_file(payload.file_content_base64 or "")
+    if len(file_bytes) > MAX_DEMO1_FILE_BYTES:
+        raise AppError(
+            "demo1_file_too_large",
+            "Demo 1 file input is limited to 5 MB.",
+            status_code=413,
+        )
+    parsed_text, parser_profile = parse_demo1_file(
+        file_name=payload.file_name,
+        file_bytes=file_bytes,
+        content_type=payload.content_type,
+    )
+    return {
+        "file_name": payload.file_name,
+        "input_type": "file",
+        "raw_text": parsed_text,
+        "parse_note": (
+            f"已在后端解析上传文件，解析器：{parser_profile}。"
+            "当前 Demo 1 不做 PDF / Word / OCR。"
+        ),
+        "parser_profile": parser_profile,
+        "file_size_bytes": len(file_bytes),
+    }
+
+
+def decode_demo1_file(file_content_base64: str) -> bytes:
+    try:
+        return base64.b64decode(file_content_base64, validate=True)
+    except (binascii.Error, ValueError) as error:
+        raise AppError(
+            "demo1_file_base64_invalid",
+            "Uploaded file payload is not valid base64.",
+            status_code=422,
+        ) from error
+
+
+def parse_demo1_file(
+    *,
+    file_name: str,
+    file_bytes: bytes,
+    content_type: Optional[str],
+) -> tuple[str, str]:
+    extension = Path(file_name).suffix.lower()
+    if extension not in SUPPORTED_TEXT_EXTENSIONS:
+        raise AppError(
+            "demo1_file_type_unsupported",
+            "Demo 1 currently supports txt, md, csv, json, log, and html text files only.",
+            status_code=415,
+        )
+    decoded = decode_text_bytes(file_bytes)
+    if extension in PLAIN_TEXT_EXTENSIONS:
+        profile = f"demo1_plain_text_file_parser_v1:{extension.lstrip('.')}"
+        return decoded, profile
+    profile = "demo1_html_text_parser_v1"
+    return strip_html_to_text(decoded), profile
+
+
+def decode_text_bytes(file_bytes: bytes) -> str:
+    for encoding in ("utf-8-sig", "utf-8", "gb18030"):
+        try:
+            return file_bytes.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+    return file_bytes.decode("latin-1", errors="replace")
+
+
+def strip_html_to_text(text: str) -> str:
+    without_script = re.sub(r"(?is)<(script|style).*?>.*?</\1>", "\n", text)
+    without_tags = re.sub(r"(?s)<[^>]+>", "\n", without_script)
+    return html.unescape(without_tags)
+
+
 def build_preview(
     *,
     file_name: str,
     input_type: str,
     raw_text: str,
+    parse_note: str,
+    parser_profile: str,
+    file_size_bytes: Optional[int],
     project_id: str,
     commit_status: str,
 ) -> dict[str, Any]:
@@ -331,6 +452,7 @@ def build_preview(
             "received_at": timestamp,
             "raw_text_length": raw_length,
             "process_status": "received" if model_status != "available" else "completed",
+            "file_size_bytes": file_size_bytes,
         },
         "source": source,
         "metadata": {
@@ -342,11 +464,13 @@ def build_preview(
             "model_name": model_result.get("model_name"),
             "model_status": model_status,
             "commit_status": commit_status,
+            "parser_profile": parser_profile,
+            "file_size_bytes": file_size_bytes,
         },
         "parsed": {
             "content": raw_text,
             "status": "parsed",
-            "note": "当前为文本输入模式，未做 PDF / Word / OCR 解析。",
+            "note": parse_note,
         },
         "cleaning": {
             "content": clean_text,
@@ -372,19 +496,40 @@ def build_preview(
 
 
 def clean_text_for_demo(text: str) -> str:
-    cleaned = text.replace("\r\n", "\n").replace("\r", "\n")
-    cleaned = re.sub(r"[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]", "", cleaned)
+    cleaned = unicodedata.normalize("NFKC", text)
+    cleaned = cleaned.replace("\r\n", "\n").replace("\r", "\n")
+    cleaned = cleaned.replace("\ufeff", "")
     cleaned = cleaned.replace("\ufffd", "")
-    cleaned = re.sub(r"[ \t]+", " ", cleaned)
+    cleaned = re.sub(r"[\u200b\u200c\u200d\u2060]", "", cleaned)
+    cleaned = re.sub(r"(锟斤拷|锟|�)+", "", cleaned)
+    cleaned = re.sub(r"[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]", "", cleaned)
+    cleaned = remove_abnormal_characters(cleaned)
+    cleaned = re.sub(r"[ \t\f\v]+", " ", cleaned)
     cleaned = re.sub(r" *\n *", "\n", cleaned)
     cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
+    cleaned = "\n".join(line.strip() for line in cleaned.split("\n"))
     return cleaned.strip()
+
+
+def remove_abnormal_characters(text: str) -> str:
+    kept: list[str] = []
+    for char in text:
+        if char == "\n":
+            kept.append(char)
+            continue
+        category = unicodedata.category(char)
+        if category.startswith(("L", "N", "P", "S")) or category == "Zs":
+            kept.append(char)
+    return "".join(kept)
 
 
 def cleaning_note(raw_text: str, clean_text: str) -> str:
     if raw_text == clean_text:
         return "清洗前后无明显变化。"
-    return "已执行首尾空格、连续空格、多余空行、统一换行和明显异常字符清洗。"
+    return (
+        "已执行 Unicode 规范化、BOM/零宽字符移除、控制字符移除、"
+        "明显乱码清理、连续空格合并、多余空行合并和首尾空格清理。"
+    )
 
 
 def split_chunks(text: str, source_id: str) -> list[dict[str, Any]]:

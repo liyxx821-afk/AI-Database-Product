@@ -236,7 +236,7 @@ class TextImportResponse(BaseModel):
     review_task_ids: List[str]
 
 
-Demo1InputType = Literal["text"]
+Demo1InputType = Literal["text", "file"]
 Demo1ChunkType = Literal["very_short_chunk", "short_chunk", "normal_chunk", "long_chunk"]
 Demo1ContentType = Literal["very_short_text", "short_note", "paragraph_note", "long_chunk"]
 Demo1ModelStatus = Literal["available", "unconfigured", "error", "invalid_response"]
@@ -249,6 +249,7 @@ class Demo1ReceivedFileRecord(BaseModel):
     received_at: str
     raw_text_length: int
     process_status: str
+    file_size_bytes: Optional[int] = None
 
 
 class Demo1SourceRecord(BaseModel):
@@ -272,6 +273,8 @@ class Demo1MetadataRecord(BaseModel):
     model_name: Optional[str]
     model_status: Demo1ModelStatus
     commit_status: Demo1CommitStatus
+    parser_profile: str
+    file_size_bytes: Optional[int] = None
 
 
 class Demo1ParsedTextRecord(BaseModel):
@@ -324,8 +327,18 @@ class Demo1IngestionRequest(BaseModel):
 
     file_name: str = Field(min_length=1, max_length=240)
     input_type: Demo1InputType = "text"
-    raw_text: str = Field(min_length=1)
+    raw_text: Optional[str] = Field(default=None, min_length=1)
+    file_content_base64: Optional[str] = Field(default=None, min_length=1)
+    content_type: Optional[str] = Field(default=None, max_length=160)
     project_id: str = "default-space"
+
+    @model_validator(mode="after")
+    def require_matching_input(self) -> Demo1IngestionRequest:
+        if self.input_type == "text" and not self.raw_text:
+            raise ValueError("raw_text is required for text input")
+        if self.input_type == "file" and not self.file_content_base64:
+            raise ValueError("file_content_base64 is required for file input")
+        return self
 
 
 class Demo1IngestionResult(BaseModel):
@@ -352,7 +365,21 @@ class Demo1IngestionCommitRequest(BaseModel):
     file_name: Optional[str] = Field(default=None, min_length=1, max_length=240)
     input_type: Demo1InputType = "text"
     raw_text: Optional[str] = Field(default=None, min_length=1)
+    file_content_base64: Optional[str] = Field(default=None, min_length=1)
+    content_type: Optional[str] = Field(default=None, max_length=160)
     project_id: str = "default-space"
+
+    @model_validator(mode="after")
+    def require_commit_input(self) -> Demo1IngestionCommitRequest:
+        if self.preview_result is not None:
+            return self
+        if not self.file_name:
+            raise ValueError("file_name is required when preview_result is omitted")
+        if self.input_type == "text" and not self.raw_text:
+            raise ValueError("raw_text is required for text input")
+        if self.input_type == "file" and not self.file_content_base64:
+            raise ValueError("file_content_base64 is required for file input")
+        return self
 
 
 class UploadCreateRequest(BaseModel):

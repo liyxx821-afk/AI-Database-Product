@@ -111,14 +111,18 @@ export type ApiSchemas = {
   "Demo1IngestionCommitRequest": {
   "preview_result"?: Demo1IngestionResult | null;
   "file_name"?: string | null;
-  "input_type"?: string;
+  "input_type"?: "text" | "file";
   "raw_text"?: string | null;
+  "file_content_base64"?: string | null;
+  "content_type"?: string | null;
   "project_id"?: string;
 };
   "Demo1IngestionRequest": {
   "file_name": string;
-  "input_type"?: string;
-  "raw_text": string;
+  "input_type"?: "text" | "file";
+  "raw_text"?: string | null;
+  "file_content_base64"?: string | null;
+  "content_type"?: string | null;
   "project_id"?: string;
 };
   "Demo1IngestionResult": {
@@ -146,6 +150,8 @@ export type ApiSchemas = {
   "model_name": string | null;
   "model_status": "available" | "unconfigured" | "error" | "invalid_response";
   "commit_status": "preview_only" | "committed";
+  "parser_profile": string;
+  "file_size_bytes"?: number | null;
 };
   "Demo1ParsedTextRecord": {
   "content": string;
@@ -159,15 +165,16 @@ export type ApiSchemas = {
 };
   "Demo1ReceivedFileRecord": {
   "file_name": string;
-  "input_type": string;
+  "input_type": "text" | "file";
   "received_at": string;
   "raw_text_length": number;
   "process_status": string;
+  "file_size_bytes"?: number | null;
 };
   "Demo1SourceRecord": {
   "source_id": string;
   "file_name": string;
-  "input_type": string;
+  "input_type": "text" | "file";
   "created_at": string;
   "status": string;
   "raw_text_length": number;
@@ -980,15 +987,19 @@ export type Demo1CleaningRecord = {
 export type Demo1IngestionCommitRequest = {
   "preview_result"?: Demo1IngestionResult | null;
   "file_name"?: string | null;
-  "input_type"?: string;
+  "input_type"?: "text" | "file";
   "raw_text"?: string | null;
+  "file_content_base64"?: string | null;
+  "content_type"?: string | null;
   "project_id"?: string;
 };
 
 export type Demo1IngestionRequest = {
   "file_name": string;
-  "input_type"?: string;
-  "raw_text": string;
+  "input_type"?: "text" | "file";
+  "raw_text"?: string | null;
+  "file_content_base64"?: string | null;
+  "content_type"?: string | null;
   "project_id"?: string;
 };
 
@@ -1018,6 +1029,8 @@ export type Demo1MetadataRecord = {
   "model_name": string | null;
   "model_status": "available" | "unconfigured" | "error" | "invalid_response";
   "commit_status": "preview_only" | "committed";
+  "parser_profile": string;
+  "file_size_bytes"?: number | null;
 };
 
 export type Demo1ParsedTextRecord = {
@@ -1034,16 +1047,17 @@ export type Demo1PipelineStatusRecord = {
 
 export type Demo1ReceivedFileRecord = {
   "file_name": string;
-  "input_type": string;
+  "input_type": "text" | "file";
   "received_at": string;
   "raw_text_length": number;
   "process_status": string;
+  "file_size_bytes"?: number | null;
 };
 
 export type Demo1SourceRecord = {
   "source_id": string;
   "file_name": string;
-  "input_type": string;
+  "input_type": "text" | "file";
   "created_at": string;
   "status": string;
   "raw_text_length": number;

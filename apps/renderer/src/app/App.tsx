@@ -170,22 +170,25 @@ type DemoIngestionResult = {
   persisted: boolean;
   jobId: string | null;
   reviewTaskIds: string[];
+  parserProfile: string;
+  fileSizeBytes: number | null;
 };
 
 type DemoProcessingStatus = "idle" | "processing" | "committing" | "completed" | "error";
 
 type DemoReceivedFileRecord = {
   fileName: string;
-  inputType: "text";
+  inputType: "text" | "file";
   receivedAt: string;
   rawTextLength: number;
   processStatus: string;
+  fileSizeBytes: number | null;
 };
 
 type DemoSourceRecord = {
   sourceId: string;
   fileName: string;
-  inputType: "text";
+  inputType: "text" | "file";
   createdAt: string;
   status: string;
   rawTextLength: number;
@@ -448,28 +451,49 @@ function RoutePanel({ path }: { path: RouteKey }) {
 
 function DemoIngestionPage() {
   const [inputText, setInputText] = useState("");
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [processingStatus, setProcessingStatus] = useState<DemoProcessingStatus>("idle");
   const [result, setResult] = useState<DemoIngestionResult | null>(null);
   const [demoErrorCode, setDemoErrorCode] = useState<string | null>(null);
 
   const inputCharCount = countTextChars(inputText);
+  const canPreview = Boolean(inputText.trim() || selectedFile);
 
   async function processText() {
     const rawText = inputText;
     setProcessingStatus("processing");
     setDemoErrorCode(null);
     try {
-      const apiResult = await previewDemo1Ingestion({
-        file_name: createDemoFileName(),
-        input_type: "text",
-        raw_text: rawText,
-        project_id: "default-space"
-      });
+      const apiResult = selectedFile
+        ? await previewDemo1Ingestion({
+            file_name: selectedFile.name,
+            input_type: "file",
+            file_content_base64: await fileToBase64(selectedFile),
+            content_type: selectedFile.type || "application/octet-stream",
+            project_id: "default-space"
+          })
+        : await previewDemo1Ingestion({
+            file_name: createDemoFileName(),
+            input_type: "text",
+            raw_text: rawText,
+            project_id: "default-space"
+          });
       setResult(mapDemoApiResult(apiResult));
       setProcessingStatus("completed");
     } catch (error) {
       setDemoErrorCode(resolveErrorCode(error, "demo1_preview_failed"));
       setProcessingStatus("error");
+    }
+  }
+
+  function handleDemoFileChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0] ?? null;
+    setSelectedFile(file);
+    if (file) {
+      setInputText("");
+      setResult(null);
+      setDemoErrorCode(null);
+      setProcessingStatus("idle");
     }
   }
 
@@ -505,15 +529,45 @@ function DemoIngestionPage() {
           />
         </div>
         <p className="section-note">
-          验证链路：资料进入系统 → 来源记录 → 内容解析 → 文本清洗 → 知识切片 → 外部模型语义分析 → 候选知识生成。当前仅支持文本输入，模型调用在后端完成，前端不保存 API key。
+          验证链路：资料进入系统 → 来源记录 → 内容解析 → 文本清洗 → 知识切片 → 外部模型语义分析 → 候选知识生成。当前支持文本输入和文本类文件上传，模型调用在后端完成，前端不保存 API key。
         </p>
         <div className="demo-ingestion-form">
+          <label className="memory-label demo-input-label">
+            <span>上传文件</span>
+            <input
+              className="query-input"
+              type="file"
+              accept=".txt,.text,.md,.markdown,.csv,.tsv,.json,.log,.html,.htm,text/*,application/json"
+              onChange={handleDemoFileChange}
+            />
+          </label>
+          {selectedFile ? (
+            <div className="inline-actions">
+              <StatusPill label="file_name" value={selectedFile.name} />
+              <StatusPill label="file_size" value={formatBytes(selectedFile.size)} />
+              <StatusPill label="file_type" value={selectedFile.type || "unknown"} />
+              <button
+                className="icon-command"
+                type="button"
+                onClick={() => {
+                  setSelectedFile(null);
+                  setResult(null);
+                  setDemoErrorCode(null);
+                  setProcessingStatus("idle");
+                }}
+              >
+                <XCircle aria-hidden="true" size={16} />
+                <span>清除文件</span>
+              </button>
+            </div>
+          ) : null}
           <label className="memory-label demo-input-label">
             <span>输入文本</span>
             <textarea
               className="memory-textarea demo-textarea"
               value={inputText}
               placeholder="粘贴一段笔记、对话或研究摘录，然后点击开始处理。"
+              disabled={Boolean(selectedFile)}
               onChange={(event) => setInputText(event.target.value)}
             />
           </label>
@@ -525,7 +579,7 @@ function DemoIngestionPage() {
             <button
               className="icon-command"
               type="button"
-              disabled={!inputText.trim() || processingStatus === "processing" || processingStatus === "committing"}
+              disabled={!canPreview || processingStatus === "processing" || processingStatus === "committing"}
               onClick={processText}
             >
               <FileText aria-hidden="true" size={16} />
@@ -610,6 +664,12 @@ function DemoIngestionPage() {
               <h3>raw_text_length</h3>
               <p>{result.receivedFile.rawTextLength} 字</p>
             </article>
+            {result.receivedFile.fileSizeBytes != null ? (
+              <article className="panel">
+                <h3>file_size_bytes</h3>
+                <p>{result.receivedFile.fileSizeBytes}</p>
+              </article>
+            ) : null}
             <article className="panel">
               <h3>process_status</h3>
               <p>{result.receivedFile.processStatus}</p>
@@ -672,6 +732,10 @@ function DemoIngestionPage() {
             <article className="panel">
               <h3>model_name / status</h3>
               <p>{result.modelName ?? "not_configured"} / {result.modelStatus}</p>
+            </article>
+            <article className="panel">
+              <h3>parser_profile</h3>
+              <p>{result.parserProfile}</p>
             </article>
             <article className="panel">
               <h3>commit_status</h3>
@@ -820,7 +884,8 @@ function mapDemoApiResult(apiResult: Demo1ApiIngestionResult): DemoIngestionResu
       inputType: apiResult.received_file.input_type,
       receivedAt: apiResult.received_file.received_at,
       rawTextLength: apiResult.received_file.raw_text_length,
-      processStatus: apiResult.received_file.process_status
+      processStatus: apiResult.received_file.process_status,
+      fileSizeBytes: apiResult.received_file.file_size_bytes
     },
     source: {
       sourceId: apiResult.source.source_id,
@@ -886,7 +951,9 @@ function mapDemoApiResult(apiResult: Demo1ApiIngestionResult): DemoIngestionResu
     modelErrorMessage: apiResult.model_error_message,
     persisted: apiResult.persisted,
     jobId: apiResult.job_id,
-    reviewTaskIds: apiResult.review_task_ids
+    reviewTaskIds: apiResult.review_task_ids,
+    parserProfile: apiResult.metadata.parser_profile,
+    fileSizeBytes: apiResult.metadata.file_size_bytes
   };
 }
 
@@ -1081,6 +1148,18 @@ function createDemoFileName() {
     String(now.getMinutes()).padStart(2, "0")
   ].join("");
   return `demo1-text-input-${stamp}.txt`;
+}
+
+async function fileToBase64(file: File) {
+  const buffer = await file.arrayBuffer();
+  let binary = "";
+  const bytes = new Uint8Array(buffer);
+  const chunkSize = 0x8000;
+  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+    const chunk = bytes.subarray(offset, offset + chunkSize);
+    binary += String.fromCharCode(...chunk);
+  }
+  return btoa(binary);
 }
 
 function createDemoId(prefix: string) {

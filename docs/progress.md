@@ -2370,6 +2370,18 @@
   - 已通过浏览器 smoke 打开 `http://127.0.0.1:5173/demo1-ingestion`，输入“我是一个大学生。”并点击“预处理预览”；页面显示 source、metadata、解析文本、清洗文本、chunk、模型未配置提示，且 console 无 error。
   - 全量 `.\.venv\Scripts\python.exe -m pytest apps/api/tests` 当前仍有 4 个既有上传/文件解析用例失败，原因是当前 build 中 `app.services.uploads.file_upload` 不存在，`/api/uploads` 返回 503；本轮新增 Demo 1 用例不依赖该上传服务并已通过。
   - `corepack pnpm typecheck` 会触发仓库脚本中的裸 `pnpm` 命令；当前 Windows PATH 没有 pnpm shim，因此改用 `corepack pnpm --filter ...` 逐项验证。
+- Demo 1 文件上传解析与清洗升级：
+  - 已支持 `/demo1-ingestion` 选择 `.txt/.md/.csv/.json/.log/.html` 等文本类文件，由后端解析为 parsed text。
+  - 已为 `.html/.htm` 增加基础 HTML 文本抽取，去除 script/style/tag 并 decode HTML entity。
+  - 已对 `.pdf/.docx` 等暂不支持格式返回 `demo1_file_type_unsupported`，不做假解析。
+  - 已优化清洗逻辑：Unicode 规范化、BOM/零宽字符移除、控制字符移除、明显 mojibake 清理、空白与空行合并。
+  - 已明确 chunk 切分不是模型能力，当前使用确定性 400 字窗口 + 50 字 overlap；外部模型只用于 Candidate KU 语义分析。
+  - 已通过 `.\.venv\Scripts\python.exe -m pytest apps/api/tests/test_demo1_ingestion.py`，4 个 Demo 1 用例通过。
+  - 已通过 `.\.venv\Scripts\python.exe -m ruff check apps/api scripts`。
+  - 已通过 `corepack pnpm --filter @knowledgebase-dev/api-types build` 与 `corepack pnpm --filter @knowledgebase-dev/renderer typecheck`。
+  - 已通过 `corepack pnpm --filter @knowledgebase-dev/renderer build`。
+  - 已通过浏览器 smoke 打开 `/demo1-ingestion`，确认文件上传控件、文本/文件说明和预处理按钮可见，console 无 error。
+  - 已通过本地 API smoke 上传 `browser-smoke.md`，确认 `input_type=file`、`parser_profile=demo1_plain_text_file_parser_v1:md`、`chunk_count=1`、零宽字符已被清洗。
 - 已通过 `rg --files` 确认初始仓库仅包含 `AGENTS.md`。
 - 已通过文档创建结果确认 `README.md` 与 `docs/` 文档体系存在。
 - 已通过 `rg` 检查确认关键术语已覆盖：`建库系统`、`Source`、`Chunk`、`Knowledge Unit`、`Human Review`、`Text-to-SQL`、`RAG`。

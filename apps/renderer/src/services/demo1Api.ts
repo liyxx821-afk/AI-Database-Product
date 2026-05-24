@@ -32,6 +32,7 @@ export type Demo1IngestionResult = {
     received_at: string;
     raw_text_length: number;
     process_status: string;
+    file_size_bytes: number | null;
   };
   source: {
     source_id: string;
@@ -53,6 +54,8 @@ export type Demo1IngestionResult = {
     model_name: string | null;
     model_status: "available" | "unconfigured" | "error" | "invalid_response";
     commit_status: "preview_only" | "committed";
+    parser_profile: string;
+    file_size_bytes: number | null;
   };
   parsed: {
     content: string;
@@ -83,8 +86,10 @@ export type Demo1IngestionResult = {
 
 export type Demo1IngestionRequest = {
   file_name: string;
-  input_type: "text";
-  raw_text: string;
+  input_type: "text" | "file";
+  raw_text?: string;
+  file_content_base64?: string;
+  content_type?: string;
   project_id?: string;
 };
 

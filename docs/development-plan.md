@@ -1454,6 +1454,10 @@ docs/progress.md
 - 前端页面仍为 `/demo1-ingestion`；
 - 后端新增 Demo 1 preview / commit API；
 - Candidate KU 由 OpenAI-compatible 外部模型生成，前端不保存 API key；
+- Demo 1 已支持文本类文件上传解析，当前覆盖 `.txt/.md/.csv/.json/.log/.html` 等后端解析路径；
+- PDF / Word / OCR 仍不在 Demo 1 当前实现范围内，暂不支持格式会明确报错；
+- 文本清洗已升级为 Unicode 规范化、BOM/零宽字符、控制字符、明显乱码、空白和空行清理；
+- chunk 切分当前使用确定性规则：400 字固定窗口 + 50 字 overlap，不调用模型；
 - preview 阶段只返回页面展示结果，不写库；
 - commit 阶段写入现有 SQLite 的 `sources`、`chunks`、`knowledge_units`、`review_tasks`；
 - 模型未配置或调用失败时，保留 source / clean text / chunk 结果，但不生成假的 Candidate KU；

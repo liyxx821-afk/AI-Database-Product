@@ -4039,7 +4039,10 @@
           },
           "input_type": {
             "type": "string",
-            "const": "text",
+            "enum": [
+              "text",
+              "file"
+            ],
             "title": "Input Type",
             "default": "text"
           },
@@ -4054,6 +4057,30 @@
               }
             ],
             "title": "Raw Text"
+          },
+          "file_content_base64": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File Content Base64"
+          },
+          "content_type": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 160
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content Type"
           },
           "project_id": {
             "type": "string",
@@ -4075,14 +4102,48 @@
           },
           "input_type": {
             "type": "string",
-            "const": "text",
+            "enum": [
+              "text",
+              "file"
+            ],
             "title": "Input Type",
             "default": "text"
           },
           "raw_text": {
-            "type": "string",
-            "minLength": 1,
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Raw Text"
+          },
+          "file_content_base64": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File Content Base64"
+          },
+          "content_type": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 160
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content Type"
           },
           "project_id": {
             "type": "string",
@@ -4093,8 +4154,7 @@
         "additionalProperties": false,
         "type": "object",
         "required": [
-          "file_name",
-          "raw_text"
+          "file_name"
         ],
         "title": "Demo1IngestionRequest"
       },
@@ -4250,6 +4310,21 @@
               "committed"
             ],
             "title": "Commit Status"
+          },
+          "parser_profile": {
+            "type": "string",
+            "title": "Parser Profile"
+          },
+          "file_size_bytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File Size Bytes"
           }
         },
         "type": "object",
@@ -4261,7 +4336,8 @@
           "model_provider",
           "model_name",
           "model_status",
-          "commit_status"
+          "commit_status",
+          "parser_profile"
         ],
         "title": "Demo1MetadataRecord"
       },
@@ -4325,7 +4401,10 @@
           },
           "input_type": {
             "type": "string",
-            "const": "text",
+            "enum": [
+              "text",
+              "file"
+            ],
             "title": "Input Type"
           },
           "received_at": {
@@ -4339,6 +4418,17 @@
           "process_status": {
             "type": "string",
             "title": "Process Status"
+          },
+          "file_size_bytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File Size Bytes"
           }
         },
         "type": "object",
@@ -4363,7 +4453,10 @@
           },
           "input_type": {
             "type": "string",
-            "const": "text",
+            "enum": [
+              "text",
+              "file"
+            ],
             "title": "Input Type"
           },
           "created_at": {

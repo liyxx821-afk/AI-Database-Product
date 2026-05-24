@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import base64
+
 from app.db.sqlite import db
 from app.main import create_app
 from app.services import demo1_ingestion
@@ -60,6 +62,56 @@ def test_demo1_preview_generates_model_candidates(monkeypatch, tmp_path):
     assert body["candidate_knowledge_units"][0]["status"] == "pending"
     assert body["candidate_knowledge_units"][0]["confidence"] == 0.3
     assert body["candidate_knowledge_units"][0]["chunk_id"] == body["chunks"][0]["chunk_id"]
+
+
+def test_demo1_preview_parses_uploaded_markdown_file(monkeypatch, tmp_path):
+    monkeypatch.setenv("KB_APP_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("KB_LOCAL_TOKEN", "test-token")
+    monkeypatch.setattr(demo1_ingestion, "analyze_chunks_with_model", _mock_model_analysis)
+    headers = {"x-kb-local-token": "test-token"}
+    content = "# 艺术史笔记\n\n图像研究关注媒介、风格与观看制度。\u200b\n"
+
+    with TestClient(create_app()) as client:
+        response = client.post(
+            "/api/demo1/ingestion:preview",
+            headers=headers,
+            json={
+                "file_name": "art-note.md",
+                "input_type": "file",
+                "file_content_base64": base64.b64encode(content.encode("utf-8")).decode("ascii"),
+                "content_type": "text/markdown",
+            },
+        )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["received_file"]["input_type"] == "file"
+    assert body["received_file"]["file_size_bytes"] == len(content.encode("utf-8"))
+    assert body["metadata"]["parser_profile"] == "demo1_plain_text_file_parser_v1:md"
+    assert "\u200b" not in body["cleaning"]["content"]
+    assert "图像研究关注媒介" in body["parsed"]["content"]
+    assert body["source"]["candidate_ku_count"] == body["source"]["chunk_count"]
+
+
+def test_demo1_preview_rejects_unsupported_file(monkeypatch, tmp_path):
+    monkeypatch.setenv("KB_APP_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("KB_LOCAL_TOKEN", "test-token")
+    headers = {"x-kb-local-token": "test-token"}
+
+    with TestClient(create_app()) as client:
+        response = client.post(
+            "/api/demo1/ingestion:preview",
+            headers=headers,
+            json={
+                "file_name": "unsupported.pdf",
+                "input_type": "file",
+                "file_content_base64": base64.b64encode(b"%PDF-1.7").decode("ascii"),
+                "content_type": "application/pdf",
+            },
+        )
+
+    assert response.status_code == 415
+    assert response.json()["error"]["code"] == "demo1_file_type_unsupported"
 
 
 def test_demo1_commit_persists_source_chunks_candidates_and_review(monkeypatch, tmp_path):
