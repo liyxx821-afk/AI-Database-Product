@@ -32,16 +32,16 @@ runPnpm(["--filter", "@knowledgebase-dev/desktop-preload", "build"]);
 runPnpm(["--filter", "@knowledgebase-dev/shared-config", "build"]);
 runPnpm(["--filter", "@knowledgebase-dev/desktop-main", "build"]);
 
-const renderer = spawnPnpm(["--filter", "@knowledgebase-dev/renderer", "dev", "--", "--host", "127.0.0.1"], {
+const renderer = spawnPnpm(["--filter", "@knowledgebase-dev/renderer", "dev", "--host", "127.0.0.1"], {
   stdio: "inherit",
   env: { ...process.env }
 });
 
 await new Promise((resolve) => setTimeout(resolve, 2500));
 
-const desktop = spawnPnpm(["--filter", "@knowledgebase-dev/desktop-main", "dev"], {
+const desktop = spawnPnpm(["--filter", "@knowledgebase-dev/desktop-main", "exec", "electron", "dist/main.js"], {
   stdio: "inherit",
-  env: { ...process.env, KB_RENDERER_URL: "http://127.0.0.1:5173/dashboard" }
+  env: { ...process.env, KB_RENDERER_URL: "http://127.0.0.1:5173/demo1-ingestion" }
 });
 
 function shutdown() {

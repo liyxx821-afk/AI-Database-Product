@@ -30,7 +30,10 @@ const repoRoot = path.resolve(__dirname, "..", "..", "..");
 
 function pythonExecutable(): string {
   if (process.env.KB_PYTHON_EXECUTABLE) return process.env.KB_PYTHON_EXECUTABLE;
-  const venvPython = path.join(repoRoot, ".venv", "bin", "python");
+  const venvPython =
+    process.platform === "win32"
+      ? path.join(repoRoot, ".venv", "Scripts", "python.exe")
+      : path.join(repoRoot, ".venv", "bin", "python");
   return existsSync(venvPython) ? venvPython : "python3";
 }
 
