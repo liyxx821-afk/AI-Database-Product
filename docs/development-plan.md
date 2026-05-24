@@ -1454,6 +1454,8 @@ docs/progress.md
 - 前端页面仍为 `/demo1-ingestion`；
 - 后端新增 Demo 1 preview / commit API；
 - Candidate KU 由 OpenAI-compatible 外部模型生成，前端不保存 API key；
+- 默认模型路径为 OpenAI Responses API + `gpt-5.4-mini`，最小配置只需 `OPENAI_API_KEY`；
+- 兼容供应商可通过 `KB_AI_API_KEY`、`KB_AI_BASE_URL`、`KB_AI_MODEL`、`KB_AI_ENDPOINT` 覆盖；
 - Demo 1 已支持文本类文件上传解析，当前覆盖 `.txt/.md/.csv/.json/.log/.html` 等后端解析路径；
 - PDF / Word / OCR 仍不在 Demo 1 当前实现范围内，暂不支持格式会明确报错；
 - 文本清洗已升级为 Unicode 规范化、BOM/零宽字符、控制字符、明显乱码、空白和空行清理；

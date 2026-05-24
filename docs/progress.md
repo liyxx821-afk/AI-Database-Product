@@ -2382,6 +2382,14 @@
   - 已通过 `corepack pnpm --filter @knowledgebase-dev/renderer build`。
   - 已通过浏览器 smoke 打开 `/demo1-ingestion`，确认文件上传控件、文本/文件说明和预处理按钮可见，console 无 error。
   - 已通过本地 API smoke 上传 `browser-smoke.md`，确认 `input_type=file`、`parser_profile=demo1_plain_text_file_parser_v1:md`、`chunk_count=1`、零宽字符已被清洗。
+- Demo 1 模型接入查漏补缺：
+  - 已确认当前本机没有 `KB_AI_*` / `OPENAI_*` 模型环境变量，因此页面无法真实调用外部模型。
+  - 已将默认模型接入从“必须手动提供 KB_AI_BASE_URL 和 KB_AI_MODEL”改为“只需 `OPENAI_API_KEY` 即可调用 OpenAI Responses API”。
+  - 默认模型选择为 `gpt-5.4-mini`，用于 Candidate KU 的结构化语义抽取。
+  - 兼容其他供应商时仍支持 `KB_AI_BASE_URL`、`KB_AI_MODEL`、`KB_AI_ENDPOINT=chat_completions`。
+  - 已新增测试覆盖 `OPENAI_API_KEY` + 默认 `gpt-5.4-mini` + `/responses` 路径，证明真实模型调用路径会产出 Candidate KU。
+  - 已通过 `.\.venv\Scripts\python.exe -m pytest apps/api/tests/test_demo1_ingestion.py`，5 个 Demo 1 用例通过。
+  - 已通过 `.\.venv\Scripts\python.exe -m ruff check apps/api scripts`。
 - 已通过 `rg --files` 确认初始仓库仅包含 `AGENTS.md`。
 - 已通过文档创建结果确认 `README.md` 与 `docs/` 文档体系存在。
 - 已通过 `rg` 检查确认关键术语已覆盖：`建库系统`、`Source`、`Chunk`、`Knowledge Unit`、`Human Review`、`Text-to-SQL`、`RAG`。

@@ -19,9 +19,7 @@ corepack pnpm dev:desktop
 如果只用普通浏览器访问 Vite 页面，需要单独启动 FastAPI，并给 renderer 配置 API 地址：
 
 ```powershell
-$env:KB_AI_API_KEY='your-api-key'
-$env:KB_AI_BASE_URL='https://your-openai-compatible-host/v1'
-$env:KB_AI_MODEL='your-model-name'
+$env:OPENAI_API_KEY='your-api-key'
 $env:VITE_KB_API_BASE_URL='http://127.0.0.1:8765/api'
 .\.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8765 --app-dir apps/api
 corepack pnpm --filter @knowledgebase-dev/renderer dev -- --host 127.0.0.1
@@ -31,11 +29,19 @@ corepack pnpm --filter @knowledgebase-dev/renderer dev -- --host 127.0.0.1
 
 ## 外部模型配置
 
-Demo 1 使用 OpenAI-compatible Chat Completions 接口：
+Demo 1 默认使用 OpenAI Responses API：
+
+- 默认模型：`gpt-5.4-mini`；
+- 最小配置：`OPENAI_API_KEY`；
+- 默认 base URL：`https://api.openai.com/v1`；
+- 默认 endpoint：`/responses`。
+
+也可以使用 OpenAI-compatible Chat Completions：
 
 - `KB_AI_API_KEY`：外部模型 API key；
 - `KB_AI_BASE_URL`：OpenAI-compatible base URL，例如 `https://api.openai.com/v1` 或其他兼容服务的 `/v1` 地址；
-- `KB_AI_MODEL`：模型名。
+- `KB_AI_MODEL`：模型名；
+- `KB_AI_ENDPOINT`：可选，`responses` 或 `chat_completions`。
 
 如果上述环境变量缺失，页面仍会显示 source、metadata、解析文本、清洗文本和 chunk，但 Candidate KU 区域不会生成假数据，而会显示模型未配置或调用失败信息。
 
@@ -88,7 +94,7 @@ Demo 1 使用 OpenAI-compatible Chat Completions 接口：
 
 ## 测试方式
 
-1. 配置 `KB_AI_API_KEY`、`KB_AI_BASE_URL`、`KB_AI_MODEL`；
+1. 配置 `OPENAI_API_KEY`；如使用其他兼容服务，再配置 `KB_AI_API_KEY`、`KB_AI_BASE_URL`、`KB_AI_MODEL`；
 2. 启动 `corepack pnpm dev:desktop`；
 3. 打开 `/demo1-ingestion`；
 4. 输入短文本并点击“预处理预览”；

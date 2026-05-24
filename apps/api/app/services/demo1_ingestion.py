@@ -19,6 +19,8 @@ from app.core.errors import AppError
 from app.db.sqlite import db, json_dumps
 
 DEMO1_PROFILE = "demo1_model_ingestion_preprocess_v1"
+DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1"
+DEFAULT_DEMO1_MODEL = "gpt-5.4-mini"
 SYSTEM_TAGS = ["#demo1", "#入库预处理", "#candidate-ku", "#pending"]
 MAX_DEMO1_FILE_BYTES = 5 * 1024 * 1024
 SUPPORTED_TEXT_EXTENSIONS = {
@@ -578,26 +580,112 @@ def analyze_chunks_with_model(
     source_id: str,
     project_id: str,
 ) -> dict[str, Any]:
-    api_key = os.environ.get("KB_AI_API_KEY", "").strip()
-    base_url = os.environ.get("KB_AI_BASE_URL", "").strip().rstrip("/")
-    model = os.environ.get("KB_AI_MODEL", "").strip()
-    if not api_key or not base_url or not model:
+    config = demo1_model_config()
+    if not config["api_key"]:
         return model_failure(
             "unconfigured",
             "demo1_model_unconfigured",
-            "KB_AI_API_KEY, KB_AI_BASE_URL, and KB_AI_MODEL are required.",
+            "KB_AI_API_KEY or OPENAI_API_KEY is required for Demo 1 model analysis.",
+            config["model"],
         )
     if not chunks:
         return {
             "model_status": "available",
-            "model_name": model,
+            "model_name": config["model"],
             "candidate_knowledge_units": [],
         }
 
     prompt = build_model_prompt(chunks=chunks, source_id=source_id, project_id=project_id)
+    try:
+        payload = (
+            call_responses_api(config, prompt)
+            if config["endpoint"] == "responses"
+            else call_chat_completions_api(config, prompt)
+        )
+    except urllib.error.HTTPError as error:
+        return model_failure(
+            "error",
+            "demo1_model_http_error",
+            f"Model API returned HTTP {error.code}.",
+            config["model"],
+        )
+    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as error:
+        return model_failure("error", "demo1_model_call_failed", str(error), config["model"])
+
+    try:
+        content = extract_model_text(payload, config["endpoint"])
+        model_json = parse_model_json(content)
+        candidates = normalize_model_candidates(model_json, chunks, source_id)
+    except (KeyError, IndexError, TypeError, ValueError) as error:
+        return model_failure(
+            "invalid_response",
+            "demo1_model_invalid_response",
+            str(error),
+            config["model"],
+        )
+
+    return {
+        "model_status": "available",
+        "model_name": config["model"],
+        "candidate_knowledge_units": candidates,
+    }
+
+
+def demo1_model_config() -> dict[str, str]:
+    base_url = (
+        os.environ.get("KB_AI_BASE_URL")
+        or os.environ.get("OPENAI_BASE_URL")
+        or DEFAULT_OPENAI_BASE_URL
+    ).strip().rstrip("/")
+    endpoint = os.environ.get("KB_AI_ENDPOINT", "").strip()
+    if not endpoint:
+        endpoint = "responses" if "api.openai.com" in base_url else "chat_completions"
+    api_key = os.environ.get("KB_AI_API_KEY") or os.environ.get("OPENAI_API_KEY") or ""
+    return {
+        "api_key": api_key.strip(),
+        "base_url": base_url,
+        "model": (
+            os.environ.get("KB_AI_MODEL")
+            or os.environ.get("OPENAI_MODEL")
+            or DEFAULT_DEMO1_MODEL
+        ).strip(),
+        "endpoint": endpoint,
+    }
+
+
+def call_responses_api(config: dict[str, str], prompt: str) -> dict[str, Any]:
     request_body = json.dumps(
         {
-            "model": model,
+            "model": config["model"],
+            "input": [
+                {
+                    "role": "developer",
+                    "content": (
+                        "You generate pending Candidate Knowledge Units for an ingestion demo. "
+                        "Return only strict JSON. Do not include markdown."
+                    ),
+                },
+                {"role": "user", "content": prompt},
+            ],
+        }
+    ).encode("utf-8")
+    request = urllib.request.Request(
+        f"{config['base_url']}/responses",
+        data=request_body,
+        headers={
+            "authorization": f"Bearer {config['api_key']}",
+            "content-type": "application/json",
+        },
+        method="POST",
+    )
+    with urllib.request.urlopen(request, timeout=45) as response:
+        return json.loads(response.read().decode("utf-8"))
+
+
+def call_chat_completions_api(config: dict[str, str], prompt: str) -> dict[str, Any]:
+    request_body = json.dumps(
+        {
+            "model": config["model"],
             "messages": [
                 {
                     "role": "system",
@@ -613,39 +701,33 @@ def analyze_chunks_with_model(
         }
     ).encode("utf-8")
     request = urllib.request.Request(
-        f"{base_url}/chat/completions",
+        f"{config['base_url']}/chat/completions",
         data=request_body,
         headers={
-            "authorization": f"Bearer {api_key}",
+            "authorization": f"Bearer {config['api_key']}",
             "content-type": "application/json",
         },
         method="POST",
     )
-    try:
-        with urllib.request.urlopen(request, timeout=45) as response:
-            payload = json.loads(response.read().decode("utf-8"))
-    except urllib.error.HTTPError as error:
-        return model_failure(
-            "error",
-            "demo1_model_http_error",
-            f"Model API returned HTTP {error.code}.",
-            model,
-        )
-    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as error:
-        return model_failure("error", "demo1_model_call_failed", str(error), model)
+    with urllib.request.urlopen(request, timeout=45) as response:
+        return json.loads(response.read().decode("utf-8"))
 
-    try:
-        content = payload["choices"][0]["message"]["content"]
-        model_json = parse_model_json(content)
-        candidates = normalize_model_candidates(model_json, chunks, source_id)
-    except (KeyError, IndexError, TypeError, ValueError) as error:
-        return model_failure("invalid_response", "demo1_model_invalid_response", str(error), model)
 
-    return {
-        "model_status": "available",
-        "model_name": model,
-        "candidate_knowledge_units": candidates,
-    }
+def extract_model_text(payload: dict[str, Any], endpoint: str) -> str:
+    if endpoint == "chat_completions":
+        return payload["choices"][0]["message"]["content"]
+    if isinstance(payload.get("output_text"), str):
+        return payload["output_text"]
+    parts: list[str] = []
+    for item in payload.get("output", []):
+        if not isinstance(item, dict):
+            continue
+        for content in item.get("content", []):
+            if isinstance(content, dict) and isinstance(content.get("text"), str):
+                parts.append(content["text"])
+    if not parts:
+        raise ValueError("Responses API payload did not include output_text")
+    return "\n".join(parts)
 
 
 def build_model_prompt(*, chunks: list[dict[str, Any]], source_id: str, project_id: str) -> str:

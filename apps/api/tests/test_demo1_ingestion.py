@@ -1,11 +1,26 @@
 from __future__ import annotations
 
 import base64
+import json
 
 from app.db.sqlite import db
 from app.main import create_app
 from app.services import demo1_ingestion
 from fastapi.testclient import TestClient
+
+
+class _FakeModelResponse:
+    def __init__(self, payload):
+        self.payload = payload
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_args):
+        return False
+
+    def read(self):
+        return json.dumps(self.payload).encode("utf-8")
 
 
 def _mock_model_analysis(*, chunks, source_id, project_id):
@@ -112,6 +127,63 @@ def test_demo1_preview_rejects_unsupported_file(monkeypatch, tmp_path):
 
     assert response.status_code == 415
     assert response.json()["error"]["code"] == "demo1_file_type_unsupported"
+
+
+def test_demo1_uses_openai_responses_default_model(monkeypatch, tmp_path):
+    monkeypatch.setenv("KB_APP_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("KB_LOCAL_TOKEN", "test-token")
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.delenv("KB_AI_API_KEY", raising=False)
+    monkeypatch.delenv("KB_AI_BASE_URL", raising=False)
+    monkeypatch.delenv("KB_AI_MODEL", raising=False)
+    headers = {"x-kb-local-token": "test-token"}
+    captured = {}
+
+    def fake_urlopen(request, timeout):
+        captured["url"] = request.full_url
+        captured["body"] = json.loads(request.data.decode("utf-8"))
+        chunk_id = captured["body"]["input"][1]["content"].split('"chunk_id": "')[1].split('"')[0]
+        return _FakeModelResponse(
+            {
+                "output_text": json.dumps(
+                    {
+                        "candidate_knowledge_units": [
+                            {
+                                "chunk_id": chunk_id,
+                                "title": "大学生身份候选材料",
+                                "summary": "该 chunk 表达了一个简短身份陈述。",
+                                "keywords": ["大学生"],
+                                "tags": ["#demo1", "#入库预处理", "#candidate-ku", "#pending"],
+                                "confidence": 0.35,
+                                "quality_note": "信息密度较低，建议人工判断是否保留。",
+                                "content_type": "very_short_text",
+                            }
+                        ]
+                    },
+                    ensure_ascii=False,
+                )
+            }
+        )
+
+    monkeypatch.setattr(demo1_ingestion.urllib.request, "urlopen", fake_urlopen)
+    with TestClient(create_app()) as client:
+        response = client.post(
+            "/api/demo1/ingestion:preview",
+            headers=headers,
+            json={
+                "file_name": "demo-short.txt",
+                "input_type": "text",
+                "raw_text": "我是一个大学生。",
+            },
+        )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert captured["url"] == "https://api.openai.com/v1/responses"
+    assert captured["body"]["model"] == "gpt-5.4-mini"
+    assert body["metadata"]["model_status"] == "available"
+    assert body["metadata"]["model_name"] == "gpt-5.4-mini"
+    assert body["source"]["candidate_ku_count"] == 1
 
 
 def test_demo1_commit_persists_source_chunks_candidates_and_review(monkeypatch, tmp_path):
