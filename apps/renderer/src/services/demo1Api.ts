@@ -9,6 +9,7 @@ export type Demo1ChunkRecord = {
   chunk_type: "very_short_chunk" | "short_chunk" | "normal_chunk" | "long_chunk";
   start_offset: number;
   end_offset: number;
+  chunk_basis: "semantic_clean_text" | "rule_clean_text";
 };
 
 export type Demo1CandidateKnowledgeUnitRecord = {
@@ -28,7 +29,7 @@ export type Demo1CandidateKnowledgeUnitRecord = {
 export type Demo1IngestionResult = {
   received_file: {
     file_name: string;
-    input_type: "text";
+    input_type: "text" | "file";
     received_at: string;
     raw_text_length: number;
     process_status: string;
@@ -37,7 +38,7 @@ export type Demo1IngestionResult = {
   source: {
     source_id: string;
     file_name: string;
-    input_type: "text";
+    input_type: "text" | "file";
     created_at: string;
     status: string;
     raw_text_length: number;
@@ -62,6 +63,34 @@ export type Demo1IngestionResult = {
     status: string;
     note: string;
   };
+  semantic_parsing: {
+    status: string;
+    summary: string;
+    titles: string[];
+    paragraph_notes: string[];
+    possible_toc: string[];
+    citations: string[];
+    noise_blocks: string[];
+  };
+  rule_cleaning: {
+    content: string;
+    status: string;
+    before_char_count: number;
+    after_char_count: number;
+    note: string;
+    operations: string[];
+  };
+  semantic_cleaning: {
+    content: string;
+    status: string;
+    before_char_count: number;
+    after_char_count: number;
+    note: string;
+    cleaning_report: string;
+    noise_findings: string[];
+    quality_score: number;
+    fallback_reason: string | null;
+  };
   cleaning: {
     content: string;
     status: string;
@@ -69,6 +98,7 @@ export type Demo1IngestionResult = {
     after_char_count: number;
     note: string;
   };
+  chunk_basis: "semantic_clean_text" | "rule_clean_text";
   chunks: Demo1ChunkRecord[];
   candidate_knowledge_units: Demo1CandidateKnowledgeUnitRecord[];
   candidate_ku_message: string;

@@ -278,6 +278,26 @@ button {
   gap: 12px;
 }
 
+.demo-cleaning-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 14px;
+  margin-top: 12px;
+}
+
+.demo-cleaning-grid article {
+  min-width: 0;
+}
+
+.compact-list {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.compact-list li {
+  margin: 4px 0;
+}
+
 .panel {
   min-height: 148px;
   padding: 16px;

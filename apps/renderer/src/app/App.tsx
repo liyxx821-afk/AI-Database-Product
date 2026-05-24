@@ -131,6 +131,7 @@ type DemoChunk = {
   chunkType: "very_short_chunk" | "short_chunk" | "normal_chunk" | "long_chunk";
   startOffset: number;
   endOffset: number;
+  chunkBasis: "semantic_clean_text" | "rule_clean_text";
 };
 
 type DemoCandidateKnowledgeUnit = {
@@ -158,7 +159,11 @@ type DemoIngestionResult = {
     candidateKnowledgeUnitCount: number;
   };
   parsed: DemoParsedTextRecord;
+  semanticParsing: DemoSemanticParsingRecord;
+  ruleCleaning: DemoRuleCleaningRecord;
+  semanticCleaning: DemoSemanticCleaningRecord;
   cleaning: DemoCleaningRecord;
+  chunkBasis: "semantic_clean_text" | "rule_clean_text";
   chunks: DemoChunk[];
   candidateKnowledgeUnits: DemoCandidateKnowledgeUnit[];
   candidateKuMessage: string;
@@ -209,6 +214,27 @@ type DemoCleaningRecord = {
   beforeCharCount: number;
   afterCharCount: number;
   note: string;
+};
+
+type DemoSemanticParsingRecord = {
+  status: string;
+  summary: string;
+  titles: string[];
+  paragraphNotes: string[];
+  possibleToc: string[];
+  citations: string[];
+  noiseBlocks: string[];
+};
+
+type DemoRuleCleaningRecord = DemoCleaningRecord & {
+  operations: string[];
+};
+
+type DemoSemanticCleaningRecord = DemoCleaningRecord & {
+  cleaningReport: string;
+  noiseFindings: string[];
+  qualityScore: number;
+  fallbackReason: string | null;
 };
 
 type DemoPipelineStatusKey =
@@ -726,6 +752,10 @@ function DemoIngestionPage() {
             <Metric label="chunk_count" value={result.metadata.chunkCount} />
             <Metric label="candidate_ku_count" value={result.metadata.candidateKnowledgeUnitCount} />
             <article className="panel">
+              <h3>chunk_basis</h3>
+              <p>{result.chunkBasis}</p>
+            </article>
+            <article className="panel">
               <h3>model_provider</h3>
               <p>openai-compatible</p>
             </article>
@@ -756,11 +786,22 @@ function DemoIngestionPage() {
       <section className="page-frame">
         <div className="section-title-row">
           <h2>内容解析</h2>
-          {result ? <StateChip state="done" label={result.parsed.status} /> : null}
+          {result ? <StateChip state="done" label={result.semanticParsing.status} /> : null}
         </div>
         {result?.parsed.content ? (
           <>
             <p className="section-note">{result.parsed.note}</p>
+            <div className="panel-grid">
+              <article className="panel">
+                <h3>模型解析摘要</h3>
+                <p>{result.semanticParsing.summary}</p>
+              </article>
+              <ListPanel title="标题 / 层级" items={result.semanticParsing.titles} empty="未识别到标题或层级。" />
+              <ListPanel title="段落说明" items={result.semanticParsing.paragraphNotes} empty="未返回段落说明。" />
+              <ListPanel title="疑似目录" items={result.semanticParsing.possibleToc} empty="未识别到目录。" />
+              <ListPanel title="引用线索" items={result.semanticParsing.citations} empty="未识别到引用。" />
+              <ListPanel title="噪声区块" items={result.semanticParsing.noiseBlocks} empty="未识别到明显噪声。" />
+            </div>
             <pre className="demo-original-text">{result.parsed.content}</pre>
           </>
         ) : (
@@ -776,15 +817,41 @@ function DemoIngestionPage() {
         {result?.cleaning.content ? (
           <>
             <div className="inline-actions">
-              <StatusPill label="清洗前" value={`${result.cleaning.beforeCharCount} 字`} />
-              <StatusPill label="清洗后" value={`${result.cleaning.afterCharCount} 字`} />
+              <StatusPill label="原始文本" value={`${result.cleaning.beforeCharCount} 字`} />
+              <StatusPill label="最终清洗" value={`${result.cleaning.afterCharCount} 字`} />
               <StatusPill
                 label="变化"
                 value={`${result.cleaning.afterCharCount - result.cleaning.beforeCharCount} 字`}
               />
+              <StatusPill label="chunk_basis" value={result.chunkBasis} />
             </div>
             <p className="section-note">{result.cleaning.note}</p>
-            <pre className="demo-original-text">{result.cleaning.content}</pre>
+            <div className="panel-grid">
+              <article className="panel">
+                <h3>规则清洗</h3>
+                <p>{result.ruleCleaning.note}</p>
+                <p>操作：{result.ruleCleaning.operations.join(", ")}</p>
+              </article>
+              <article className="panel">
+                <h3>模型语义清洗报告</h3>
+                <p>{result.semanticCleaning.cleaningReport}</p>
+                <p>quality_score：{result.semanticCleaning.qualityScore.toFixed(2)}</p>
+                {result.semanticCleaning.fallbackReason ? (
+                  <p>fallback_reason：{result.semanticCleaning.fallbackReason}</p>
+                ) : null}
+              </article>
+              <ListPanel title="噪声发现" items={result.semanticCleaning.noiseFindings} empty="未发现明显噪声。" />
+            </div>
+            <div className="demo-cleaning-grid">
+              <article>
+                <h3>规则清洗文本</h3>
+                <pre className="demo-original-text">{result.ruleCleaning.content}</pre>
+              </article>
+              <article>
+                <h3>语义清洗文本 / 最终 chunk 输入</h3>
+                <pre className="demo-original-text">{result.semanticCleaning.content}</pre>
+              </article>
+            </div>
           </>
         ) : (
           <EmptyState message="尚未生成清洗文本。" />
@@ -808,6 +875,7 @@ function DemoIngestionPage() {
                     <StatusPill label="chunk_type" value={chunk.chunkType} />
                     <StatusPill label="start_offset" value={String(chunk.startOffset)} />
                     <StatusPill label="end_offset" value={String(chunk.endOffset)} />
+                    <StatusPill label="chunk_basis" value={chunk.chunkBasis} />
                   </div>
                 </div>
                 <p>{chunk.content}</p>
@@ -909,6 +977,34 @@ function mapDemoApiResult(apiResult: Demo1ApiIngestionResult): DemoIngestionResu
       status: "parsed",
       note: apiResult.parsed.note
     },
+    semanticParsing: {
+      status: apiResult.semantic_parsing.status,
+      summary: apiResult.semantic_parsing.summary,
+      titles: apiResult.semantic_parsing.titles,
+      paragraphNotes: apiResult.semantic_parsing.paragraph_notes,
+      possibleToc: apiResult.semantic_parsing.possible_toc,
+      citations: apiResult.semantic_parsing.citations,
+      noiseBlocks: apiResult.semantic_parsing.noise_blocks
+    },
+    ruleCleaning: {
+      content: apiResult.rule_cleaning.content,
+      status: "cleaned",
+      beforeCharCount: apiResult.rule_cleaning.before_char_count,
+      afterCharCount: apiResult.rule_cleaning.after_char_count,
+      note: apiResult.rule_cleaning.note,
+      operations: apiResult.rule_cleaning.operations
+    },
+    semanticCleaning: {
+      content: apiResult.semantic_cleaning.content,
+      status: "cleaned",
+      beforeCharCount: apiResult.semantic_cleaning.before_char_count,
+      afterCharCount: apiResult.semantic_cleaning.after_char_count,
+      note: apiResult.semantic_cleaning.note,
+      cleaningReport: apiResult.semantic_cleaning.cleaning_report,
+      noiseFindings: apiResult.semantic_cleaning.noise_findings,
+      qualityScore: apiResult.semantic_cleaning.quality_score,
+      fallbackReason: apiResult.semantic_cleaning.fallback_reason
+    },
     cleaning: {
       content: apiResult.cleaning.content,
       status: "cleaned",
@@ -916,6 +1012,7 @@ function mapDemoApiResult(apiResult: Demo1ApiIngestionResult): DemoIngestionResu
       afterCharCount: apiResult.cleaning.after_char_count,
       note: apiResult.cleaning.note
     },
+    chunkBasis: apiResult.chunk_basis,
     chunks: apiResult.chunks.map((chunk) => ({
       chunkId: chunk.chunk_id,
       sourceId: chunk.source_id,
@@ -924,7 +1021,8 @@ function mapDemoApiResult(apiResult: Demo1ApiIngestionResult): DemoIngestionResu
       charCount: chunk.char_count,
       chunkType: chunk.chunk_type,
       startOffset: chunk.start_offset,
-      endOffset: chunk.end_offset
+      endOffset: chunk.end_offset,
+      chunkBasis: chunk.chunk_basis
     })),
     candidateKnowledgeUnits: apiResult.candidate_knowledge_units.map((unit) => ({
       kuId: unit.ku_id,
@@ -955,6 +1053,23 @@ function mapDemoApiResult(apiResult: Demo1ApiIngestionResult): DemoIngestionResu
     parserProfile: apiResult.metadata.parser_profile,
     fileSizeBytes: apiResult.metadata.file_size_bytes
   };
+}
+
+function ListPanel({ title, items, empty }: { title: string; items: string[]; empty: string }) {
+  return (
+    <article className="panel">
+      <h3>{title}</h3>
+      {items.length ? (
+        <ul className="compact-list">
+          {items.map((item) => (
+            <li key={`${title}-${item}`}>{item}</li>
+          ))}
+        </ul>
+      ) : (
+        <p>{empty}</p>
+      )}
+    </article>
+  );
 }
 
 function cleanDemoText(text: string) {
@@ -989,10 +1104,11 @@ function splitTextIntoDemoChunks(text: string, sourceId: string): DemoChunk[] {
         chunkIndex: index,
         content,
         charCount,
-        chunkType: getDemoChunkType(charCount),
-        startOffset: start,
-        endOffset: end
-      });
+      chunkType: getDemoChunkType(charCount),
+      startOffset: start,
+      endOffset: end,
+      chunkBasis: "rule_clean_text"
+    });
       index += 1;
     }
     if (end >= chars.length) break;

@@ -241,6 +241,7 @@ Demo1ChunkType = Literal["very_short_chunk", "short_chunk", "normal_chunk", "lon
 Demo1ContentType = Literal["very_short_text", "short_note", "paragraph_note", "long_chunk"]
 Demo1ModelStatus = Literal["available", "unconfigured", "error", "invalid_response"]
 Demo1CommitStatus = Literal["preview_only", "committed"]
+Demo1ChunkBasis = Literal["semantic_clean_text", "rule_clean_text"]
 
 
 class Demo1ReceivedFileRecord(BaseModel):
@@ -283,12 +284,33 @@ class Demo1ParsedTextRecord(BaseModel):
     note: str
 
 
+class Demo1SemanticParsingRecord(BaseModel):
+    status: str
+    summary: str
+    titles: List[str] = Field(default_factory=list)
+    paragraph_notes: List[str] = Field(default_factory=list)
+    possible_toc: List[str] = Field(default_factory=list)
+    citations: List[str] = Field(default_factory=list)
+    noise_blocks: List[str] = Field(default_factory=list)
+
+
 class Demo1CleaningRecord(BaseModel):
     content: str
     status: str
     before_char_count: int
     after_char_count: int
     note: str
+
+
+class Demo1RuleCleaningRecord(Demo1CleaningRecord):
+    operations: List[str] = Field(default_factory=list)
+
+
+class Demo1SemanticCleaningRecord(Demo1CleaningRecord):
+    cleaning_report: str
+    noise_findings: List[str] = Field(default_factory=list)
+    quality_score: float
+    fallback_reason: Optional[str] = None
 
 
 class Demo1ChunkRecord(BaseModel):
@@ -300,6 +322,7 @@ class Demo1ChunkRecord(BaseModel):
     chunk_type: Demo1ChunkType
     start_offset: int
     end_offset: int
+    chunk_basis: Demo1ChunkBasis
 
 
 class Demo1CandidateKnowledgeUnitRecord(BaseModel):
@@ -346,7 +369,11 @@ class Demo1IngestionResult(BaseModel):
     source: Demo1SourceRecord
     metadata: Demo1MetadataRecord
     parsed: Demo1ParsedTextRecord
+    semantic_parsing: Demo1SemanticParsingRecord
+    rule_cleaning: Demo1RuleCleaningRecord
+    semantic_cleaning: Demo1SemanticCleaningRecord
     cleaning: Demo1CleaningRecord
+    chunk_basis: Demo1ChunkBasis
     chunks: List[Demo1ChunkRecord]
     candidate_knowledge_units: List[Demo1CandidateKnowledgeUnitRecord]
     candidate_ku_message: str

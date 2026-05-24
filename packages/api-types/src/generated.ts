@@ -100,6 +100,7 @@ export type ApiSchemas = {
   "chunk_type": "very_short_chunk" | "short_chunk" | "normal_chunk" | "long_chunk";
   "start_offset": number;
   "end_offset": number;
+  "chunk_basis": "semantic_clean_text" | "rule_clean_text";
 };
   "Demo1CleaningRecord": {
   "content": string;
@@ -130,7 +131,11 @@ export type ApiSchemas = {
   "source": Demo1SourceRecord;
   "metadata": Demo1MetadataRecord;
   "parsed": Demo1ParsedTextRecord;
+  "semantic_parsing": Demo1SemanticParsingRecord;
+  "rule_cleaning": Demo1RuleCleaningRecord;
+  "semantic_cleaning": Demo1SemanticCleaningRecord;
   "cleaning": Demo1CleaningRecord;
+  "chunk_basis": "semantic_clean_text" | "rule_clean_text";
   "chunks": Demo1ChunkRecord[];
   "candidate_knowledge_units": Demo1CandidateKnowledgeUnitRecord[];
   "candidate_ku_message": string;
@@ -170,6 +175,34 @@ export type ApiSchemas = {
   "raw_text_length": number;
   "process_status": string;
   "file_size_bytes"?: number | null;
+};
+  "Demo1RuleCleaningRecord": {
+  "content": string;
+  "status": string;
+  "before_char_count": number;
+  "after_char_count": number;
+  "note": string;
+  "operations"?: string[];
+};
+  "Demo1SemanticCleaningRecord": {
+  "content": string;
+  "status": string;
+  "before_char_count": number;
+  "after_char_count": number;
+  "note": string;
+  "cleaning_report": string;
+  "noise_findings"?: string[];
+  "quality_score": number;
+  "fallback_reason"?: string | null;
+};
+  "Demo1SemanticParsingRecord": {
+  "status": string;
+  "summary": string;
+  "titles"?: string[];
+  "paragraph_notes"?: string[];
+  "possible_toc"?: string[];
+  "citations"?: string[];
+  "noise_blocks"?: string[];
 };
   "Demo1SourceRecord": {
   "source_id": string;
@@ -974,6 +1007,7 @@ export type Demo1ChunkRecord = {
   "chunk_type": "very_short_chunk" | "short_chunk" | "normal_chunk" | "long_chunk";
   "start_offset": number;
   "end_offset": number;
+  "chunk_basis": "semantic_clean_text" | "rule_clean_text";
 };
 
 export type Demo1CleaningRecord = {
@@ -1008,7 +1042,11 @@ export type Demo1IngestionResult = {
   "source": Demo1SourceRecord;
   "metadata": Demo1MetadataRecord;
   "parsed": Demo1ParsedTextRecord;
+  "semantic_parsing": Demo1SemanticParsingRecord;
+  "rule_cleaning": Demo1RuleCleaningRecord;
+  "semantic_cleaning": Demo1SemanticCleaningRecord;
   "cleaning": Demo1CleaningRecord;
+  "chunk_basis": "semantic_clean_text" | "rule_clean_text";
   "chunks": Demo1ChunkRecord[];
   "candidate_knowledge_units": Demo1CandidateKnowledgeUnitRecord[];
   "candidate_ku_message": string;
@@ -1052,6 +1090,37 @@ export type Demo1ReceivedFileRecord = {
   "raw_text_length": number;
   "process_status": string;
   "file_size_bytes"?: number | null;
+};
+
+export type Demo1RuleCleaningRecord = {
+  "content": string;
+  "status": string;
+  "before_char_count": number;
+  "after_char_count": number;
+  "note": string;
+  "operations"?: string[];
+};
+
+export type Demo1SemanticCleaningRecord = {
+  "content": string;
+  "status": string;
+  "before_char_count": number;
+  "after_char_count": number;
+  "note": string;
+  "cleaning_report": string;
+  "noise_findings"?: string[];
+  "quality_score": number;
+  "fallback_reason"?: string | null;
+};
+
+export type Demo1SemanticParsingRecord = {
+  "status": string;
+  "summary": string;
+  "titles"?: string[];
+  "paragraph_notes"?: string[];
+  "possible_toc"?: string[];
+  "citations"?: string[];
+  "noise_blocks"?: string[];
 };
 
 export type Demo1SourceRecord = {

@@ -3964,6 +3964,14 @@
           "end_offset": {
             "type": "integer",
             "title": "End Offset"
+          },
+          "chunk_basis": {
+            "type": "string",
+            "enum": [
+              "semantic_clean_text",
+              "rule_clean_text"
+            ],
+            "title": "Chunk Basis"
           }
         },
         "type": "object",
@@ -3975,7 +3983,8 @@
           "char_count",
           "chunk_type",
           "start_offset",
-          "end_offset"
+          "end_offset",
+          "chunk_basis"
         ],
         "title": "Demo1ChunkRecord"
       },
@@ -4172,8 +4181,25 @@
           "parsed": {
             "$ref": "#/components/schemas/Demo1ParsedTextRecord"
           },
+          "semantic_parsing": {
+            "$ref": "#/components/schemas/Demo1SemanticParsingRecord"
+          },
+          "rule_cleaning": {
+            "$ref": "#/components/schemas/Demo1RuleCleaningRecord"
+          },
+          "semantic_cleaning": {
+            "$ref": "#/components/schemas/Demo1SemanticCleaningRecord"
+          },
           "cleaning": {
             "$ref": "#/components/schemas/Demo1CleaningRecord"
+          },
+          "chunk_basis": {
+            "type": "string",
+            "enum": [
+              "semantic_clean_text",
+              "rule_clean_text"
+            ],
+            "title": "Chunk Basis"
           },
           "chunks": {
             "items": {
@@ -4252,7 +4278,11 @@
           "source",
           "metadata",
           "parsed",
+          "semantic_parsing",
+          "rule_cleaning",
+          "semantic_cleaning",
           "cleaning",
+          "chunk_basis",
           "chunks",
           "candidate_knowledge_units",
           "candidate_ku_message",
@@ -4440,6 +4470,160 @@
           "process_status"
         ],
         "title": "Demo1ReceivedFileRecord"
+      },
+      "Demo1RuleCleaningRecord": {
+        "properties": {
+          "content": {
+            "type": "string",
+            "title": "Content"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "before_char_count": {
+            "type": "integer",
+            "title": "Before Char Count"
+          },
+          "after_char_count": {
+            "type": "integer",
+            "title": "After Char Count"
+          },
+          "note": {
+            "type": "string",
+            "title": "Note"
+          },
+          "operations": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Operations"
+          }
+        },
+        "type": "object",
+        "required": [
+          "content",
+          "status",
+          "before_char_count",
+          "after_char_count",
+          "note"
+        ],
+        "title": "Demo1RuleCleaningRecord"
+      },
+      "Demo1SemanticCleaningRecord": {
+        "properties": {
+          "content": {
+            "type": "string",
+            "title": "Content"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "before_char_count": {
+            "type": "integer",
+            "title": "Before Char Count"
+          },
+          "after_char_count": {
+            "type": "integer",
+            "title": "After Char Count"
+          },
+          "note": {
+            "type": "string",
+            "title": "Note"
+          },
+          "cleaning_report": {
+            "type": "string",
+            "title": "Cleaning Report"
+          },
+          "noise_findings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Noise Findings"
+          },
+          "quality_score": {
+            "type": "number",
+            "title": "Quality Score"
+          },
+          "fallback_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fallback Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "content",
+          "status",
+          "before_char_count",
+          "after_char_count",
+          "note",
+          "cleaning_report",
+          "quality_score"
+        ],
+        "title": "Demo1SemanticCleaningRecord"
+      },
+      "Demo1SemanticParsingRecord": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary"
+          },
+          "titles": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Titles"
+          },
+          "paragraph_notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Paragraph Notes"
+          },
+          "possible_toc": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Possible Toc"
+          },
+          "citations": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Citations"
+          },
+          "noise_blocks": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Noise Blocks"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "summary"
+        ],
+        "title": "Demo1SemanticParsingRecord"
       },
       "Demo1SourceRecord": {
         "properties": {

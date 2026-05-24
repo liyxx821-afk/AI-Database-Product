@@ -39,8 +39,8 @@ PLAIN_TEXT_EXTENSIONS = SUPPORTED_TEXT_EXTENSIONS - {".html", ".htm"}
 PIPELINE_STEPS = [
     ("received", "资料进入系统"),
     ("source_created", "创建 source 来源记录"),
-    ("parsed", "内容解析为原始输入文本"),
-    ("cleaned", "执行基础文本清洗"),
+    ("parsed", "内容解析与结构识别"),
+    ("cleaned", "规则清洗与模型语义清洗"),
     ("chunked", "按 400 字切片并保留 50 字 overlap"),
     ("candidate_generated", "调用外部模型生成 pending Candidate KU"),
     ("completed", "预处理链路完成"),
@@ -198,6 +198,7 @@ def commit_ingestion(payload: Any) -> dict[str, Any]:
                             "char_count": chunk["char_count"],
                             "start_offset": chunk["start_offset"],
                             "end_offset": chunk["end_offset"],
+                            "chunk_basis": chunk["chunk_basis"],
                             "chunk_strategy": "fixed_400_chars_overlap_50",
                             "ingestion_profile": DEMO1_PROFILE,
                             "trace_id": trace_id,
@@ -425,8 +426,26 @@ def build_preview(
 ) -> dict[str, Any]:
     timestamp = now_iso()
     source_id = new_id("source")
-    clean_text = clean_text_for_demo(raw_text)
-    chunks = split_chunks(clean_text, source_id)
+    rule_clean_text = clean_text_for_demo(raw_text)
+    rule_cleaning = {
+        "content": rule_clean_text,
+        "status": "cleaned",
+        "before_char_count": len(raw_text),
+        "after_char_count": len(rule_clean_text),
+        "note": cleaning_note(raw_text, rule_clean_text),
+        "operations": rule_cleaning_operations(raw_text, rule_clean_text),
+    }
+    semantic_result = semantic_preprocess_with_model(
+        raw_text=raw_text,
+        rule_clean_text=rule_clean_text,
+        source_id=source_id,
+        file_name=file_name,
+        input_type=input_type,
+    )
+    semantic_result = guard_semantic_preprocess_result(semantic_result, rule_clean_text)
+    final_clean_text = semantic_result["semantic_cleaning"]["content"]
+    chunk_basis = semantic_result["chunk_basis"]
+    chunks = split_chunks(final_clean_text, source_id, chunk_basis)
     model_result = analyze_chunks_with_model(
         chunks=chunks,
         source_id=source_id,
@@ -434,7 +453,7 @@ def build_preview(
     )
     candidates = model_result.get("candidate_knowledge_units", [])
     raw_length = len(raw_text)
-    cleaned_length = len(clean_text)
+    cleaned_length = len(final_clean_text)
     source = {
         "source_id": source_id,
         "file_name": file_name,
@@ -474,13 +493,17 @@ def build_preview(
             "status": "parsed",
             "note": parse_note,
         },
+        "semantic_parsing": semantic_result["semantic_parsing"],
+        "rule_cleaning": rule_cleaning,
+        "semantic_cleaning": semantic_result["semantic_cleaning"],
         "cleaning": {
-            "content": clean_text,
+            "content": final_clean_text,
             "status": "cleaned",
             "before_char_count": raw_length,
             "after_char_count": cleaned_length,
-            "note": cleaning_note(raw_text, clean_text),
+            "note": final_cleaning_note(chunk_basis, semantic_result["semantic_cleaning"]),
         },
+        "chunk_basis": chunk_basis,
         "chunks": chunks,
         "candidate_knowledge_units": candidates,
         "candidate_ku_message": (
@@ -534,7 +557,30 @@ def cleaning_note(raw_text: str, clean_text: str) -> str:
     )
 
 
-def split_chunks(text: str, source_id: str) -> list[dict[str, Any]]:
+def rule_cleaning_operations(raw_text: str, clean_text: str) -> list[str]:
+    operations = [
+        "unicode_normalization",
+        "newline_normalization",
+        "bom_zero_width_removal",
+        "control_character_removal",
+        "mojibake_marker_removal",
+        "space_collapse",
+        "blank_line_collapse",
+        "edge_trim",
+    ]
+    if raw_text == clean_text:
+        return operations + ["no_visible_change"]
+    return operations
+
+
+def final_cleaning_note(chunk_basis: str, semantic_cleaning: dict[str, Any]) -> str:
+    if chunk_basis == "semantic_clean_text":
+        return "已使用模型语义清洗文本作为 chunk 输入；规则清洗文本保留用于对照。"
+    fallback = semantic_cleaning.get("fallback_reason") or "模型语义清洗不可用。"
+    return f"已回退使用规则清洗文本作为 chunk 输入；原因：{fallback}"
+
+
+def split_chunks(text: str, source_id: str, chunk_basis: str) -> list[dict[str, Any]]:
     if not text:
         return []
     max_chars = 400
@@ -555,6 +601,7 @@ def split_chunks(text: str, source_id: str) -> list[dict[str, Any]]:
                 "chunk_type": chunk_type(len(content)),
                 "start_offset": start,
                 "end_offset": end,
+                "chunk_basis": chunk_basis,
             }
         )
         if end >= len(text):
@@ -572,6 +619,272 @@ def chunk_type(char_count: int) -> str:
     if char_count < 320:
         return "normal_chunk"
     return "long_chunk"
+
+
+def semantic_preprocess_with_model(
+    *,
+    raw_text: str,
+    rule_clean_text: str,
+    source_id: str,
+    file_name: str,
+    input_type: str,
+) -> dict[str, Any]:
+    config = demo1_model_config()
+    if not config["api_key"] or not rule_clean_text:
+        reason = (
+            "模型未配置，无法执行语义解析/清洗。"
+            if not config["api_key"]
+            else "规则清洗文本为空，无法执行语义解析/清洗。"
+        )
+        return semantic_preprocess_fallback(rule_clean_text, reason)
+
+    prompt = build_semantic_preprocess_prompt(
+        raw_text=raw_text,
+        rule_clean_text=rule_clean_text,
+        source_id=source_id,
+        file_name=file_name,
+        input_type=input_type,
+    )
+    try:
+        payload = (
+            call_responses_api(
+                config,
+                prompt,
+                system_content=(
+                    "You perform semantic parsing and semantic cleaning for a "
+                    "knowledge ingestion demo. "
+                    "Return strict JSON only. Preserve meaning and do not add facts."
+                ),
+            )
+            if config["endpoint"] == "responses"
+            else call_chat_completions_api(
+                config,
+                prompt,
+                system_content=(
+                    "You perform semantic parsing and semantic cleaning for a "
+                    "knowledge ingestion demo. "
+                    "Return strict JSON only. Preserve meaning and do not add facts."
+                ),
+            )
+        )
+        content = extract_model_text(payload, config["endpoint"])
+        model_json = parse_model_json(content)
+        return normalize_semantic_preprocess(model_json, rule_clean_text)
+    except (
+        urllib.error.HTTPError,
+        urllib.error.URLError,
+        TimeoutError,
+        json.JSONDecodeError,
+        KeyError,
+        IndexError,
+        TypeError,
+        ValueError,
+    ) as error:
+        return semantic_preprocess_fallback(rule_clean_text, str(error))
+
+
+def semantic_preprocess_fallback(rule_clean_text: str, reason: str) -> dict[str, Any]:
+    return {
+        "chunk_basis": "rule_clean_text",
+        "semantic_parsing": {
+            "status": "fallback",
+            "summary": "模型语义解析不可用，当前仅展示规则解析结果。",
+            "titles": [],
+            "paragraph_notes": [],
+            "possible_toc": [],
+            "citations": [],
+            "noise_blocks": [],
+        },
+        "semantic_cleaning": {
+            "content": rule_clean_text,
+            "status": "fallback_rule_cleaned",
+            "before_char_count": len(rule_clean_text),
+            "after_char_count": len(rule_clean_text),
+            "note": "语义清洗失败或未配置，已回退到规则清洗文本。",
+            "cleaning_report": (
+                "模型语义清洗不可用，系统使用规则清洗文本继续执行 "
+                "chunk 和 Candidate KU 流程。"
+            ),
+            "noise_findings": [],
+            "quality_score": quality_score_for_text(rule_clean_text),
+            "fallback_reason": reason,
+        },
+    }
+
+
+def guard_semantic_preprocess_result(
+    semantic_result: dict[str, Any],
+    rule_clean_text: str,
+) -> dict[str, Any]:
+    semantic_cleaning = semantic_result.get("semantic_cleaning", {})
+    semantic_clean_text = semantic_cleaning.get("content")
+    if (
+        semantic_result.get("chunk_basis") != "semantic_clean_text"
+        or not isinstance(semantic_clean_text, str)
+        or not semantic_clean_text.strip()
+        or not is_semantic_cleaning_over_compressed(rule_clean_text, semantic_clean_text)
+    ):
+        return semantic_result
+
+    guarded_cleaning = {
+        **semantic_cleaning,
+        "content": rule_clean_text,
+        "status": "fallback_rule_cleaned",
+        "after_char_count": len(rule_clean_text),
+        "note": "模型语义清洗结果疑似过度压缩，已回退到规则清洗文本用于 chunk。",
+        "cleaning_report": (
+            f"{semantic_cleaning.get('cleaning_report') or '模型已返回语义清洗结果。'} "
+            "系统检测到 semantic_clean_text 明显短于规则清洗文本，可能变成摘要；"
+            "为保证入库预处理不丢失原始信息，本次切片改用规则清洗文本。"
+        ),
+        "fallback_reason": "semantic_clean_text appears over-compressed",
+    }
+    return {
+        **semantic_result,
+        "chunk_basis": "rule_clean_text",
+        "semantic_cleaning": guarded_cleaning,
+    }
+
+
+def is_semantic_cleaning_over_compressed(rule_clean_text: str, semantic_clean_text: str) -> bool:
+    rule_len = len(rule_clean_text.strip())
+    semantic_len = len(semantic_clean_text.strip())
+    if rule_len < 450:
+        return False
+    if semantic_len < 320 and rule_len >= 700:
+        return True
+    return semantic_len < int(rule_len * 0.65)
+
+
+def build_semantic_preprocess_prompt(
+    *,
+    raw_text: str,
+    rule_clean_text: str,
+    source_id: str,
+    file_name: str,
+    input_type: str,
+) -> str:
+    payload = {
+        "source_id": source_id,
+        "file_name": file_name,
+        "input_type": input_type,
+        "raw_text": raw_text,
+        "rule_clean_text": rule_clean_text,
+    }
+    return (
+        "请对资料做 Demo 1 的语义解析和语义清洗。\n"
+        "所有文本无论长短都必须处理；短文本也要给出语义解析、清洗文本和质量判断。\n"
+        "边界：只能整理段落、统一表达、识别标题/层级/目录/引用/噪声/重复内容；"
+        "不得新增事实，不得补写原文没有的信息，不得把短文本过滤掉。\n"
+        "semantic_clean_text 应保留原意和主要内容，适合作为后续 chunk 输入；"
+        "不得把长文本总结成短摘要，不得删除非噪声正文。\n"
+        "只返回 JSON，结构为："
+        "{\"semantic_clean_text\":\"...\",\"parse_structure\":{\"summary\":\"...\","
+        "\"titles\":[\"...\"],\"paragraph_notes\":[\"...\"],\"possible_toc\":[\"...\"],"
+        "\"citations\":[\"...\"],\"noise_blocks\":[\"...\"]},"
+        "\"cleaning_report\":\"...\",\"noise_findings\":[\"...\"],\"quality_score\":0.0}。\n"
+        f"输入：{json.dumps(payload, ensure_ascii=False)}"
+    )
+
+
+def normalize_semantic_preprocess(
+    model_json: dict[str, Any],
+    rule_clean_text: str,
+) -> dict[str, Any]:
+    semantic_clean_text = clean_semantic_text(model_json.get("semantic_clean_text"))
+    if not semantic_clean_text:
+        raise ValueError("semantic_clean_text is empty")
+    parse_structure = model_json.get("parse_structure")
+    if not isinstance(parse_structure, dict):
+        parse_structure = {}
+    cleaning_report = clean_short_text(model_json.get("cleaning_report"), max_len=400)
+    noise_findings = normalize_string_list(
+        model_json.get("noise_findings"), max_count=8, max_len=80
+    )
+    quality_score = normalize_quality_score(model_json.get("quality_score"), semantic_clean_text)
+    return {
+        "chunk_basis": "semantic_clean_text",
+        "semantic_parsing": {
+            "status": "semantic_parsed",
+            "summary": clean_short_text(parse_structure.get("summary"), max_len=240)
+            or "模型已完成语义解析。",
+            "titles": normalize_string_list(parse_structure.get("titles"), max_count=8, max_len=80),
+            "paragraph_notes": normalize_string_list(
+                parse_structure.get("paragraph_notes"), max_count=12, max_len=140
+            ),
+            "possible_toc": normalize_string_list(
+                parse_structure.get("possible_toc"), max_count=8, max_len=80
+            ),
+            "citations": normalize_string_list(
+                parse_structure.get("citations"), max_count=8, max_len=120
+            ),
+            "noise_blocks": normalize_string_list(
+                parse_structure.get("noise_blocks"), max_count=8, max_len=120
+            ),
+        },
+        "semantic_cleaning": {
+            "content": semantic_clean_text,
+            "status": "semantic_cleaned",
+            "before_char_count": len(rule_clean_text),
+            "after_char_count": len(semantic_clean_text),
+            "note": "模型已基于规则清洗文本完成语义清洗，未新增事实。",
+            "cleaning_report": cleaning_report or "模型完成语义清洗，未返回额外报告。",
+            "noise_findings": noise_findings,
+            "quality_score": quality_score,
+            "fallback_reason": None,
+        },
+    }
+
+
+def clean_semantic_text(value: Any) -> str:
+    if not isinstance(value, str):
+        return ""
+    cleaned = value.replace("\r\n", "\n").replace("\r", "\n")
+    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
+    cleaned = "\n".join(line.rstrip() for line in cleaned.split("\n"))
+    return cleaned.strip()
+
+
+def normalize_string_list(value: Any, *, max_count: int, max_len: int) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    items: list[str] = []
+    for item in value:
+        text = clean_short_text(item, max_len=max_len)
+        if text and text not in items:
+            items.append(text)
+        if len(items) >= max_count:
+            break
+    return items
+
+
+def normalize_quality_score(value: Any, text: str) -> float:
+    max_score = max_quality_score_for_text(text)
+    if isinstance(value, (int, float)):
+        return round(min(max(float(value), 0.0), max_score), 2)
+    return quality_score_for_text(text)
+
+
+def max_quality_score_for_text(text: str) -> float:
+    length = len(text.strip())
+    if length <= 12:
+        return 0.35
+    if length < 80:
+        return 0.55
+    if length < 320:
+        return 0.8
+    return 1.0
+
+
+def quality_score_for_text(text: str) -> float:
+    length = len(text.strip())
+    if length <= 12:
+        return 0.25
+    if length < 80:
+        return 0.45
+    if length < 320:
+        return 0.68
+    return 0.82
 
 
 def analyze_chunks_with_model(
@@ -653,17 +966,22 @@ def demo1_model_config() -> dict[str, str]:
     }
 
 
-def call_responses_api(config: dict[str, str], prompt: str) -> dict[str, Any]:
+def call_responses_api(
+    config: dict[str, str],
+    prompt: str,
+    *,
+    system_content: str = (
+        "You generate pending Candidate Knowledge Units for an ingestion demo. "
+        "Return only strict JSON. Do not include markdown."
+    ),
+) -> dict[str, Any]:
     request_body = json.dumps(
         {
             "model": config["model"],
             "input": [
                 {
                     "role": "developer",
-                    "content": (
-                        "You generate pending Candidate Knowledge Units for an ingestion demo. "
-                        "Return only strict JSON. Do not include markdown."
-                    ),
+                    "content": system_content,
                 },
                 {"role": "user", "content": prompt},
             ],
@@ -682,17 +1000,22 @@ def call_responses_api(config: dict[str, str], prompt: str) -> dict[str, Any]:
         return json.loads(response.read().decode("utf-8"))
 
 
-def call_chat_completions_api(config: dict[str, str], prompt: str) -> dict[str, Any]:
+def call_chat_completions_api(
+    config: dict[str, str],
+    prompt: str,
+    *,
+    system_content: str = (
+        "You generate pending Candidate Knowledge Units for an ingestion demo. "
+        "Return only strict JSON. Do not include markdown."
+    ),
+) -> dict[str, Any]:
     request_body = json.dumps(
         {
             "model": config["model"],
             "messages": [
                 {
                     "role": "system",
-                    "content": (
-                        "You generate pending Candidate Knowledge Units for an ingestion demo. "
-                        "Return only strict JSON. Do not include markdown."
-                    ),
+                    "content": system_content,
                 },
                 {"role": "user", "content": prompt},
             ],
