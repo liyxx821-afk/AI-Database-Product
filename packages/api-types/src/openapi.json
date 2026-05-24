@@ -1239,6 +1239,82 @@
         }
       }
     },
+    "/api/demo1/ingestion:preview": {
+      "post": {
+        "summary": "Preview Demo1 Ingestion",
+        "operationId": "preview_demo1_ingestion_api_demo1_ingestion_preview_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Demo1IngestionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Demo1IngestionResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/demo1/ingestion:commit": {
+      "post": {
+        "summary": "Commit Demo1 Ingestion",
+        "operationId": "commit_demo1_ingestion_api_demo1_ingestion_commit_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Demo1IngestionCommitRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Demo1IngestionResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/relations": {
       "get": {
         "summary": "Get Relations",
@@ -3772,6 +3848,562 @@
           "copy_safe_summary"
         ],
         "title": "CitationCompareResponse"
+      },
+      "Demo1CandidateKnowledgeUnitRecord": {
+        "properties": {
+          "ku_id": {
+            "type": "string",
+            "title": "Ku Id"
+          },
+          "source_id": {
+            "type": "string",
+            "title": "Source Id"
+          },
+          "chunk_id": {
+            "type": "string",
+            "title": "Chunk Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary"
+          },
+          "keywords": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Keywords"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Tags"
+          },
+          "status": {
+            "type": "string",
+            "const": "pending",
+            "title": "Status"
+          },
+          "confidence": {
+            "type": "number",
+            "title": "Confidence"
+          },
+          "quality_note": {
+            "type": "string",
+            "title": "Quality Note"
+          },
+          "content_type": {
+            "type": "string",
+            "enum": [
+              "very_short_text",
+              "short_note",
+              "paragraph_note",
+              "long_chunk"
+            ],
+            "title": "Content Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ku_id",
+          "source_id",
+          "chunk_id",
+          "title",
+          "summary",
+          "keywords",
+          "tags",
+          "status",
+          "confidence",
+          "quality_note",
+          "content_type"
+        ],
+        "title": "Demo1CandidateKnowledgeUnitRecord"
+      },
+      "Demo1ChunkRecord": {
+        "properties": {
+          "chunk_id": {
+            "type": "string",
+            "title": "Chunk Id"
+          },
+          "source_id": {
+            "type": "string",
+            "title": "Source Id"
+          },
+          "chunk_index": {
+            "type": "integer",
+            "title": "Chunk Index"
+          },
+          "content": {
+            "type": "string",
+            "title": "Content"
+          },
+          "char_count": {
+            "type": "integer",
+            "title": "Char Count"
+          },
+          "chunk_type": {
+            "type": "string",
+            "enum": [
+              "very_short_chunk",
+              "short_chunk",
+              "normal_chunk",
+              "long_chunk"
+            ],
+            "title": "Chunk Type"
+          },
+          "start_offset": {
+            "type": "integer",
+            "title": "Start Offset"
+          },
+          "end_offset": {
+            "type": "integer",
+            "title": "End Offset"
+          }
+        },
+        "type": "object",
+        "required": [
+          "chunk_id",
+          "source_id",
+          "chunk_index",
+          "content",
+          "char_count",
+          "chunk_type",
+          "start_offset",
+          "end_offset"
+        ],
+        "title": "Demo1ChunkRecord"
+      },
+      "Demo1CleaningRecord": {
+        "properties": {
+          "content": {
+            "type": "string",
+            "title": "Content"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "before_char_count": {
+            "type": "integer",
+            "title": "Before Char Count"
+          },
+          "after_char_count": {
+            "type": "integer",
+            "title": "After Char Count"
+          },
+          "note": {
+            "type": "string",
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "required": [
+          "content",
+          "status",
+          "before_char_count",
+          "after_char_count",
+          "note"
+        ],
+        "title": "Demo1CleaningRecord"
+      },
+      "Demo1IngestionCommitRequest": {
+        "properties": {
+          "preview_result": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Demo1IngestionResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "file_name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 240,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File Name"
+          },
+          "input_type": {
+            "type": "string",
+            "const": "text",
+            "title": "Input Type",
+            "default": "text"
+          },
+          "raw_text": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Raw Text"
+          },
+          "project_id": {
+            "type": "string",
+            "title": "Project Id",
+            "default": "default-space"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "Demo1IngestionCommitRequest"
+      },
+      "Demo1IngestionRequest": {
+        "properties": {
+          "file_name": {
+            "type": "string",
+            "maxLength": 240,
+            "minLength": 1,
+            "title": "File Name"
+          },
+          "input_type": {
+            "type": "string",
+            "const": "text",
+            "title": "Input Type",
+            "default": "text"
+          },
+          "raw_text": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Raw Text"
+          },
+          "project_id": {
+            "type": "string",
+            "title": "Project Id",
+            "default": "default-space"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "file_name",
+          "raw_text"
+        ],
+        "title": "Demo1IngestionRequest"
+      },
+      "Demo1IngestionResult": {
+        "properties": {
+          "received_file": {
+            "$ref": "#/components/schemas/Demo1ReceivedFileRecord"
+          },
+          "source": {
+            "$ref": "#/components/schemas/Demo1SourceRecord"
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/Demo1MetadataRecord"
+          },
+          "parsed": {
+            "$ref": "#/components/schemas/Demo1ParsedTextRecord"
+          },
+          "cleaning": {
+            "$ref": "#/components/schemas/Demo1CleaningRecord"
+          },
+          "chunks": {
+            "items": {
+              "$ref": "#/components/schemas/Demo1ChunkRecord"
+            },
+            "type": "array",
+            "title": "Chunks"
+          },
+          "candidate_knowledge_units": {
+            "items": {
+              "$ref": "#/components/schemas/Demo1CandidateKnowledgeUnitRecord"
+            },
+            "type": "array",
+            "title": "Candidate Knowledge Units"
+          },
+          "candidate_ku_message": {
+            "type": "string",
+            "title": "Candidate Ku Message"
+          },
+          "pipeline_statuses": {
+            "items": {
+              "$ref": "#/components/schemas/Demo1PipelineStatusRecord"
+            },
+            "type": "array",
+            "title": "Pipeline Statuses"
+          },
+          "model_error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Error Code"
+          },
+          "model_error_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Error Message"
+          },
+          "persisted": {
+            "type": "boolean",
+            "title": "Persisted",
+            "default": false
+          },
+          "job_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Id"
+          },
+          "review_task_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Review Task Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "received_file",
+          "source",
+          "metadata",
+          "parsed",
+          "cleaning",
+          "chunks",
+          "candidate_knowledge_units",
+          "candidate_ku_message",
+          "pipeline_statuses"
+        ],
+        "title": "Demo1IngestionResult"
+      },
+      "Demo1MetadataRecord": {
+        "properties": {
+          "raw_length": {
+            "type": "integer",
+            "title": "Raw Length"
+          },
+          "cleaned_length": {
+            "type": "integer",
+            "title": "Cleaned Length"
+          },
+          "chunk_count": {
+            "type": "integer",
+            "title": "Chunk Count"
+          },
+          "candidate_ku_count": {
+            "type": "integer",
+            "title": "Candidate Ku Count"
+          },
+          "model_provider": {
+            "type": "string",
+            "title": "Model Provider"
+          },
+          "model_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Name"
+          },
+          "model_status": {
+            "type": "string",
+            "enum": [
+              "available",
+              "unconfigured",
+              "error",
+              "invalid_response"
+            ],
+            "title": "Model Status"
+          },
+          "commit_status": {
+            "type": "string",
+            "enum": [
+              "preview_only",
+              "committed"
+            ],
+            "title": "Commit Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "raw_length",
+          "cleaned_length",
+          "chunk_count",
+          "candidate_ku_count",
+          "model_provider",
+          "model_name",
+          "model_status",
+          "commit_status"
+        ],
+        "title": "Demo1MetadataRecord"
+      },
+      "Demo1ParsedTextRecord": {
+        "properties": {
+          "content": {
+            "type": "string",
+            "title": "Content"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "note": {
+            "type": "string",
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "required": [
+          "content",
+          "status",
+          "note"
+        ],
+        "title": "Demo1ParsedTextRecord"
+      },
+      "Demo1PipelineStatusRecord": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "done",
+              "loading",
+              "empty",
+              "error"
+            ],
+            "title": "State"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "label",
+          "state"
+        ],
+        "title": "Demo1PipelineStatusRecord"
+      },
+      "Demo1ReceivedFileRecord": {
+        "properties": {
+          "file_name": {
+            "type": "string",
+            "title": "File Name"
+          },
+          "input_type": {
+            "type": "string",
+            "const": "text",
+            "title": "Input Type"
+          },
+          "received_at": {
+            "type": "string",
+            "title": "Received At"
+          },
+          "raw_text_length": {
+            "type": "integer",
+            "title": "Raw Text Length"
+          },
+          "process_status": {
+            "type": "string",
+            "title": "Process Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file_name",
+          "input_type",
+          "received_at",
+          "raw_text_length",
+          "process_status"
+        ],
+        "title": "Demo1ReceivedFileRecord"
+      },
+      "Demo1SourceRecord": {
+        "properties": {
+          "source_id": {
+            "type": "string",
+            "title": "Source Id"
+          },
+          "file_name": {
+            "type": "string",
+            "title": "File Name"
+          },
+          "input_type": {
+            "type": "string",
+            "const": "text",
+            "title": "Input Type"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "raw_text_length": {
+            "type": "integer",
+            "title": "Raw Text Length"
+          },
+          "clean_text_length": {
+            "type": "integer",
+            "title": "Clean Text Length"
+          },
+          "chunk_count": {
+            "type": "integer",
+            "title": "Chunk Count"
+          },
+          "candidate_ku_count": {
+            "type": "integer",
+            "title": "Candidate Ku Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "source_id",
+          "file_name",
+          "input_type",
+          "created_at",
+          "status",
+          "raw_text_length",
+          "clean_text_length",
+          "chunk_count",
+          "candidate_ku_count"
+        ],
+        "title": "Demo1SourceRecord"
       },
       "DiagnosticsResponse": {
         "properties": {

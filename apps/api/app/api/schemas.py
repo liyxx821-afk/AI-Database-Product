@@ -236,6 +236,125 @@ class TextImportResponse(BaseModel):
     review_task_ids: List[str]
 
 
+Demo1InputType = Literal["text"]
+Demo1ChunkType = Literal["very_short_chunk", "short_chunk", "normal_chunk", "long_chunk"]
+Demo1ContentType = Literal["very_short_text", "short_note", "paragraph_note", "long_chunk"]
+Demo1ModelStatus = Literal["available", "unconfigured", "error", "invalid_response"]
+Demo1CommitStatus = Literal["preview_only", "committed"]
+
+
+class Demo1ReceivedFileRecord(BaseModel):
+    file_name: str
+    input_type: Demo1InputType
+    received_at: str
+    raw_text_length: int
+    process_status: str
+
+
+class Demo1SourceRecord(BaseModel):
+    source_id: str
+    file_name: str
+    input_type: Demo1InputType
+    created_at: str
+    status: str
+    raw_text_length: int
+    clean_text_length: int
+    chunk_count: int
+    candidate_ku_count: int
+
+
+class Demo1MetadataRecord(BaseModel):
+    raw_length: int
+    cleaned_length: int
+    chunk_count: int
+    candidate_ku_count: int
+    model_provider: str
+    model_name: Optional[str]
+    model_status: Demo1ModelStatus
+    commit_status: Demo1CommitStatus
+
+
+class Demo1ParsedTextRecord(BaseModel):
+    content: str
+    status: str
+    note: str
+
+
+class Demo1CleaningRecord(BaseModel):
+    content: str
+    status: str
+    before_char_count: int
+    after_char_count: int
+    note: str
+
+
+class Demo1ChunkRecord(BaseModel):
+    chunk_id: str
+    source_id: str
+    chunk_index: int
+    content: str
+    char_count: int
+    chunk_type: Demo1ChunkType
+    start_offset: int
+    end_offset: int
+
+
+class Demo1CandidateKnowledgeUnitRecord(BaseModel):
+    ku_id: str
+    source_id: str
+    chunk_id: str
+    title: str
+    summary: str
+    keywords: List[str]
+    tags: List[str]
+    status: Literal["pending"]
+    confidence: float
+    quality_note: str
+    content_type: Demo1ContentType
+
+
+class Demo1PipelineStatusRecord(BaseModel):
+    key: str
+    label: str
+    state: Literal["done", "loading", "empty", "error"]
+
+
+class Demo1IngestionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    file_name: str = Field(min_length=1, max_length=240)
+    input_type: Demo1InputType = "text"
+    raw_text: str = Field(min_length=1)
+    project_id: str = "default-space"
+
+
+class Demo1IngestionResult(BaseModel):
+    received_file: Demo1ReceivedFileRecord
+    source: Demo1SourceRecord
+    metadata: Demo1MetadataRecord
+    parsed: Demo1ParsedTextRecord
+    cleaning: Demo1CleaningRecord
+    chunks: List[Demo1ChunkRecord]
+    candidate_knowledge_units: List[Demo1CandidateKnowledgeUnitRecord]
+    candidate_ku_message: str
+    pipeline_statuses: List[Demo1PipelineStatusRecord]
+    model_error_code: Optional[str] = None
+    model_error_message: Optional[str] = None
+    persisted: bool = False
+    job_id: Optional[str] = None
+    review_task_ids: List[str] = Field(default_factory=list)
+
+
+class Demo1IngestionCommitRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    preview_result: Optional[Demo1IngestionResult] = None
+    file_name: Optional[str] = Field(default=None, min_length=1, max_length=240)
+    input_type: Demo1InputType = "text"
+    raw_text: Optional[str] = Field(default=None, min_length=1)
+    project_id: str = "default-space"
+
+
 class UploadCreateRequest(BaseModel):
     filename: str = Field(min_length=1, max_length=240)
     size_bytes: int = Field(gt=0)

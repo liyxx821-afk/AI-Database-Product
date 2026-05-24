@@ -74,6 +74,11 @@ import { useKnowledgeExportStore } from "../stores/exportsStore";
 import { useTextToSqlStore } from "../stores/textToSqlStore";
 import { useRelationsStore } from "../stores/relationsStore";
 import { hasBridge } from "../services/apiClient";
+import {
+  commitDemo1Ingestion,
+  previewDemo1Ingestion,
+  type Demo1IngestionResult as Demo1ApiIngestionResult
+} from "../services/demo1Api";
 import { listKnowledgeUnits } from "../services/knowledgeApi";
 import type {
   FeedbackDiagnosticsFilters,
@@ -143,6 +148,7 @@ type DemoCandidateKnowledgeUnit = {
 };
 
 type DemoIngestionResult = {
+  apiResult: Demo1ApiIngestionResult;
   receivedFile: DemoReceivedFileRecord;
   source: DemoSourceRecord;
   metadata: {
@@ -157,24 +163,31 @@ type DemoIngestionResult = {
   candidateKnowledgeUnits: DemoCandidateKnowledgeUnit[];
   candidateKuMessage: string;
   pipelineStatuses: DemoPipelineStatus[];
+  modelStatus: Demo1ApiIngestionResult["metadata"]["model_status"];
+  modelName: string | null;
+  modelErrorCode: string | null;
+  modelErrorMessage: string | null;
+  persisted: boolean;
+  jobId: string | null;
+  reviewTaskIds: string[];
 };
 
-type DemoProcessingStatus = "idle" | "processing" | "completed";
+type DemoProcessingStatus = "idle" | "processing" | "committing" | "completed" | "error";
 
 type DemoReceivedFileRecord = {
   fileName: string;
-  inputType: "text_input";
+  inputType: "text";
   receivedAt: string;
   rawTextLength: number;
-  processStatus: "received" | "completed";
+  processStatus: string;
 };
 
 type DemoSourceRecord = {
   sourceId: string;
   fileName: string;
-  inputType: "text_input";
+  inputType: "text";
   createdAt: string;
-  status: "source_created";
+  status: string;
   rawTextLength: number;
   cleanTextLength: number;
   chunkCount: number;
@@ -207,7 +220,7 @@ type DemoPipelineStatusKey =
 type DemoPipelineStatus = {
   key: DemoPipelineStatusKey;
   label: string;
-  state: "done" | "loading" | "empty";
+  state: "done" | "loading" | "empty" | "error";
 };
 
 type FeedbackFilterValue = FeedbackRequest["feedback_type"] | "all";
@@ -437,66 +450,41 @@ function DemoIngestionPage() {
   const [inputText, setInputText] = useState("");
   const [processingStatus, setProcessingStatus] = useState<DemoProcessingStatus>("idle");
   const [result, setResult] = useState<DemoIngestionResult | null>(null);
+  const [demoErrorCode, setDemoErrorCode] = useState<string | null>(null);
 
   const inputCharCount = countTextChars(inputText);
 
-  function processText() {
+  async function processText() {
     const rawText = inputText;
     setProcessingStatus("processing");
-    window.setTimeout(() => {
-      const processedAt = new Date().toLocaleString();
-      const fileName = createDemoFileName();
-      const cleanedText = cleanDemoText(rawText);
-      const sourceId = createDemoId("src");
-      const chunks = splitTextIntoDemoChunks(cleanedText, sourceId);
-      const candidateKnowledgeUnits = chunks.map(createDemoCandidateKnowledgeUnit);
-      const rawLength = countTextChars(rawText);
-      const cleanedLength = countTextChars(cleanedText);
-      setResult({
-        receivedFile: {
-          fileName,
-          inputType: "text_input",
-          receivedAt: processedAt,
-          rawTextLength: rawLength,
-          processStatus: "completed"
-        },
-        source: {
-          sourceId,
-          fileName,
-          inputType: "text_input",
-          createdAt: processedAt,
-          status: "source_created",
-          rawTextLength: rawLength,
-          cleanTextLength: cleanedLength,
-          chunkCount: chunks.length,
-          candidateKuCount: candidateKnowledgeUnits.length
-        },
-        metadata: {
-          rawLength,
-          cleanedLength,
-          chunkCount: chunks.length,
-          candidateKnowledgeUnitCount: candidateKnowledgeUnits.length
-        },
-        parsed: {
-          content: rawText,
-          status: "parsed",
-          note: "当前为文本输入模式，未做 PDF / Word / OCR 解析。"
-        },
-        cleaning: {
-          content: cleanedText,
-          status: "cleaned",
-          beforeCharCount: rawLength,
-          afterCharCount: cleanedLength,
-          note: rawText === cleanedText ? "清洗前后无明显变化。" : "已执行首尾空格、连续空格、多余空行、换行和异常字符清洗。"
-        },
-        chunks,
-        candidateKnowledgeUnits,
-        candidateKuMessage:
-          "候选知识单元是基于 chunk 自动生成的初步候选材料，不代表最终知识结论，后续需要进入 Demo 2 做结构化、标签优化、实体关系抽取和人工确认。",
-        pipelineStatuses: createDemoPipelineStatuses("completed")
+    setDemoErrorCode(null);
+    try {
+      const apiResult = await previewDemo1Ingestion({
+        file_name: createDemoFileName(),
+        input_type: "text",
+        raw_text: rawText,
+        project_id: "default-space"
       });
+      setResult(mapDemoApiResult(apiResult));
       setProcessingStatus("completed");
-    }, 80);
+    } catch (error) {
+      setDemoErrorCode(resolveErrorCode(error, "demo1_preview_failed"));
+      setProcessingStatus("error");
+    }
+  }
+
+  async function commitResult() {
+    if (!result || result.persisted || !result.candidateKnowledgeUnits.length) return;
+    setProcessingStatus("committing");
+    setDemoErrorCode(null);
+    try {
+      const committed = await commitDemo1Ingestion(result.apiResult);
+      setResult(mapDemoApiResult(committed));
+      setProcessingStatus("completed");
+    } catch (error) {
+      setDemoErrorCode(resolveErrorCode(error, "demo1_commit_failed"));
+      setProcessingStatus("error");
+    }
   }
 
   return (
@@ -504,10 +492,20 @@ function DemoIngestionPage() {
       <section className="page-frame">
         <div className="section-title-row">
           <h2>知识入库预处理 Demo</h2>
-          <StateChip state={processingStatus === "completed" ? "done" : processingStatus === "processing" ? "loading" : "empty"} />
+          <StateChip
+            state={
+              processingStatus === "completed"
+                ? "done"
+                : processingStatus === "processing" || processingStatus === "committing"
+                  ? "loading"
+                  : processingStatus === "error"
+                    ? "recoverable_error"
+                    : "empty"
+            }
+          />
         </div>
         <p className="section-note">
-          验证链路：资料进入系统 → 来源记录 → 内容解析 → 文本清洗 → 知识切片 → 候选知识生成。当前仅支持文本输入，所有处理都在浏览器端完成。
+          验证链路：资料进入系统 → 来源记录 → 内容解析 → 文本清洗 → 知识切片 → 外部模型语义分析 → 候选知识生成。当前仅支持文本输入，模型调用在后端完成，前端不保存 API key。
         </p>
         <div className="demo-ingestion-form">
           <label className="memory-label demo-input-label">
@@ -522,16 +520,47 @@ function DemoIngestionPage() {
           <div className="inline-actions">
             <StatusPill label="处理状态" value={formatDemoStatus(processingStatus)} />
             <StatusPill label="当前字数" value={String(inputCharCount)} />
+            <StatusPill label="模型状态" value={result?.modelStatus ?? "not_ready"} />
+            <StatusPill label="写入状态" value={result?.persisted ? "committed" : "preview_only"} />
             <button
               className="icon-command"
               type="button"
-              disabled={!inputText.trim() || processingStatus === "processing"}
+              disabled={!inputText.trim() || processingStatus === "processing" || processingStatus === "committing"}
               onClick={processText}
             >
               <FileText aria-hidden="true" size={16} />
-              <span>开始处理</span>
+              <span>预处理预览</span>
+            </button>
+            <button
+              className="icon-command"
+              type="button"
+              disabled={
+                !result ||
+                result.persisted ||
+                !result.candidateKnowledgeUnits.length ||
+                processingStatus === "processing" ||
+                processingStatus === "committing"
+              }
+              onClick={commitResult}
+            >
+              <Save aria-hidden="true" size={16} />
+              <span>确认写入本地库</span>
             </button>
           </div>
+          {demoErrorCode ? (
+            <div className="row-note">
+              <AlertCircle aria-hidden="true" size={15} />
+              <span>{demoErrorCode}</span>
+            </div>
+          ) : null}
+          {result?.modelErrorCode ? (
+            <div className="row-note">
+              <AlertCircle aria-hidden="true" size={15} />
+              <span>
+                {result.modelErrorCode}：{result.modelErrorMessage}
+              </span>
+            </div>
+          ) : null}
         </div>
       </section>
 
@@ -636,6 +665,24 @@ function DemoIngestionPage() {
             <Metric label="clean_text_length" value={result.metadata.cleanedLength} />
             <Metric label="chunk_count" value={result.metadata.chunkCount} />
             <Metric label="candidate_ku_count" value={result.metadata.candidateKnowledgeUnitCount} />
+            <article className="panel">
+              <h3>model_provider</h3>
+              <p>openai-compatible</p>
+            </article>
+            <article className="panel">
+              <h3>model_name / status</h3>
+              <p>{result.modelName ?? "not_configured"} / {result.modelStatus}</p>
+            </article>
+            <article className="panel">
+              <h3>commit_status</h3>
+              <p>{result.persisted ? "committed" : "preview_only"}</p>
+            </article>
+            {result.jobId ? (
+              <article className="panel">
+                <h3>job_id</h3>
+                <p>{result.jobId}</p>
+              </article>
+            ) : null}
           </div>
         ) : (
           <EmptyState message="尚未生成 metadata。" />
@@ -750,19 +797,97 @@ function DemoIngestionPage() {
                   )}
                   {unit.tags.map((tag) => (
                     <span className="mini-badge" key={`${unit.kuId}-${tag}`}>
-                      #{tag}
+                      {tag.startsWith("#") ? tag : `#${tag}`}
                     </span>
                   ))}
                 </div>
               </article>
             ))
           ) : (
-            <EmptyState message="点击“开始处理”后，这里会显示模拟生成的候选知识单元。" />
+            <EmptyState message="点击“预处理预览”后，这里会显示外部模型生成的候选知识单元；如果模型未配置或调用失败，不会生成假的 Candidate KU。" />
           )}
         </div>
       </section>
     </section>
   );
+}
+
+function mapDemoApiResult(apiResult: Demo1ApiIngestionResult): DemoIngestionResult {
+  return {
+    apiResult,
+    receivedFile: {
+      fileName: apiResult.received_file.file_name,
+      inputType: apiResult.received_file.input_type,
+      receivedAt: apiResult.received_file.received_at,
+      rawTextLength: apiResult.received_file.raw_text_length,
+      processStatus: apiResult.received_file.process_status
+    },
+    source: {
+      sourceId: apiResult.source.source_id,
+      fileName: apiResult.source.file_name,
+      inputType: apiResult.source.input_type,
+      createdAt: apiResult.source.created_at,
+      status: apiResult.source.status,
+      rawTextLength: apiResult.source.raw_text_length,
+      cleanTextLength: apiResult.source.clean_text_length,
+      chunkCount: apiResult.source.chunk_count,
+      candidateKuCount: apiResult.source.candidate_ku_count
+    },
+    metadata: {
+      rawLength: apiResult.metadata.raw_length,
+      cleanedLength: apiResult.metadata.cleaned_length,
+      chunkCount: apiResult.metadata.chunk_count,
+      candidateKnowledgeUnitCount: apiResult.metadata.candidate_ku_count
+    },
+    parsed: {
+      content: apiResult.parsed.content,
+      status: "parsed",
+      note: apiResult.parsed.note
+    },
+    cleaning: {
+      content: apiResult.cleaning.content,
+      status: "cleaned",
+      beforeCharCount: apiResult.cleaning.before_char_count,
+      afterCharCount: apiResult.cleaning.after_char_count,
+      note: apiResult.cleaning.note
+    },
+    chunks: apiResult.chunks.map((chunk) => ({
+      chunkId: chunk.chunk_id,
+      sourceId: chunk.source_id,
+      chunkIndex: chunk.chunk_index,
+      content: chunk.content,
+      charCount: chunk.char_count,
+      chunkType: chunk.chunk_type,
+      startOffset: chunk.start_offset,
+      endOffset: chunk.end_offset
+    })),
+    candidateKnowledgeUnits: apiResult.candidate_knowledge_units.map((unit) => ({
+      kuId: unit.ku_id,
+      sourceId: unit.source_id,
+      chunkId: unit.chunk_id,
+      title: unit.title,
+      summary: unit.summary,
+      keywords: unit.keywords,
+      tags: unit.tags,
+      status: unit.status,
+      qualityNote: unit.quality_note,
+      confidence: unit.confidence,
+      contentType: unit.content_type
+    })),
+    candidateKuMessage: apiResult.candidate_ku_message,
+    pipelineStatuses: apiResult.pipeline_statuses.map((status) => ({
+      key: status.key as DemoPipelineStatusKey,
+      label: status.label,
+      state: status.state
+    })),
+    modelStatus: apiResult.metadata.model_status,
+    modelName: apiResult.metadata.model_name,
+    modelErrorCode: apiResult.model_error_code,
+    modelErrorMessage: apiResult.model_error_message,
+    persisted: apiResult.persisted,
+    jobId: apiResult.job_id,
+    reviewTaskIds: apiResult.review_task_ids
+  };
 }
 
 function cleanDemoText(text: string) {
@@ -964,7 +1089,9 @@ function createDemoId(prefix: string) {
 
 function formatDemoStatus(status: DemoProcessingStatus) {
   if (status === "processing") return "处理中";
+  if (status === "committing") return "写入中";
   if (status === "completed") return "完成";
+  if (status === "error") return "需要处理错误";
   return "等待输入";
 }
 
@@ -985,6 +1112,18 @@ function createDemoPipelineStatuses(status: DemoProcessingStatus): DemoPipelineS
     return steps.map((step, index) => ({
       ...step,
       state: index === 0 ? "loading" : "empty"
+    }));
+  }
+  if (status === "committing") {
+    return steps.map((step) => ({
+      ...step,
+      state: step.key === "completed" ? "loading" : "done"
+    }));
+  }
+  if (status === "error") {
+    return steps.map((step, index) => ({
+      ...step,
+      state: index === 0 ? "error" : "empty"
     }));
   }
   return steps.map((step) => ({ ...step, state: "empty" }));

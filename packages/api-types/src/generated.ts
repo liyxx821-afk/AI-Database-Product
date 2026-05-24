@@ -78,6 +78,103 @@ export type ApiSchemas = {
   "differences": Record<string, unknown>;
   "copy_safe_summary": string;
 };
+  "Demo1CandidateKnowledgeUnitRecord": {
+  "ku_id": string;
+  "source_id": string;
+  "chunk_id": string;
+  "title": string;
+  "summary": string;
+  "keywords": string[];
+  "tags": string[];
+  "status": string;
+  "confidence": number;
+  "quality_note": string;
+  "content_type": "very_short_text" | "short_note" | "paragraph_note" | "long_chunk";
+};
+  "Demo1ChunkRecord": {
+  "chunk_id": string;
+  "source_id": string;
+  "chunk_index": number;
+  "content": string;
+  "char_count": number;
+  "chunk_type": "very_short_chunk" | "short_chunk" | "normal_chunk" | "long_chunk";
+  "start_offset": number;
+  "end_offset": number;
+};
+  "Demo1CleaningRecord": {
+  "content": string;
+  "status": string;
+  "before_char_count": number;
+  "after_char_count": number;
+  "note": string;
+};
+  "Demo1IngestionCommitRequest": {
+  "preview_result"?: Demo1IngestionResult | null;
+  "file_name"?: string | null;
+  "input_type"?: string;
+  "raw_text"?: string | null;
+  "project_id"?: string;
+};
+  "Demo1IngestionRequest": {
+  "file_name": string;
+  "input_type"?: string;
+  "raw_text": string;
+  "project_id"?: string;
+};
+  "Demo1IngestionResult": {
+  "received_file": Demo1ReceivedFileRecord;
+  "source": Demo1SourceRecord;
+  "metadata": Demo1MetadataRecord;
+  "parsed": Demo1ParsedTextRecord;
+  "cleaning": Demo1CleaningRecord;
+  "chunks": Demo1ChunkRecord[];
+  "candidate_knowledge_units": Demo1CandidateKnowledgeUnitRecord[];
+  "candidate_ku_message": string;
+  "pipeline_statuses": Demo1PipelineStatusRecord[];
+  "model_error_code"?: string | null;
+  "model_error_message"?: string | null;
+  "persisted"?: boolean;
+  "job_id"?: string | null;
+  "review_task_ids"?: string[];
+};
+  "Demo1MetadataRecord": {
+  "raw_length": number;
+  "cleaned_length": number;
+  "chunk_count": number;
+  "candidate_ku_count": number;
+  "model_provider": string;
+  "model_name": string | null;
+  "model_status": "available" | "unconfigured" | "error" | "invalid_response";
+  "commit_status": "preview_only" | "committed";
+};
+  "Demo1ParsedTextRecord": {
+  "content": string;
+  "status": string;
+  "note": string;
+};
+  "Demo1PipelineStatusRecord": {
+  "key": string;
+  "label": string;
+  "state": "done" | "loading" | "empty" | "error";
+};
+  "Demo1ReceivedFileRecord": {
+  "file_name": string;
+  "input_type": string;
+  "received_at": string;
+  "raw_text_length": number;
+  "process_status": string;
+};
+  "Demo1SourceRecord": {
+  "source_id": string;
+  "file_name": string;
+  "input_type": string;
+  "created_at": string;
+  "status": string;
+  "raw_text_length": number;
+  "clean_text_length": number;
+  "chunk_count": number;
+  "candidate_ku_count": number;
+};
   "DiagnosticsResponse": {
   "created_at": string;
   "redacted": boolean;
@@ -845,6 +942,114 @@ export type CitationCompareResponse = {
   "items": CitationCompareItem[];
   "differences": Record<string, unknown>;
   "copy_safe_summary": string;
+};
+
+export type Demo1CandidateKnowledgeUnitRecord = {
+  "ku_id": string;
+  "source_id": string;
+  "chunk_id": string;
+  "title": string;
+  "summary": string;
+  "keywords": string[];
+  "tags": string[];
+  "status": string;
+  "confidence": number;
+  "quality_note": string;
+  "content_type": "very_short_text" | "short_note" | "paragraph_note" | "long_chunk";
+};
+
+export type Demo1ChunkRecord = {
+  "chunk_id": string;
+  "source_id": string;
+  "chunk_index": number;
+  "content": string;
+  "char_count": number;
+  "chunk_type": "very_short_chunk" | "short_chunk" | "normal_chunk" | "long_chunk";
+  "start_offset": number;
+  "end_offset": number;
+};
+
+export type Demo1CleaningRecord = {
+  "content": string;
+  "status": string;
+  "before_char_count": number;
+  "after_char_count": number;
+  "note": string;
+};
+
+export type Demo1IngestionCommitRequest = {
+  "preview_result"?: Demo1IngestionResult | null;
+  "file_name"?: string | null;
+  "input_type"?: string;
+  "raw_text"?: string | null;
+  "project_id"?: string;
+};
+
+export type Demo1IngestionRequest = {
+  "file_name": string;
+  "input_type"?: string;
+  "raw_text": string;
+  "project_id"?: string;
+};
+
+export type Demo1IngestionResult = {
+  "received_file": Demo1ReceivedFileRecord;
+  "source": Demo1SourceRecord;
+  "metadata": Demo1MetadataRecord;
+  "parsed": Demo1ParsedTextRecord;
+  "cleaning": Demo1CleaningRecord;
+  "chunks": Demo1ChunkRecord[];
+  "candidate_knowledge_units": Demo1CandidateKnowledgeUnitRecord[];
+  "candidate_ku_message": string;
+  "pipeline_statuses": Demo1PipelineStatusRecord[];
+  "model_error_code"?: string | null;
+  "model_error_message"?: string | null;
+  "persisted"?: boolean;
+  "job_id"?: string | null;
+  "review_task_ids"?: string[];
+};
+
+export type Demo1MetadataRecord = {
+  "raw_length": number;
+  "cleaned_length": number;
+  "chunk_count": number;
+  "candidate_ku_count": number;
+  "model_provider": string;
+  "model_name": string | null;
+  "model_status": "available" | "unconfigured" | "error" | "invalid_response";
+  "commit_status": "preview_only" | "committed";
+};
+
+export type Demo1ParsedTextRecord = {
+  "content": string;
+  "status": string;
+  "note": string;
+};
+
+export type Demo1PipelineStatusRecord = {
+  "key": string;
+  "label": string;
+  "state": "done" | "loading" | "empty" | "error";
+};
+
+export type Demo1ReceivedFileRecord = {
+  "file_name": string;
+  "input_type": string;
+  "received_at": string;
+  "raw_text_length": number;
+  "process_status": string;
+};
+
+export type Demo1SourceRecord = {
+  "source_id": string;
+  "file_name": string;
+  "input_type": string;
+  "created_at": string;
+  "status": string;
+  "raw_text_length": number;
+  "clean_text_length": number;
+  "chunk_count": number;
+  "candidate_ku_count": number;
 };
 
 export type DiagnosticsResponse = {
@@ -1625,6 +1830,8 @@ export type ApiPath =
   | "/api/knowledge-units:extract"
   | "/api/knowledge-units"
   | "/api/knowledge-units/{knowledge_unit_id}"
+  | "/api/demo1/ingestion:preview"
+  | "/api/demo1/ingestion:commit"
   | "/api/relations"
   | "/api/relations/{relation_id}"
   | "/api/graph/preview"

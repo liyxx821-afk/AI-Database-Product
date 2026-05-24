@@ -321,7 +321,8 @@ button {
 }
 
 .state-degraded,
-.state-recoverable_error {
+.state-recoverable_error,
+.state-error {
   background: var(--surface-muted);
 }
 

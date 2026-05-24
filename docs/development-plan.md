@@ -1447,6 +1447,22 @@ docs/progress.md
 
 ## 12. 当前推荐的下一步
 
+### 12.1 Demo 1 真实语义入库预处理增量
+
+当前 `demo1-ingestion-page` 分支已将 Demo 1 调整为真实语义预处理链路：
+
+- 前端页面仍为 `/demo1-ingestion`；
+- 后端新增 Demo 1 preview / commit API；
+- Candidate KU 由 OpenAI-compatible 外部模型生成，前端不保存 API key；
+- preview 阶段只返回页面展示结果，不写库；
+- commit 阶段写入现有 SQLite 的 `sources`、`chunks`、`knowledge_units`、`review_tasks`；
+- 模型未配置或调用失败时，保留 source / clean text / chunk 结果，但不生成假的 Candidate KU；
+- Demo 1 仍不做 RAG、向量检索、最终知识确认、PDF / Word / OCR。
+
+Demo 2 仍负责 schema matching、标签优化、实体关系抽取和人工确认。
+
+### 12.2 后续主线
+
 下一步建议优先完成：
 
 1. 保持 `smoke:p0-core` → `smoke:p0-desktop-runtime` → `smoke:p0-packaged-runtime` → `smoke:p0-i18n-settings` → `smoke:p0-ui-polish` → `smoke:p0-file` → `smoke:p0-parse` → `smoke:p0-ku` → `smoke:p0-space-tag-metadata` → `smoke:p0-relations-graph` → `smoke:p0-text-to-sql` → `smoke:p0-knowledge-export` → `smoke:p0-knowledge-export-history` → `smoke:p0-search-ask` → `smoke:p0-citation-detail` → `smoke:p0-citation-focus` → `smoke:p0-citation-annotate-compare` → `smoke:p0-batch-actions` → `smoke:p0-feedback-memory` → `smoke:p0-feedback-diagnostics` → `smoke:p0-feedback-export` → `smoke:p0-feedback-filters-history` → `smoke:p0-z0a` 的本地 gate，避免后续 UI shell、settings、AI / Retrieval / Feedback / Organization / Relations / Text-to-SQL / Export 改动破坏 runtime、Electron bridge、packaged artifact、OpenAPI、SQLite、upload、parse、KU/Review、space/tag metadata、relations graph preview、structured query preview、knowledge export、knowledge export history、evidence contract、citation detail replay、citation focus、citation annotation/compare、batch actions、memory review、feedback replay、导出脱敏和 export history 边界。

@@ -2356,6 +2356,20 @@
 
 ### 验证记录
 
+- Demo 1 真实语义入库预处理升级：
+  - 已在 `demo1-ingestion-page` 分支新增后端 `POST /api/demo1/ingestion:preview` 与 `POST /api/demo1/ingestion:commit`。
+  - 已将 Candidate KU 从前端规则模拟改为后端 OpenAI-compatible 模型分析；模型未配置或调用失败时不生成假 KU。
+  - 已支持预览不落库与确认写入本地 SQLite 两种状态，commit 写入 `sources`、`chunks`、`knowledge_units`、`review_tasks`。
+  - 已更新 `/demo1-ingestion` 页面，展示模型状态、写入状态、source、metadata、解析文本、清洗文本、chunk、Candidate KU 和处理状态流。
+  - 已补充 `apps/api/tests/test_demo1_ingestion.py`，验证短文本预览、长文本多 chunk commit 和数据库写入。
+  - 已通过 `.\.venv\Scripts\python.exe -m pytest apps/api/tests/test_demo1_ingestion.py`。
+  - 已通过 `.\.venv\Scripts\python.exe -m ruff check apps/api scripts`。
+  - 已通过 `corepack pnpm --filter @knowledgebase-dev/renderer typecheck`。
+  - 已通过 `corepack pnpm --filter @knowledgebase-dev/renderer build`。
+  - 已通过 Corepack 逐个执行 runtime-contracts、shared-config、api-types build，以及 desktop-preload、desktop-main、renderer typecheck。
+  - 已通过浏览器 smoke 打开 `http://127.0.0.1:5173/demo1-ingestion`，输入“我是一个大学生。”并点击“预处理预览”；页面显示 source、metadata、解析文本、清洗文本、chunk、模型未配置提示，且 console 无 error。
+  - 全量 `.\.venv\Scripts\python.exe -m pytest apps/api/tests` 当前仍有 4 个既有上传/文件解析用例失败，原因是当前 build 中 `app.services.uploads.file_upload` 不存在，`/api/uploads` 返回 503；本轮新增 Demo 1 用例不依赖该上传服务并已通过。
+  - `corepack pnpm typecheck` 会触发仓库脚本中的裸 `pnpm` 命令；当前 Windows PATH 没有 pnpm shim，因此改用 `corepack pnpm --filter ...` 逐项验证。
 - 已通过 `rg --files` 确认初始仓库仅包含 `AGENTS.md`。
 - 已通过文档创建结果确认 `README.md` 与 `docs/` 文档体系存在。
 - 已通过 `rg` 检查确认关键术语已覆盖：`建库系统`、`Source`、`Chunk`、`Knowledge Unit`、`Human Review`、`Text-to-SQL`、`RAG`。
