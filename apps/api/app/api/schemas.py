@@ -276,6 +276,12 @@ class Demo1MetadataRecord(BaseModel):
     commit_status: Demo1CommitStatus
     parser_profile: str
     file_size_bytes: Optional[int] = None
+    parser_kind: str = "text_input"
+    parser_status: str = "parsed"
+    parser_warnings: List[str] = Field(default_factory=list)
+    page_count: Optional[int] = None
+    image_count: Optional[int] = None
+    ocr_model_name: Optional[str] = None
 
 
 class Demo1ParsedTextRecord(BaseModel):

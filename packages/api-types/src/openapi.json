@@ -4355,6 +4355,56 @@
               }
             ],
             "title": "File Size Bytes"
+          },
+          "parser_kind": {
+            "type": "string",
+            "title": "Parser Kind",
+            "default": "text_input"
+          },
+          "parser_status": {
+            "type": "string",
+            "title": "Parser Status",
+            "default": "parsed"
+          },
+          "parser_warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Parser Warnings"
+          },
+          "page_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page Count"
+          },
+          "image_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image Count"
+          },
+          "ocr_model_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ocr Model Name"
           }
         },
         "type": "object",

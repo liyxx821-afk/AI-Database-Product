@@ -157,6 +157,12 @@ type DemoIngestionResult = {
     cleanedLength: number;
     chunkCount: number;
     candidateKnowledgeUnitCount: number;
+    parserKind: string;
+    parserStatus: string;
+    parserWarnings: string[];
+    pageCount: number | null;
+    imageCount: number | null;
+    ocrModelName: string | null;
   };
   parsed: DemoParsedTextRecord;
   semanticParsing: DemoSemanticParsingRecord;
@@ -563,7 +569,7 @@ function DemoIngestionPage() {
             <input
               className="query-input"
               type="file"
-              accept=".txt,.text,.md,.markdown,.csv,.tsv,.json,.log,.html,.htm,text/*,application/json"
+              accept=".txt,.text,.md,.markdown,.csv,.tsv,.json,.log,.html,.htm,.pdf,.png,.jpg,.jpeg,.webp,.bmp,text/*,application/json,application/pdf,image/png,image/jpeg,image/webp,image/bmp"
               onChange={handleDemoFileChange}
             />
           </label>
@@ -768,6 +774,33 @@ function DemoIngestionPage() {
               <p>{result.parserProfile}</p>
             </article>
             <article className="panel">
+              <h3>parser_kind / status</h3>
+              <p>{result.metadata.parserKind} / {result.metadata.parserStatus}</p>
+            </article>
+            {result.metadata.pageCount != null ? (
+              <article className="panel">
+                <h3>page_count</h3>
+                <p>{result.metadata.pageCount}</p>
+              </article>
+            ) : null}
+            {result.metadata.imageCount != null ? (
+              <article className="panel">
+                <h3>image_count</h3>
+                <p>{result.metadata.imageCount}</p>
+              </article>
+            ) : null}
+            {result.metadata.ocrModelName ? (
+              <article className="panel">
+                <h3>ocr_model_name</h3>
+                <p>{result.metadata.ocrModelName}</p>
+              </article>
+            ) : null}
+            <ListPanel
+              title="解析警告"
+              items={result.metadata.parserWarnings}
+              empty="未返回解析警告。"
+            />
+            <article className="panel">
               <h3>commit_status</h3>
               <p>{result.persisted ? "committed" : "preview_only"}</p>
             </article>
@@ -970,7 +1003,13 @@ function mapDemoApiResult(apiResult: Demo1ApiIngestionResult): DemoIngestionResu
       rawLength: apiResult.metadata.raw_length,
       cleanedLength: apiResult.metadata.cleaned_length,
       chunkCount: apiResult.metadata.chunk_count,
-      candidateKnowledgeUnitCount: apiResult.metadata.candidate_ku_count
+      candidateKnowledgeUnitCount: apiResult.metadata.candidate_ku_count,
+      parserKind: apiResult.metadata.parser_kind,
+      parserStatus: apiResult.metadata.parser_status,
+      parserWarnings: apiResult.metadata.parser_warnings,
+      pageCount: apiResult.metadata.page_count,
+      imageCount: apiResult.metadata.image_count,
+      ocrModelName: apiResult.metadata.ocr_model_name
     },
     parsed: {
       content: apiResult.parsed.content,

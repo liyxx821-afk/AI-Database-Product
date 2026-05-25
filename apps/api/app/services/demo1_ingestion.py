@@ -21,6 +21,7 @@ from app.db.sqlite import db, json_dumps
 DEMO1_PROFILE = "demo1_model_ingestion_preprocess_v1"
 DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1"
 DEFAULT_DEMO1_MODEL = "gpt-5.4-mini"
+DEFAULT_DEMO1_VISION_MODEL = "qwen-vl-ocr-latest"
 SYSTEM_TAGS = ["#demo1", "#入库预处理", "#candidate-ku", "#pending"]
 MAX_DEMO1_FILE_BYTES = 5 * 1024 * 1024
 SUPPORTED_TEXT_EXTENSIONS = {
@@ -35,7 +36,19 @@ SUPPORTED_TEXT_EXTENSIONS = {
     ".html",
     ".htm",
 }
+SUPPORTED_PDF_EXTENSIONS = {".pdf"}
+SUPPORTED_IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".bmp"}
+SUPPORTED_DEMO1_FILE_EXTENSIONS = (
+    SUPPORTED_TEXT_EXTENSIONS | SUPPORTED_PDF_EXTENSIONS | SUPPORTED_IMAGE_EXTENSIONS
+)
 PLAIN_TEXT_EXTENSIONS = SUPPORTED_TEXT_EXTENSIONS - {".html", ".htm"}
+IMAGE_MIME_BY_EXTENSION = {
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".webp": "image/webp",
+    ".bmp": "image/bmp",
+}
 PIPELINE_STEPS = [
     ("received", "资料进入系统"),
     ("source_created", "创建 source 来源记录"),
@@ -64,6 +77,7 @@ def preview_ingestion(payload: Any) -> dict[str, Any]:
         parse_note=parsed_input["parse_note"],
         parser_profile=parsed_input["parser_profile"],
         file_size_bytes=parsed_input["file_size_bytes"],
+        parse_metadata=parsed_input["parse_metadata"],
         project_id=payload.project_id,
         commit_status="preview_only",
     )
@@ -82,6 +96,7 @@ def commit_ingestion(payload: Any) -> dict[str, Any]:
             parse_note=parsed_input["parse_note"],
             parser_profile=parsed_input["parser_profile"],
             file_size_bytes=parsed_input["file_size_bytes"],
+            parse_metadata=parsed_input["parse_metadata"],
             project_id=payload.project_id,
             commit_status="preview_only",
         )
@@ -167,6 +182,12 @@ def commit_ingestion(payload: Any) -> dict[str, Any]:
                         "chunk_count": source["chunk_count"],
                         "candidate_ku_count": source["candidate_ku_count"],
                         "parser_profile": result["metadata"]["parser_profile"],
+                        "parser_kind": result["metadata"].get("parser_kind"),
+                        "parser_status": result["metadata"].get("parser_status"),
+                        "parser_warnings": result["metadata"].get("parser_warnings", []),
+                        "page_count": result["metadata"].get("page_count"),
+                        "image_count": result["metadata"].get("image_count"),
+                        "ocr_model_name": result["metadata"].get("ocr_model_name"),
                         "file_size_bytes": result["metadata"].get("file_size_bytes"),
                         "ingestion_profile": DEMO1_PROFILE,
                         "trace_id": trace_id,
@@ -339,6 +360,10 @@ def parse_demo1_input(payload: Any) -> dict[str, Any]:
             "parse_note": "当前为文本输入模式，未做 PDF / Word / OCR 解析。",
             "parser_profile": "demo1_text_input_direct_v1",
             "file_size_bytes": None,
+            "parse_metadata": parser_metadata(
+                parser_kind="text_input",
+                parser_status="parsed",
+            ),
         }
 
     file_bytes = decode_demo1_file(payload.file_content_base64 or "")
@@ -348,7 +373,7 @@ def parse_demo1_input(payload: Any) -> dict[str, Any]:
             "Demo 1 file input is limited to 5 MB.",
             status_code=413,
         )
-    parsed_text, parser_profile = parse_demo1_file(
+    parsed_file = parse_demo1_file(
         file_name=payload.file_name,
         file_bytes=file_bytes,
         content_type=payload.content_type,
@@ -356,13 +381,11 @@ def parse_demo1_input(payload: Any) -> dict[str, Any]:
     return {
         "file_name": payload.file_name,
         "input_type": "file",
-        "raw_text": parsed_text,
-        "parse_note": (
-            f"已在后端解析上传文件，解析器：{parser_profile}。"
-            "当前 Demo 1 不做 PDF / Word / OCR。"
-        ),
-        "parser_profile": parser_profile,
+        "raw_text": parsed_file["raw_text"],
+        "parse_note": parsed_file["parse_note"],
+        "parser_profile": parsed_file["parser_profile"],
         "file_size_bytes": len(file_bytes),
+        "parse_metadata": parsed_file["parse_metadata"],
     }
 
 
@@ -382,20 +405,183 @@ def parse_demo1_file(
     file_name: str,
     file_bytes: bytes,
     content_type: Optional[str],
-) -> tuple[str, str]:
+) -> dict[str, Any]:
     extension = Path(file_name).suffix.lower()
-    if extension not in SUPPORTED_TEXT_EXTENSIONS:
+    if extension not in SUPPORTED_DEMO1_FILE_EXTENSIONS:
         raise AppError(
             "demo1_file_type_unsupported",
-            "Demo 1 currently supports txt, md, csv, json, log, and html text files only.",
+            "Demo 1 supports text files, PDF, and common image/screenshot formats.",
             status_code=415,
+        )
+    if extension in SUPPORTED_PDF_EXTENSIONS:
+        return parse_pdf_file(file_name=file_name, file_bytes=file_bytes)
+    if extension in SUPPORTED_IMAGE_EXTENSIONS:
+        return parse_image_file(
+            file_name=file_name,
+            file_bytes=file_bytes,
+            content_type=content_type,
+            extension=extension,
         )
     decoded = decode_text_bytes(file_bytes)
     if extension in PLAIN_TEXT_EXTENSIONS:
         profile = f"demo1_plain_text_file_parser_v1:{extension.lstrip('.')}"
-        return decoded, profile
+        return {
+            "raw_text": decoded,
+            "parser_profile": profile,
+            "parse_note": f"已在后端按文本文件解析上传文件，解析器：{profile}。",
+            "parse_metadata": parser_metadata(
+                parser_kind="text_file",
+                parser_status="parsed",
+            ),
+        }
     profile = "demo1_html_text_parser_v1"
-    return strip_html_to_text(decoded), profile
+    return {
+        "raw_text": strip_html_to_text(decoded),
+        "parser_profile": profile,
+        "parse_note": f"已在后端按 HTML 文本解析上传文件，解析器：{profile}。",
+        "parse_metadata": parser_metadata(
+            parser_kind="html_text",
+            parser_status="parsed",
+        ),
+    }
+
+
+def parser_metadata(
+    *,
+    parser_kind: str,
+    parser_status: str,
+    parser_warnings: Optional[list[str]] = None,
+    page_count: Optional[int] = None,
+    image_count: Optional[int] = None,
+    ocr_model_name: Optional[str] = None,
+) -> dict[str, Any]:
+    return {
+        "parser_kind": parser_kind,
+        "parser_status": parser_status,
+        "parser_warnings": parser_warnings or [],
+        "page_count": page_count,
+        "image_count": image_count,
+        "ocr_model_name": ocr_model_name,
+    }
+
+
+def parse_pdf_file(*, file_name: str, file_bytes: bytes) -> dict[str, Any]:
+    try:
+        import fitz  # type: ignore[import-untyped]
+    except ImportError as error:
+        raise AppError(
+            "demo1_pdf_parser_unavailable",
+            "PyMuPDF is required to parse PDF files in Demo 1.",
+            status_code=503,
+        ) from error
+
+    try:
+        document = fitz.open(stream=file_bytes, filetype="pdf")
+    except Exception as error:  # noqa: BLE001 - PyMuPDF raises several concrete types.
+        raise AppError(
+            "demo1_pdf_parse_failed",
+            "The uploaded PDF could not be opened by the local PDF parser.",
+            status_code=422,
+        ) from error
+
+    warnings: list[str] = []
+    page_texts: list[str] = []
+    try:
+        page_count = document.page_count
+        for page_index in range(page_count):
+            page = document.load_page(page_index)
+            text = page.get_text("text").strip()
+            if text:
+                page_texts.append(f"[page {page_index + 1}]\n{text}")
+            else:
+                warnings.append(f"page_{page_index + 1}_empty_or_scanned")
+    finally:
+        document.close()
+
+    parsed_text = "\n\n".join(page_texts).strip()
+    if not parsed_text:
+        raise AppError(
+            "demo1_pdf_scanned_needs_ocr",
+            "This PDF has no extractable text. Scanned PDF page OCR is planned for a later step.",
+            status_code=409,
+        )
+
+    profile = "demo1_pdf_text_parser_v1:pymupdf"
+    return {
+        "raw_text": parsed_text,
+        "parser_profile": profile,
+        "parse_note": (
+            f"已在后端用 PyMuPDF 提取 PDF 可复制文本，解析器：{profile}。"
+            "扫描型 PDF 暂不自动逐页 OCR。"
+        ),
+        "parse_metadata": parser_metadata(
+            parser_kind="pdf_text",
+            parser_status="parsed",
+            parser_warnings=warnings,
+            page_count=page_count,
+        ),
+    }
+
+
+def parse_image_file(
+    *,
+    file_name: str,
+    file_bytes: bytes,
+    content_type: Optional[str],
+    extension: str,
+) -> dict[str, Any]:
+    mime_type = content_type if content_type and content_type.startswith("image/") else None
+    mime_type = mime_type or IMAGE_MIME_BY_EXTENSION[extension]
+    config = demo1_vision_model_config()
+    if not config["api_key"]:
+        raise AppError(
+            "demo1_ocr_model_unconfigured",
+            "KB_AI_API_KEY or OPENAI_API_KEY is required for Demo 1 image OCR.",
+            status_code=409,
+        )
+
+    try:
+        ocr_result = call_vision_ocr_model(config, file_bytes=file_bytes, mime_type=mime_type)
+    except urllib.error.HTTPError as error:
+        raise AppError(
+            "demo1_ocr_model_http_error",
+            f"OCR model API returned HTTP {error.code}.",
+            status_code=502,
+        ) from error
+    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, ValueError) as error:
+        raise AppError(
+            "demo1_ocr_model_failed",
+            str(error),
+            status_code=502,
+        ) from error
+
+    parsed_text = clean_ocr_text(ocr_result.get("text"))
+    if not parsed_text:
+        raise AppError(
+            "demo1_ocr_empty_text",
+            "The OCR model did not detect usable text in this image.",
+            status_code=409,
+        )
+
+    profile = f"demo1_image_ocr_parser_v1:{config['model']}"
+    warnings = normalize_string_list(
+        ocr_result.get("warnings"), max_count=8, max_len=120
+    )
+    return {
+        "raw_text": parsed_text,
+        "parser_profile": profile,
+        "parse_note": (
+            f"已在后端调用视觉 OCR 模型解析图片/截图，解析器：{profile}。"
+            "OCR 结果会继续进入规则清洗、语义清洗、chunk 和 Candidate KU 流程。"
+        ),
+        "parse_metadata": parser_metadata(
+            parser_kind="image_ocr",
+            parser_status="parsed",
+            parser_warnings=warnings,
+            image_count=1,
+            ocr_model_name=config["model"],
+        ),
+    }
 
 
 def decode_text_bytes(file_bytes: bytes) -> str:
@@ -413,6 +599,16 @@ def strip_html_to_text(text: str) -> str:
     return html.unescape(without_tags)
 
 
+def clean_ocr_text(value: Any) -> str:
+    if not isinstance(value, str):
+        return ""
+    text = value.replace("\r\n", "\n").replace("\r", "\n")
+    text = re.sub(r"[ \t\f\v]+", " ", text)
+    text = re.sub(r" *\n *", "\n", text)
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip()[:20000]
+
+
 def build_preview(
     *,
     file_name: str,
@@ -421,6 +617,7 @@ def build_preview(
     parse_note: str,
     parser_profile: str,
     file_size_bytes: Optional[int],
+    parse_metadata: dict[str, Any],
     project_id: str,
     commit_status: str,
 ) -> dict[str, Any]:
@@ -487,6 +684,12 @@ def build_preview(
             "commit_status": commit_status,
             "parser_profile": parser_profile,
             "file_size_bytes": file_size_bytes,
+            "parser_kind": parse_metadata.get("parser_kind", "unknown"),
+            "parser_status": parse_metadata.get("parser_status", "parsed"),
+            "parser_warnings": parse_metadata.get("parser_warnings", []),
+            "page_count": parse_metadata.get("page_count"),
+            "image_count": parse_metadata.get("image_count"),
+            "ocr_model_name": parse_metadata.get("ocr_model_name"),
         },
         "parsed": {
             "content": raw_text,
@@ -964,6 +1167,81 @@ def demo1_model_config() -> dict[str, str]:
         ).strip(),
         "endpoint": endpoint,
     }
+
+
+def demo1_vision_model_config() -> dict[str, str]:
+    config = demo1_model_config()
+    return {
+        **config,
+        "model": (os.environ.get("KB_AI_VISION_MODEL") or DEFAULT_DEMO1_VISION_MODEL).strip(),
+        "endpoint": "chat_completions",
+    }
+
+
+def call_vision_ocr_model(
+    config: dict[str, str],
+    *,
+    file_bytes: bytes,
+    mime_type: str,
+) -> dict[str, Any]:
+    data_url = f"data:{mime_type};base64,{base64.b64encode(file_bytes).decode('ascii')}"
+    request_body = json.dumps(
+        {
+            "model": config["model"],
+            "messages": [
+                {
+                    "role": "system",
+                    "content": (
+                        "You are an OCR parser for a knowledge ingestion demo. "
+                        "Extract visible text faithfully. Return strict JSON only."
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": (
+                                "请识别图片或截图中的可见文字。只返回 JSON："
+                                "{\"text\":\"识别出的原文\",\"warnings\":[\"可选警告\"]}。"
+                                "不要总结，不要新增事实；如果没有文字，text 返回空字符串。"
+                            ),
+                        },
+                        {"type": "image_url", "image_url": {"url": data_url}},
+                    ],
+                },
+            ],
+            "temperature": 0,
+        },
+        ensure_ascii=False,
+    ).encode("utf-8")
+    request = urllib.request.Request(
+        f"{config['base_url']}/chat/completions",
+        data=request_body,
+        headers={
+            "authorization": f"Bearer {config['api_key']}",
+            "content-type": "application/json; charset=utf-8",
+        },
+        method="POST",
+    )
+    with urllib.request.urlopen(request, timeout=90) as response:
+        payload = json.loads(response.read().decode("utf-8"))
+    content = extract_model_text(payload, "chat_completions")
+    return normalize_ocr_model_response(content)
+
+
+def normalize_ocr_model_response(content: str) -> dict[str, Any]:
+    try:
+        parsed = parse_model_json(content)
+    except (json.JSONDecodeError, TypeError, ValueError):
+        return {"text": content.strip(), "warnings": ["ocr_response_was_not_json"]}
+    text = parsed.get("text")
+    if not isinstance(text, str):
+        text = ""
+    warnings = parsed.get("warnings")
+    if not isinstance(warnings, list):
+        warnings = []
+    return {"text": text.strip(), "warnings": warnings}
 
 
 def call_responses_api(

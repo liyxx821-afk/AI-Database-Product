@@ -139,6 +139,8 @@ def test_demo1_preview_parses_uploaded_markdown_file(monkeypatch, tmp_path):
     assert body["received_file"]["input_type"] == "file"
     assert body["received_file"]["file_size_bytes"] == len(content.encode("utf-8"))
     assert body["metadata"]["parser_profile"] == "demo1_plain_text_file_parser_v1:md"
+    assert body["metadata"]["parser_kind"] == "text_file"
+    assert body["metadata"]["parser_status"] == "parsed"
     assert "\u200b" not in body["cleaning"]["content"]
     assert "图像研究关注媒介" in body["parsed"]["content"]
     assert body["source"]["candidate_ku_count"] == body["source"]["chunk_count"]
@@ -154,15 +156,152 @@ def test_demo1_preview_rejects_unsupported_file(monkeypatch, tmp_path):
             "/api/demo1/ingestion:preview",
             headers=headers,
             json={
-                "file_name": "unsupported.pdf",
+                "file_name": "unsupported.exe",
                 "input_type": "file",
-                "file_content_base64": base64.b64encode(b"%PDF-1.7").decode("ascii"),
-                "content_type": "application/pdf",
+                "file_content_base64": base64.b64encode(b"MZ").decode("ascii"),
+                "content_type": "application/octet-stream",
             },
         )
 
     assert response.status_code == 415
     assert response.json()["error"]["code"] == "demo1_file_type_unsupported"
+
+
+def test_demo1_preview_parses_text_pdf(monkeypatch, tmp_path):
+    import fitz
+
+    monkeypatch.setenv("KB_APP_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("KB_LOCAL_TOKEN", "test-token")
+    monkeypatch.setattr(
+        demo1_ingestion, "semantic_preprocess_with_model", _mock_semantic_preprocess
+    )
+    monkeypatch.setattr(demo1_ingestion, "analyze_chunks_with_model", _mock_model_analysis)
+    headers = {"x-kb-local-token": "test-token"}
+    document = fitz.open()
+    page = document.new_page()
+    page.insert_text((72, 72), "Renaissance PDF text: perspective and patronage.")
+    pdf_bytes = document.tobytes()
+    document.close()
+
+    with TestClient(create_app()) as client:
+        response = client.post(
+            "/api/demo1/ingestion:preview",
+            headers=headers,
+            json={
+                "file_name": "art-history.pdf",
+                "input_type": "file",
+                "file_content_base64": base64.b64encode(pdf_bytes).decode("ascii"),
+                "content_type": "application/pdf",
+            },
+        )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["metadata"]["parser_kind"] == "pdf_text"
+    assert body["metadata"]["page_count"] == 1
+    assert body["metadata"]["parser_status"] == "parsed"
+    assert "Renaissance PDF text" in body["parsed"]["content"]
+    assert body["source"]["candidate_ku_count"] == body["source"]["chunk_count"]
+
+
+def test_demo1_preview_marks_scanned_pdf_without_fake_text(monkeypatch, tmp_path):
+    import fitz
+
+    monkeypatch.setenv("KB_APP_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("KB_LOCAL_TOKEN", "test-token")
+    headers = {"x-kb-local-token": "test-token"}
+    document = fitz.open()
+    document.new_page()
+    pdf_bytes = document.tobytes()
+    document.close()
+
+    with TestClient(create_app()) as client:
+        response = client.post(
+            "/api/demo1/ingestion:preview",
+            headers=headers,
+            json={
+                "file_name": "scan.pdf",
+                "input_type": "file",
+                "file_content_base64": base64.b64encode(pdf_bytes).decode("ascii"),
+                "content_type": "application/pdf",
+            },
+        )
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "demo1_pdf_scanned_needs_ocr"
+
+
+def test_demo1_preview_parses_image_with_vision_ocr(monkeypatch, tmp_path):
+    monkeypatch.setenv("KB_APP_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("KB_LOCAL_TOKEN", "test-token")
+    monkeypatch.setenv("KB_AI_API_KEY", "test-key")
+    monkeypatch.setattr(
+        demo1_ingestion, "semantic_preprocess_with_model", _mock_semantic_preprocess
+    )
+    monkeypatch.setattr(demo1_ingestion, "analyze_chunks_with_model", _mock_model_analysis)
+    monkeypatch.setattr(
+        demo1_ingestion,
+        "call_vision_ocr_model",
+        lambda config, *, file_bytes, mime_type: {
+            "text": "截图文字：艺术史课堂讨论透视法与观看方式。",
+            "warnings": ["low_contrast"],
+        },
+    )
+    headers = {"x-kb-local-token": "test-token"}
+    png_bytes = base64.b64decode(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII="
+    )
+
+    with TestClient(create_app()) as client:
+        response = client.post(
+            "/api/demo1/ingestion:preview",
+            headers=headers,
+            json={
+                "file_name": "screenshot.png",
+                "input_type": "file",
+                "file_content_base64": base64.b64encode(png_bytes).decode("ascii"),
+                "content_type": "image/png",
+            },
+        )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["metadata"]["parser_kind"] == "image_ocr"
+    assert body["metadata"]["image_count"] == 1
+    assert body["metadata"]["ocr_model_name"] == "qwen-vl-ocr-latest"
+    assert body["metadata"]["parser_warnings"] == ["low_contrast"]
+    assert "截图文字" in body["parsed"]["content"]
+    assert body["source"]["candidate_ku_count"] == body["source"]["chunk_count"]
+
+
+def test_demo1_preview_rejects_image_when_ocr_returns_empty_text(monkeypatch, tmp_path):
+    monkeypatch.setenv("KB_APP_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("KB_LOCAL_TOKEN", "test-token")
+    monkeypatch.setenv("KB_AI_API_KEY", "test-key")
+    monkeypatch.setattr(
+        demo1_ingestion,
+        "call_vision_ocr_model",
+        lambda config, *, file_bytes, mime_type: {"text": "", "warnings": []},
+    )
+    headers = {"x-kb-local-token": "test-token"}
+    png_bytes = base64.b64decode(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII="
+    )
+
+    with TestClient(create_app()) as client:
+        response = client.post(
+            "/api/demo1/ingestion:preview",
+            headers=headers,
+            json={
+                "file_name": "blank.png",
+                "input_type": "file",
+                "file_content_base64": base64.b64encode(png_bytes).decode("ascii"),
+                "content_type": "image/png",
+            },
+        )
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "demo1_ocr_empty_text"
 
 
 def test_demo1_semantic_cleaning_falls_back_but_keeps_chunks_and_candidates(monkeypatch, tmp_path):
