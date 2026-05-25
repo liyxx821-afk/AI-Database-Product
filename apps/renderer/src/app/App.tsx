@@ -487,9 +487,25 @@ function DemoIngestionPage() {
   const [processingStatus, setProcessingStatus] = useState<DemoProcessingStatus>("idle");
   const [result, setResult] = useState<DemoIngestionResult | null>(null);
   const [demoErrorCode, setDemoErrorCode] = useState<string | null>(null);
+  const [textMode, setTextMode] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const inputCharCount = countTextChars(inputText);
   const canPreview = Boolean(inputText.trim() || selectedFile);
+  const isBusy = processingStatus === "processing" || processingStatus === "committing";
+  const sourceTags = collectDemoSourceTags(result);
+  const currentSummary =
+    result?.candidateKnowledgeUnits[0]?.summary ||
+    result?.semanticParsing.summary ||
+    "投入资料后，系统会在这里显示解析摘要、标签和候选知识。";
+  const previewText =
+    result?.parsed.content ||
+    inputText ||
+    "文件预览会在解析完成后显示。PDF 显示提取文本，图片和截图显示 OCR 文本。";
+  const displayStatuses = productizeDemoPipelineStatuses(
+    result?.pipelineStatuses ?? createDemoPipelineStatuses(processingStatus),
+    processingStatus
+  );
 
   async function processText() {
     const rawText = inputText;
@@ -518,15 +534,24 @@ function DemoIngestionPage() {
     }
   }
 
-  function handleDemoFileChange(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0] ?? null;
+  function setFileForDemo(file: File | null) {
     setSelectedFile(file);
     if (file) {
       setInputText("");
-      setResult(null);
-      setDemoErrorCode(null);
-      setProcessingStatus("idle");
+      setTextMode(false);
     }
+    setResult(null);
+    setDemoErrorCode(null);
+    setProcessingStatus("idle");
+  }
+
+  function handleDemoFileChange(event: ChangeEvent<HTMLInputElement>) {
+    setFileForDemo(event.target.files?.[0] ?? null);
+  }
+
+  function handleDrop(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    setFileForDemo(event.dataTransfer.files?.[0] ?? null);
   }
 
   async function commitResult() {
@@ -544,434 +569,340 @@ function DemoIngestionPage() {
   }
 
   return (
-    <section className="page-grid">
-      <section className="page-frame">
-        <div className="section-title-row">
-          <h2>知识入库预处理 Demo</h2>
-          <StateChip
-            state={
-              processingStatus === "completed"
-                ? "done"
-                : processingStatus === "processing" || processingStatus === "committing"
-                  ? "loading"
-                  : processingStatus === "error"
-                    ? "recoverable_error"
-                    : "empty"
-            }
-          />
+    <section className="demo-product-shell">
+      <section className="demo-product-hero">
+        <div className="demo-product-title">
+          <span className="mini-badge">Demo 1</span>
+          <h2>投入资料 / Source Ingestion</h2>
+          <p>
+            资料进入系统后，会完成来源记录、内容解析、文本清洗、知识切片和
+            pending Candidate KU 生成。模型调用在后端完成，前端不保存 API Key。
+          </p>
         </div>
-        <p className="section-note">
-          验证链路：资料进入系统 → 来源记录 → 内容解析 → 文本清洗 → 知识切片 → 外部模型语义分析 → 候选知识生成。当前支持文本输入和文本类文件上传，模型调用在后端完成，前端不保存 API key。
-        </p>
-        <div className="demo-ingestion-form">
-          <label className="memory-label demo-input-label">
-            <span>上传文件</span>
-            <input
-              className="query-input"
-              type="file"
-              accept=".txt,.text,.md,.markdown,.csv,.tsv,.json,.log,.html,.htm,.pdf,.png,.jpg,.jpeg,.webp,.bmp,text/*,application/json,application/pdf,image/png,image/jpeg,image/webp,image/bmp"
-              onChange={handleDemoFileChange}
-            />
-          </label>
-          {selectedFile ? (
+
+        <div
+          className="demo-source-drop"
+          onDragOver={(event) => event.preventDefault()}
+          onDrop={handleDrop}
+        >
+          <input
+            ref={fileInputRef}
+            className="visually-hidden"
+            type="file"
+            accept=".txt,.text,.md,.markdown,.csv,.tsv,.json,.log,.html,.htm,.pdf,.png,.jpg,.jpeg,.webp,.bmp,text/*,application/json,application/pdf,image/png,image/jpeg,image/webp,image/bmp"
+            onChange={handleDemoFileChange}
+          />
+          <div className="demo-source-cloud">
+            <div className="demo-source-core">
+              <strong>投入第一份资料</strong>
+              <span>Add your first source</span>
+              <div className="demo-source-actions">
+                <button
+                  className="icon-command"
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <Upload aria-hidden="true" size={16} />
+                  <span>投入资料 Add source</span>
+                </button>
+                <button
+                  className="icon-command"
+                  type="button"
+                  onClick={() => {
+                    setTextMode(true);
+                    setSelectedFile(null);
+                    setResult(null);
+                    setDemoErrorCode(null);
+                  }}
+                >
+                  <FileText aria-hidden="true" size={16} />
+                  <span>写下一个想法 Capture an idea</span>
+                </button>
+              </div>
+            </div>
+          </div>
+          <p className="demo-privacy-note">你的资料仅你看见，已加密保存</p>
+          <p className="section-note">支持文本、PDF、图片和截图。也可以把文件拖到这里。</p>
+        </div>
+
+        {(textMode || inputText || selectedFile) && (
+          <div className="demo-source-compose">
+            {selectedFile ? (
+              <div className="inline-actions">
+                <StatusPill label="file_name" value={selectedFile.name} />
+                <StatusPill label="file_size" value={formatBytes(selectedFile.size)} />
+                <StatusPill label="file_type" value={selectedFile.type || "unknown"} />
+                <button className="icon-command" type="button" onClick={() => setFileForDemo(null)}>
+                  <XCircle aria-hidden="true" size={16} />
+                  <span>清除文件</span>
+                </button>
+              </div>
+            ) : (
+              <textarea
+                className="memory-textarea demo-textarea"
+                value={inputText}
+                placeholder="粘贴一段笔记、对话或研究摘录。"
+                onChange={(event) => setInputText(event.target.value)}
+              />
+            )}
             <div className="inline-actions">
-              <StatusPill label="file_name" value={selectedFile.name} />
-              <StatusPill label="file_size" value={formatBytes(selectedFile.size)} />
-              <StatusPill label="file_type" value={selectedFile.type || "unknown"} />
+              <StatusPill label="处理状态" value={formatDemoStatus(processingStatus)} />
+              <StatusPill label="当前字数" value={String(inputCharCount)} />
+              <StatusPill label="模型状态" value={result?.modelStatus ?? "not_ready"} />
               <button
                 className="icon-command"
                 type="button"
-                onClick={() => {
-                  setSelectedFile(null);
-                  setResult(null);
-                  setDemoErrorCode(null);
-                  setProcessingStatus("idle");
-                }}
+                disabled={!canPreview || isBusy}
+                onClick={processText}
               >
-                <XCircle aria-hidden="true" size={16} />
-                <span>清除文件</span>
+                <FileInput aria-hidden="true" size={16} />
+                <span>预处理预览 Preview</span>
               </button>
             </div>
-          ) : null}
-          <label className="memory-label demo-input-label">
-            <span>输入文本</span>
-            <textarea
-              className="memory-textarea demo-textarea"
-              value={inputText}
-              placeholder="粘贴一段笔记、对话或研究摘录，然后点击开始处理。"
-              disabled={Boolean(selectedFile)}
-              onChange={(event) => setInputText(event.target.value)}
-            />
-          </label>
-          <div className="inline-actions">
-            <StatusPill label="处理状态" value={formatDemoStatus(processingStatus)} />
-            <StatusPill label="当前字数" value={String(inputCharCount)} />
-            <StatusPill label="模型状态" value={result?.modelStatus ?? "not_ready"} />
-            <StatusPill label="写入状态" value={result?.persisted ? "committed" : "preview_only"} />
-            <button
-              className="icon-command"
-              type="button"
-              disabled={!canPreview || processingStatus === "processing" || processingStatus === "committing"}
-              onClick={processText}
-            >
-              <FileText aria-hidden="true" size={16} />
-              <span>预处理预览</span>
-            </button>
-            <button
-              className="icon-command"
-              type="button"
-              disabled={
-                !result ||
-                result.persisted ||
-                !result.candidateKnowledgeUnits.length ||
-                processingStatus === "processing" ||
-                processingStatus === "committing"
-              }
-              onClick={commitResult}
-            >
-              <Save aria-hidden="true" size={16} />
-              <span>确认写入本地库</span>
-            </button>
           </div>
-          {demoErrorCode ? (
-            <div className="row-note">
-              <AlertCircle aria-hidden="true" size={15} />
-              <span>{demoErrorCode}</span>
-            </div>
-          ) : null}
-          {result?.modelErrorCode ? (
-            <div className="row-note">
-              <AlertCircle aria-hidden="true" size={15} />
-              <span>
-                {result.modelErrorCode}：{result.modelErrorMessage}
-              </span>
-            </div>
-          ) : null}
-        </div>
+        )}
+
+        {demoErrorCode ? (
+          <div className="row-note demo-error-note">
+            <AlertCircle aria-hidden="true" size={15} />
+            <span>{demoErrorCode}</span>
+          </div>
+        ) : null}
+        {result?.modelErrorCode ? (
+          <div className="row-note demo-error-note">
+            <AlertCircle aria-hidden="true" size={15} />
+            <span>
+              {result.modelErrorCode}: {result.modelErrorMessage}
+            </span>
+          </div>
+        ) : null}
       </section>
 
-      <section className="page-frame">
+      <section className="demo-product-flow page-frame">
         <div className="section-title-row">
-          <h2>处理状态</h2>
+          <div>
+            <h2>资料流 / Source Flow</h2>
+            <p className="section-note">从资料进入系统到生成待确认候选知识。</p>
+          </div>
+          <StateChip state={processingStatus === "error" ? "error" : result ? "done" : "empty"} />
         </div>
-        <div className="demo-status-list">
-          {(result?.pipelineStatuses ?? createDemoPipelineStatuses(processingStatus)).map((status) => (
-            <article className="demo-status-step" key={status.key}>
-              <StateChip state={status.state} />
-              <div>
-                <strong>{status.key}</strong>
-                <span>{status.label}</span>
-              </div>
+        <div className="demo-flow-lane">
+          {displayStatuses.map((status, index) => (
+            <article className={`demo-flow-node is-${status.state}`} key={status.key}>
+              <span>{index + 1}</span>
+              <strong>{status.label}</strong>
+              <small>{status.key}</small>
             </article>
           ))}
         </div>
       </section>
 
-      <div className="metric-row">
-        <Metric label="原文字数" value={result?.metadata.rawLength ?? 0} />
-        <Metric label="清洗后字数" value={result?.metadata.cleanedLength ?? 0} />
-        <Metric label="Chunk 数量" value={result?.metadata.chunkCount ?? 0} />
-        <Metric label="候选 KU 数量" value={result?.metadata.candidateKnowledgeUnitCount ?? 0} />
-      </div>
-
-      <section className="page-frame">
+      <aside className="demo-current-file">
         <div className="section-title-row">
-          <h2>资料进入系统</h2>
-        </div>
-        {result ? (
-          <div className="demo-info-grid">
-            <article className="panel">
-              <h3>file_name</h3>
-              <p>{result.receivedFile.fileName}</p>
-            </article>
-            <article className="panel">
-              <h3>input_type</h3>
-              <p>{result.receivedFile.inputType}</p>
-            </article>
-            <article className="panel">
-              <h3>received_at</h3>
-              <p>{result.receivedFile.receivedAt}</p>
-            </article>
-            <article className="panel">
-              <h3>raw_text_length</h3>
-              <p>{result.receivedFile.rawTextLength} 字</p>
-            </article>
-            {result.receivedFile.fileSizeBytes != null ? (
-              <article className="panel">
-                <h3>file_size_bytes</h3>
-                <p>{result.receivedFile.fileSizeBytes}</p>
-              </article>
-            ) : null}
-            <article className="panel">
-              <h3>process_status</h3>
-              <p>{result.receivedFile.processStatus}</p>
-            </article>
+          <div>
+            <h2>当前文件</h2>
+            <p>Current file</p>
           </div>
-        ) : (
-          <EmptyState message="尚未接收资料。" />
-        )}
-      </section>
-
-      <section className="page-frame">
-        <div className="section-title-row">
-          <h2>Source 信息</h2>
+          <StateChip state={result ? "done" : selectedFile || inputText ? "ready" : "empty"} />
         </div>
-        {result ? (
-          <div className="demo-info-grid">
-            <article className="panel">
-              <h3>source_id</h3>
-              <p>{result.source.sourceId}</p>
-            </article>
-            <article className="panel">
-              <h3>file_name</h3>
-              <p>{result.source.fileName}</p>
-            </article>
-            <article className="panel">
-              <h3>input_type / status</h3>
-              <p>{result.source.inputType} / {result.source.status}</p>
-            </article>
-            <article className="panel">
-              <h3>created_at</h3>
-              <p>{result.source.createdAt}</p>
-            </article>
-            <article className="panel">
-              <h3>counts</h3>
-              <p>raw_text_length：{result.source.rawTextLength}</p>
-              <p>clean_text_length：{result.source.cleanTextLength}</p>
-              <p>chunk_count：{result.source.chunkCount}</p>
-              <p>candidate_ku_count：{result.source.candidateKuCount}</p>
-            </article>
+        <div className="demo-current-file-head">
+          <FileCheck aria-hidden="true" size={34} />
+          <div>
+            <strong>{result?.receivedFile.fileName ?? selectedFile?.name ?? "尚未投入资料"}</strong>
+            <span>
+              {selectedFile?.type || result?.metadata.parserKind || "No source selected"}
+            </span>
           </div>
-        ) : (
-          <EmptyState message="尚未创建 source 记录。" />
-        )}
-      </section>
-
-      <section className="page-frame">
-        <div className="section-title-row">
-          <h2>基础 metadata</h2>
         </div>
-        {result ? (
-          <div className="panel-grid">
-            <Metric label="raw_text_length" value={result.metadata.rawLength} />
-            <Metric label="clean_text_length" value={result.metadata.cleanedLength} />
-            <Metric label="chunk_count" value={result.metadata.chunkCount} />
-            <Metric label="candidate_ku_count" value={result.metadata.candidateKnowledgeUnitCount} />
-            <article className="panel">
-              <h3>chunk_basis</h3>
-              <p>{result.chunkBasis}</p>
-            </article>
-            <article className="panel">
-              <h3>model_provider</h3>
-              <p>openai-compatible</p>
-            </article>
-            <article className="panel">
-              <h3>model_name / status</h3>
-              <p>{result.modelName ?? "not_configured"} / {result.modelStatus}</p>
-            </article>
-            <article className="panel">
-              <h3>parser_profile</h3>
-              <p>{result.parserProfile}</p>
-            </article>
-            <article className="panel">
-              <h3>parser_kind / status</h3>
-              <p>{result.metadata.parserKind} / {result.metadata.parserStatus}</p>
-            </article>
-            {result.metadata.pageCount != null ? (
-              <article className="panel">
-                <h3>page_count</h3>
-                <p>{result.metadata.pageCount}</p>
-              </article>
+        <div className="tag-select-row">
+          {sourceTags.length ? (
+            sourceTags.map((tag) => (
+              <span className="mini-badge" key={tag}>
+                {tag}
+              </span>
+            ))
+          ) : (
+            <span className="mini-badge">等待标签</span>
+          )}
+        </div>
+        <article className="demo-current-card">
+          <h3>摘要 Summary</h3>
+          <p>{currentSummary}</p>
+        </article>
+        <article className="demo-current-card">
+          <h3>处理状态 Processing</h3>
+          <div className="demo-current-metrics">
+            <StatusPill label="parser" value={result?.metadata.parserKind ?? "not_ready"} />
+            <StatusPill label="status" value={result?.metadata.parserStatus ?? formatDemoStatus(processingStatus)} />
+            <StatusPill label="chunks" value={String(result?.metadata.chunkCount ?? 0)} />
+            <StatusPill label="candidate KU" value={String(result?.metadata.candidateKnowledgeUnitCount ?? 0)} />
+            {result?.metadata.pageCount != null ? (
+              <StatusPill label="pages" value={String(result.metadata.pageCount)} />
             ) : null}
-            {result.metadata.imageCount != null ? (
-              <article className="panel">
-                <h3>image_count</h3>
-                <p>{result.metadata.imageCount}</p>
-              </article>
-            ) : null}
-            {result.metadata.ocrModelName ? (
-              <article className="panel">
-                <h3>ocr_model_name</h3>
-                <p>{result.metadata.ocrModelName}</p>
-              </article>
-            ) : null}
-            <ListPanel
-              title="解析警告"
-              items={result.metadata.parserWarnings}
-              empty="未返回解析警告。"
-            />
-            <article className="panel">
-              <h3>commit_status</h3>
-              <p>{result.persisted ? "committed" : "preview_only"}</p>
-            </article>
-            {result.jobId ? (
-              <article className="panel">
-                <h3>job_id</h3>
-                <p>{result.jobId}</p>
-              </article>
+            {result?.metadata.ocrModelName ? (
+              <StatusPill label="OCR" value={result.metadata.ocrModelName} />
             ) : null}
           </div>
-        ) : (
-          <EmptyState message="尚未生成 metadata。" />
-        )}
-      </section>
-
-      <section className="page-frame">
-        <div className="section-title-row">
-          <h2>内容解析</h2>
-          {result ? <StateChip state="done" label={result.semanticParsing.status} /> : null}
+        </article>
+        <article className="demo-current-card">
+          <h3>文件预览 File Preview</h3>
+          <pre>{previewText.slice(0, 900)}</pre>
+        </article>
+        <div className="demo-current-actions">
+          <button className="icon-command" type="button" onClick={() => scrollToDemoSection("demo-parsed")}>
+            查看解析文本
+          </button>
+          <button className="icon-command" type="button" onClick={() => scrollToDemoSection("demo-candidates")}>
+            查看候选知识
+          </button>
+          <button className="icon-command" type="button" onClick={() => scrollToDemoSection("demo-details")}>
+            查看处理详情
+          </button>
+          <button
+            className="icon-command"
+            type="button"
+            disabled={!result || result.persisted || !result.candidateKnowledgeUnits.length || isBusy}
+            onClick={commitResult}
+          >
+            <Save aria-hidden="true" size={16} />
+            <span>确认写入本地库</span>
+          </button>
         </div>
-        {result?.parsed.content ? (
-          <>
-            <p className="section-note">{result.parsed.note}</p>
-            <div className="panel-grid">
+      </aside>
+
+      <section className="demo-product-main">
+        <section className="page-frame" id="demo-candidates">
+          <div className="section-title-row">
+            <div>
+              <h2>待确认知识 / Candidate KU</h2>
+              <p className="section-note">
+                Candidate KU 是基于 chunk 自动提出的候选材料，后续进入 Demo 2 做结构化和人工确认。
+              </p>
+            </div>
+            <StateChip state={result?.candidateKnowledgeUnits.length ? "done" : "empty"} />
+          </div>
+          <div className="demo-ku-card-grid">
+            {result?.candidateKnowledgeUnits.length ? (
+              result.candidateKnowledgeUnits.map((unit) => (
+                <article className="demo-ku-card" key={unit.kuId}>
+                  <div className="section-title-row compact-title-row">
+                    <h3>{unit.title}</h3>
+                    <StateChip state="loading" label={unit.status} />
+                  </div>
+                  <p>{unit.summary}</p>
+                  <div className="tag-select-row">
+                    {unit.keywords.map((keyword) => (
+                      <span className="mini-badge" key={`${unit.kuId}-${keyword}`}>
+                        {keyword}
+                      </span>
+                    ))}
+                    {unit.tags.map((tag) => (
+                      <span className="mini-badge" key={`${unit.kuId}-${tag}`}>
+                        {tag.startsWith("#") ? tag : `#${tag}`}
+                      </span>
+                    ))}
+                  </div>
+                  <div className="demo-ku-trace">
+                    <StatusPill label="confidence" value={unit.confidence.toFixed(2)} />
+                    <StatusPill label="content_type" value={unit.contentType} />
+                    <StatusPill label="chunk_id" value={unit.chunkId} />
+                  </div>
+                  <p className="section-note">{unit.qualityNote}</p>
+                </article>
+              ))
+            ) : (
+              <EmptyState message="预处理后，这里会显示待确认候选知识。" />
+            )}
+          </div>
+        </section>
+
+        <section className="page-frame" id="demo-parsed">
+          <div className="section-title-row">
+            <h2>解析文本 / Parsed Text</h2>
+            {result ? <StateChip state="done" label={result.semanticParsing.status} /> : null}
+          </div>
+          {result?.parsed.content ? (
+            <>
+              <p className="section-note">{result.parsed.note}</p>
               <article className="panel">
                 <h3>模型解析摘要</h3>
                 <p>{result.semanticParsing.summary}</p>
               </article>
-              <ListPanel title="标题 / 层级" items={result.semanticParsing.titles} empty="未识别到标题或层级。" />
-              <ListPanel title="段落说明" items={result.semanticParsing.paragraphNotes} empty="未返回段落说明。" />
-              <ListPanel title="疑似目录" items={result.semanticParsing.possibleToc} empty="未识别到目录。" />
-              <ListPanel title="引用线索" items={result.semanticParsing.citations} empty="未识别到引用。" />
-              <ListPanel title="噪声区块" items={result.semanticParsing.noiseBlocks} empty="未识别到明显噪声。" />
-            </div>
-            <pre className="demo-original-text">{result.parsed.content}</pre>
-          </>
-        ) : (
-          <EmptyState message="尚未处理文本。" />
-        )}
-      </section>
-
-      <section className="page-frame">
-        <div className="section-title-row">
-          <h2>清洗文本</h2>
-          {result ? <StateChip state="done" label={result.cleaning.status} /> : null}
-        </div>
-        {result?.cleaning.content ? (
-          <>
-            <div className="inline-actions">
-              <StatusPill label="原始文本" value={`${result.cleaning.beforeCharCount} 字`} />
-              <StatusPill label="最终清洗" value={`${result.cleaning.afterCharCount} 字`} />
-              <StatusPill
-                label="变化"
-                value={`${result.cleaning.afterCharCount - result.cleaning.beforeCharCount} 字`}
-              />
-              <StatusPill label="chunk_basis" value={result.chunkBasis} />
-            </div>
-            <p className="section-note">{result.cleaning.note}</p>
-            <div className="panel-grid">
-              <article className="panel">
-                <h3>规则清洗</h3>
-                <p>{result.ruleCleaning.note}</p>
-                <p>操作：{result.ruleCleaning.operations.join(", ")}</p>
-              </article>
-              <article className="panel">
-                <h3>模型语义清洗报告</h3>
-                <p>{result.semanticCleaning.cleaningReport}</p>
-                <p>quality_score：{result.semanticCleaning.qualityScore.toFixed(2)}</p>
-                {result.semanticCleaning.fallbackReason ? (
-                  <p>fallback_reason：{result.semanticCleaning.fallbackReason}</p>
-                ) : null}
-              </article>
-              <ListPanel title="噪声发现" items={result.semanticCleaning.noiseFindings} empty="未发现明显噪声。" />
-            </div>
-            <div className="demo-cleaning-grid">
-              <article>
-                <h3>规则清洗文本</h3>
-                <pre className="demo-original-text">{result.ruleCleaning.content}</pre>
-              </article>
-              <article>
-                <h3>语义清洗文本 / 最终 chunk 输入</h3>
-                <pre className="demo-original-text">{result.semanticCleaning.content}</pre>
-              </article>
-            </div>
-          </>
-        ) : (
-          <EmptyState message="尚未生成清洗文本。" />
-        )}
-      </section>
-
-      <section className="page-frame">
-        <div className="section-title-row">
-          <h2>Chunk 列表</h2>
-        </div>
-        <div className="file-table">
-          {result?.chunks.length ? (
-            result.chunks.map((chunk) => (
-              <article className="demo-chunk-row" key={chunk.chunkId}>
-                <div className="section-title-row compact-title-row">
-                  <h3>{chunk.chunkId}</h3>
-                  <div className="inline-actions">
-                    <StatusPill label="source_id" value={chunk.sourceId} />
-                    <StatusPill label="chunk_index" value={String(chunk.chunkIndex)} />
-                    <StatusPill label="字数" value={String(chunk.charCount)} />
-                    <StatusPill label="chunk_type" value={chunk.chunkType} />
-                    <StatusPill label="start_offset" value={String(chunk.startOffset)} />
-                    <StatusPill label="end_offset" value={String(chunk.endOffset)} />
-                    <StatusPill label="chunk_basis" value={chunk.chunkBasis} />
-                  </div>
-                </div>
-                <p>{chunk.content}</p>
-              </article>
-            ))
+              <pre className="demo-original-text">{result.parsed.content}</pre>
+            </>
           ) : (
-            <EmptyState message="点击“开始处理”后，这里会显示切分结果。" />
+            <EmptyState message="尚未处理文本。" />
           )}
-        </div>
-      </section>
+        </section>
 
-      <section className="page-frame">
-        <div className="section-title-row">
-          <h2>候选知识单元</h2>
-        </div>
-        {result ? <p className="section-note">{result.candidateKuMessage}</p> : null}
-        <div className="file-table">
-          {result?.candidateKnowledgeUnits.length ? (
-            result.candidateKnowledgeUnits.map((unit) => (
-              <article className="demo-chunk-row" key={unit.kuId}>
-                <div className="section-title-row compact-title-row">
-                  <h3>{unit.title}</h3>
-                  <div className="inline-actions">
-                    <StatusPill label="status" value={unit.status} />
-                    <StatusPill label="confidence" value={unit.confidence.toFixed(2)} />
-                    <StatusPill label="content_type" value={unit.contentType} />
-                  </div>
+        <section className="page-frame" id="demo-details">
+          <div className="section-title-row">
+            <h2>处理详情 / Technical Details</h2>
+          </div>
+          <details className="demo-detail-block" open={Boolean(result)}>
+            <summary>Source 与 metadata</summary>
+            {result ? (
+              <div className="panel-grid">
+                <Metric label="raw_text_length" value={result.metadata.rawLength} />
+                <Metric label="clean_text_length" value={result.metadata.cleanedLength} />
+                <Metric label="chunk_count" value={result.metadata.chunkCount} />
+                <Metric label="candidate_ku_count" value={result.metadata.candidateKnowledgeUnitCount} />
+                <StatusPill label="source_id" value={result.source.sourceId} />
+                <StatusPill label="parser_profile" value={result.parserProfile} />
+                <StatusPill label="chunk_basis" value={result.chunkBasis} />
+                <StatusPill label="model" value={`${result.modelName ?? "not_configured"} / ${result.modelStatus}`} />
+                <ListPanel title="解析警告" items={result.metadata.parserWarnings} empty="未返回解析警告。" />
+              </div>
+            ) : (
+              <EmptyState message="尚未生成 metadata。" />
+            )}
+          </details>
+          <details className="demo-detail-block">
+            <summary>规则清洗与语义清洗</summary>
+            {result?.cleaning.content ? (
+              <>
+                <div className="panel-grid">
+                  <article className="panel">
+                    <h3>规则清洗</h3>
+                    <p>{result.ruleCleaning.note}</p>
+                    <p>{result.ruleCleaning.operations.join(", ")}</p>
+                  </article>
+                  <article className="panel">
+                    <h3>模型语义清洗</h3>
+                    <p>{result.semanticCleaning.cleaningReport}</p>
+                    <p>quality_score: {result.semanticCleaning.qualityScore.toFixed(2)}</p>
+                  </article>
                 </div>
-                <div className="demo-ku-trace">
-                  <StatusPill label="ku_id" value={unit.kuId} />
-                  <StatusPill label="source_id" value={unit.sourceId} />
-                  <StatusPill label="chunk_id" value={unit.chunkId} />
-                </div>
-                <p>
-                  <strong>summary：</strong>
-                  {unit.summary}
-                </p>
-                <p className="section-note">
-                  <strong>quality_note：</strong>
-                  {unit.qualityNote}
-                </p>
-                <div className="tag-select-row">
-                  {unit.keywords.length ? (
-                    unit.keywords.map((keyword) => (
-                      <span className="mini-badge" key={`${unit.kuId}-${keyword}`}>
-                        关键词：{keyword}
-                      </span>
-                    ))
-                  ) : (
-                    <span className="mini-badge">未检测到有效关键词</span>
-                  )}
-                  {unit.tags.map((tag) => (
-                    <span className="mini-badge" key={`${unit.kuId}-${tag}`}>
-                      {tag.startsWith("#") ? tag : `#${tag}`}
-                    </span>
-                  ))}
-                </div>
-              </article>
-            ))
-          ) : (
-            <EmptyState message="点击“预处理预览”后，这里会显示外部模型生成的候选知识单元；如果模型未配置或调用失败，不会生成假的 Candidate KU。" />
-          )}
-        </div>
+                <pre className="demo-original-text">{result.cleaning.content}</pre>
+              </>
+            ) : (
+              <EmptyState message="尚未生成清洗文本。" />
+            )}
+          </details>
+          <details className="demo-detail-block">
+            <summary>Chunk 列表</summary>
+            <div className="file-table">
+              {result?.chunks.length ? (
+                result.chunks.map((chunk) => (
+                  <article className="demo-chunk-row" key={chunk.chunkId}>
+                    <div className="section-title-row compact-title-row">
+                      <h3>{chunk.chunkId}</h3>
+                      <div className="inline-actions">
+                        <StatusPill label="source_id" value={chunk.sourceId} />
+                        <StatusPill label="index" value={String(chunk.chunkIndex)} />
+                        <StatusPill label="chars" value={String(chunk.charCount)} />
+                        <StatusPill label="basis" value={chunk.chunkBasis} />
+                      </div>
+                    </div>
+                    <p>{chunk.content}</p>
+                  </article>
+                ))
+              ) : (
+                <EmptyState message="尚未生成 chunk。" />
+              )}
+            </div>
+          </details>
+        </section>
       </section>
     </section>
   );
@@ -1331,13 +1262,13 @@ function formatDemoStatus(status: DemoProcessingStatus) {
 
 function createDemoPipelineStatuses(status: DemoProcessingStatus): DemoPipelineStatus[] {
   const steps: Array<{ key: DemoPipelineStatusKey; label: string }> = [
-    { key: "received", label: "资料进入系统" },
-    { key: "source_created", label: "创建 source 来源记录" },
-    { key: "parsed", label: "内容解析为原始文本" },
-    { key: "cleaned", label: "执行基础文本清洗" },
-    { key: "chunked", label: "基于清洗文本生成 chunk" },
-    { key: "candidate_generated", label: "按 chunk 生成 pending Candidate KU" },
-    { key: "completed", label: "预处理链路完成" }
+    { key: "received", label: "已接收资料" },
+    { key: "source_created", label: "已创建来源记录" },
+    { key: "parsed", label: "已解析内容" },
+    { key: "cleaned", label: "已清洗文本" },
+    { key: "chunked", label: "已切分片段" },
+    { key: "candidate_generated", label: "已生成候选知识" },
+    { key: "completed", label: "预处理完成" }
   ];
   if (status === "completed") {
     return steps.map((step) => ({ ...step, state: "done" }));
@@ -1361,6 +1292,37 @@ function createDemoPipelineStatuses(status: DemoProcessingStatus): DemoPipelineS
     }));
   }
   return steps.map((step) => ({ ...step, state: "empty" }));
+}
+
+function productizeDemoPipelineStatuses(
+  statuses: DemoPipelineStatus[],
+  processingStatus: DemoProcessingStatus
+): DemoPipelineStatus[] {
+  const labels: Record<DemoPipelineStatusKey, string> = {
+    received: "已接收资料",
+    source_created: "已创建来源记录",
+    parsed: "已解析内容",
+    cleaned: "已清洗文本",
+    chunked: "已切分片段",
+    candidate_generated: "已生成候选知识",
+    completed: processingStatus === "committing" ? "正在写入本地库" : "预处理完成"
+  };
+
+  return statuses.map((item) => ({
+    ...item,
+    label: labels[item.key] ?? item.label
+  }));
+}
+
+function collectDemoSourceTags(result: DemoIngestionResult | null) {
+  if (!result) return [];
+  const tags = result.candidateKnowledgeUnits.flatMap((unit) => unit.tags);
+  const keywords = result.candidateKnowledgeUnits.flatMap((unit) => unit.keywords);
+  return Array.from(new Set([...tags, ...keywords].filter(Boolean))).slice(0, 6);
+}
+
+function scrollToDemoSection(id: string) {
+  document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 function countTextChars(text: string) {
