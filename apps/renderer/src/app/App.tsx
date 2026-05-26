@@ -507,6 +507,7 @@ function DemoIngestionPage() {
     inputText ||
     "文件预览会在解析完成后显示。PDF 显示提取文本，图片和截图显示 OCR 文本。";
   const selectedFileKind = selectedFile ? getDemoFileKind(selectedFile) : null;
+  const demoError = getDemoErrorDetails(demoErrorCode);
   const displayStatuses = productizeDemoPipelineStatuses(
     result?.pipelineStatuses ?? createDemoPipelineStatuses(processingStatus),
     processingStatus
@@ -681,7 +682,9 @@ function DemoIngestionPage() {
         {demoErrorCode ? (
           <div className="row-note demo-error-note">
             <AlertCircle aria-hidden="true" size={15} />
-            <span>{demoErrorCode}</span>
+            <span>
+              {demoError.title}：{demoError.description}
+            </span>
           </div>
         ) : null}
         {result?.modelErrorCode ? (
@@ -749,7 +752,10 @@ function DemoIngestionPage() {
           <h3>处理状态 Processing</h3>
           <div className="demo-current-metrics">
             <StatusPill label="parser" value={result?.metadata.parserKind ?? "not_ready"} />
-            <StatusPill label="status" value={result?.metadata.parserStatus ?? formatDemoStatus(processingStatus)} />
+            <StatusPill
+              label="status"
+              value={result?.metadata.parserStatus ?? (demoErrorCode ? demoError.title : formatDemoStatus(processingStatus))}
+            />
             <StatusPill label="chunks" value={String(result?.metadata.chunkCount ?? 0)} />
             <StatusPill label="candidate KU" value={String(result?.metadata.candidateKnowledgeUnitCount ?? 0)} />
             {result?.metadata.pageCount != null ? (
@@ -1291,7 +1297,7 @@ function formatDemoStatus(status: DemoProcessingStatus) {
   if (status === "processing") return "处理中";
   if (status === "committing") return "写入中";
   if (status === "completed") return "完成";
-  if (status === "error") return "需要处理错误";
+  if (status === "error") return "处理失败";
   return "等待输入";
 }
 
@@ -1383,6 +1389,62 @@ function getDemoFileKind(file: File) {
   return {
     parserKind: "text_file",
     description: "文本类文件会在后端按纯文本解析，再进入完整预处理链路。"
+  };
+}
+
+function getDemoErrorDetails(errorCode: string | null) {
+  const details: Record<string, { title: string; description: string }> = {
+    demo1_ocr_model_unconfigured: {
+      title: "OCR 模型未配置",
+      description: "图片、截图或扫描 PDF 需要后端进程配置 DashScope API Key 后才能解析。"
+    },
+    demo1_model_unconfigured: {
+      title: "语义模型未配置",
+      description: "Candidate KU 需要后端进程配置 DashScope API Key；不会生成假候选知识。"
+    },
+    demo1_pdf_ocr_empty_text: {
+      title: "PDF 未识别到文字",
+      description: "PDF 文本提取和 OCR 都没有得到有效文本，请换一份更清晰的文件。"
+    },
+    demo1_ocr_empty_text: {
+      title: "图片未识别到文字",
+      description: "OCR 没有检测到可用文字，请上传包含清晰文字的截图或图片。"
+    },
+    demo1_file_type_unsupported: {
+      title: "文件格式不支持",
+      description: "Demo 1 当前支持文本、HTML、PDF、PNG、JPG、WEBP 和 BMP。"
+    },
+    demo1_file_too_large: {
+      title: "文件过大",
+      description: "Demo 1 单文件上限为 5 MB。"
+    },
+    demo1_pdf_parse_failed: {
+      title: "PDF 解析失败",
+      description: "PyMuPDF 无法打开该 PDF，请检查文件是否损坏或加密。"
+    },
+    demo1_ocr_model_http_error: {
+      title: "OCR 调用失败",
+      description: "OCR 服务返回错误，请检查 Key、余额、模型权限和网络。"
+    },
+    demo1_ocr_model_failed: {
+      title: "OCR 调用失败",
+      description: "OCR 请求未完成，请检查网络、模型配置和后端日志。"
+    },
+    demo1_preview_failed: {
+      title: "预处理失败",
+      description: "预处理请求失败，请检查 API 服务和终端日志。"
+    },
+    demo1_commit_failed: {
+      title: "写入失败",
+      description: "写入本地库失败，请检查本地 SQLite 和后端日志。"
+    }
+  };
+  if (!errorCode) {
+    return { title: "等待输入", description: "尚未开始处理。" };
+  }
+  return details[errorCode] ?? {
+    title: "处理失败",
+    description: `错误码：${errorCode}`
   };
 }
 
