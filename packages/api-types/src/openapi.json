@@ -4358,6 +4358,15 @@
           },
           "parser_kind": {
             "type": "string",
+            "enum": [
+              "text_input",
+              "text_file",
+              "html_text",
+              "pdf_text",
+              "pdf_ocr",
+              "pdf_mixed",
+              "image_ocr"
+            ],
             "title": "Parser Kind",
             "default": "text_input"
           },
@@ -4405,6 +4414,39 @@
               }
             ],
             "title": "Ocr Model Name"
+          },
+          "parsed_page_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parsed Page Count"
+          },
+          "ocr_page_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ocr Page Count"
+          },
+          "skipped_page_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Skipped Page Count"
           }
         },
         "type": "object",

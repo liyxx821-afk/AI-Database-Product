@@ -19,11 +19,13 @@ from app.core.errors import AppError
 from app.db.sqlite import db, json_dumps
 
 DEMO1_PROFILE = "demo1_model_ingestion_preprocess_v1"
-DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1"
-DEFAULT_DEMO1_MODEL = "gpt-5.4-mini"
+DEFAULT_OPENAI_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+DEFAULT_DEMO1_MODEL = "qwen-plus"
 DEFAULT_DEMO1_VISION_MODEL = "qwen-vl-ocr-latest"
 SYSTEM_TAGS = ["#demo1", "#入库预处理", "#candidate-ku", "#pending"]
 MAX_DEMO1_FILE_BYTES = 5 * 1024 * 1024
+MAX_DEMO1_PDF_OCR_PAGES = 10
+DEMO1_PDF_OCR_RENDER_ZOOM = 2.0
 SUPPORTED_TEXT_EXTENSIONS = {
     ".txt",
     ".text",
@@ -188,6 +190,9 @@ def commit_ingestion(payload: Any) -> dict[str, Any]:
                         "page_count": result["metadata"].get("page_count"),
                         "image_count": result["metadata"].get("image_count"),
                         "ocr_model_name": result["metadata"].get("ocr_model_name"),
+                        "parsed_page_count": result["metadata"].get("parsed_page_count"),
+                        "ocr_page_count": result["metadata"].get("ocr_page_count"),
+                        "skipped_page_count": result["metadata"].get("skipped_page_count"),
                         "file_size_bytes": result["metadata"].get("file_size_bytes"),
                         "ingestion_profile": DEMO1_PROFILE,
                         "trace_id": trace_id,
@@ -454,6 +459,9 @@ def parser_metadata(
     page_count: Optional[int] = None,
     image_count: Optional[int] = None,
     ocr_model_name: Optional[str] = None,
+    parsed_page_count: Optional[int] = None,
+    ocr_page_count: Optional[int] = None,
+    skipped_page_count: Optional[int] = None,
 ) -> dict[str, Any]:
     return {
         "parser_kind": parser_kind,
@@ -462,6 +470,9 @@ def parser_metadata(
         "page_count": page_count,
         "image_count": image_count,
         "ocr_model_name": ocr_model_name,
+        "parsed_page_count": parsed_page_count,
+        "ocr_page_count": ocr_page_count,
+        "skipped_page_count": skipped_page_count,
     }
 
 
@@ -486,41 +497,104 @@ def parse_pdf_file(*, file_name: str, file_bytes: bytes) -> dict[str, Any]:
 
     warnings: list[str] = []
     page_texts: list[str] = []
+    text_page_count = 0
+    ocr_page_count = 0
+    ocr_attempted_page_count = 0
+    skipped_page_count = 0
+    ocr_model_name: Optional[str] = None
     try:
         page_count = document.page_count
         for page_index in range(page_count):
             page = document.load_page(page_index)
             text = page.get_text("text").strip()
             if text:
+                text_page_count += 1
                 page_texts.append(f"[page {page_index + 1}]\n{text}")
             else:
-                warnings.append(f"page_{page_index + 1}_empty_or_scanned")
+                if ocr_attempted_page_count >= MAX_DEMO1_PDF_OCR_PAGES:
+                    skipped_page_count += 1
+                    warnings.append(f"page_{page_index + 1}_skipped_pdf_ocr_page_limit")
+                    continue
+                ocr_attempted_page_count += 1
+                ocr_text, ocr_warnings, ocr_model_name = ocr_pdf_page(
+                    page=page,
+                    page_number=page_index + 1,
+                )
+                if ocr_text:
+                    ocr_page_count += 1
+                    page_texts.append(f"[page {page_index + 1} OCR]\n{ocr_text}")
+                else:
+                    warnings.append(f"page_{page_index + 1}_ocr_empty_text")
+                warnings.extend(ocr_warnings)
     finally:
         document.close()
 
     parsed_text = "\n\n".join(page_texts).strip()
     if not parsed_text:
         raise AppError(
-            "demo1_pdf_scanned_needs_ocr",
-            "This PDF has no extractable text. Scanned PDF page OCR is planned for a later step.",
+            "demo1_pdf_ocr_empty_text",
+            "The PDF parser and OCR model did not extract usable text from this PDF.",
             status_code=409,
         )
 
-    profile = "demo1_pdf_text_parser_v1:pymupdf"
+    parser_kind = "pdf_text"
+    if text_page_count and ocr_page_count:
+        parser_kind = "pdf_mixed"
+    elif ocr_page_count and not text_page_count:
+        parser_kind = "pdf_ocr"
+    profile = f"demo1_{parser_kind}_parser_v1:pymupdf"
     return {
         "raw_text": parsed_text,
         "parser_profile": profile,
         "parse_note": (
-            f"已在后端用 PyMuPDF 提取 PDF 可复制文本，解析器：{profile}。"
-            "扫描型 PDF 暂不自动逐页 OCR。"
+            f"已在后端用 PyMuPDF 解析 PDF，解析器：{profile}。"
+            "可复制文本页直接提取；扫描页已渲染为图片并调用视觉 OCR。"
         ),
         "parse_metadata": parser_metadata(
-            parser_kind="pdf_text",
+            parser_kind=parser_kind,
             parser_status="parsed",
             parser_warnings=warnings,
             page_count=page_count,
+            image_count=ocr_attempted_page_count or None,
+            ocr_model_name=ocr_model_name,
+            parsed_page_count=text_page_count,
+            ocr_page_count=ocr_attempted_page_count,
+            skipped_page_count=skipped_page_count,
         ),
     }
+
+
+def ocr_pdf_page(*, page: Any, page_number: int) -> tuple[str, list[str], Optional[str]]:
+    config = demo1_vision_model_config()
+    if not config["api_key"]:
+        raise AppError(
+            "demo1_ocr_model_unconfigured",
+            "KB_AI_API_KEY or OPENAI_API_KEY is required for Demo 1 scanned PDF OCR.",
+            status_code=409,
+        )
+    import fitz  # type: ignore[import-untyped]
+
+    pixmap = page.get_pixmap(
+        matrix=fitz.Matrix(DEMO1_PDF_OCR_RENDER_ZOOM, DEMO1_PDF_OCR_RENDER_ZOOM),
+        alpha=False,
+    )
+    png_bytes = pixmap.tobytes("png")
+    try:
+        ocr_result = call_vision_ocr_model(config, file_bytes=png_bytes, mime_type="image/png")
+    except urllib.error.HTTPError as error:
+        raise AppError(
+            "demo1_ocr_model_http_error",
+            f"OCR model API returned HTTP {error.code} while parsing PDF page {page_number}.",
+            status_code=502,
+        ) from error
+    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, ValueError) as error:
+        raise AppError("demo1_ocr_model_failed", str(error), status_code=502) from error
+
+    warnings = [
+        f"page_{page_number}_{warning}"
+        for warning in normalize_string_list(ocr_result.get("warnings"), max_count=8, max_len=120)
+    ]
+    return clean_ocr_text(ocr_result.get("text")), warnings, config["model"]
 
 
 def parse_image_file(
@@ -690,6 +764,9 @@ def build_preview(
             "page_count": parse_metadata.get("page_count"),
             "image_count": parse_metadata.get("image_count"),
             "ocr_model_name": parse_metadata.get("ocr_model_name"),
+            "parsed_page_count": parse_metadata.get("parsed_page_count"),
+            "ocr_page_count": parse_metadata.get("ocr_page_count"),
+            "skipped_page_count": parse_metadata.get("skipped_page_count"),
         },
         "parsed": {
             "content": raw_text,

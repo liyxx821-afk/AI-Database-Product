@@ -63,6 +63,9 @@ export type Demo1IngestionResult = {
     page_count: number | null;
     image_count: number | null;
     ocr_model_name: string | null;
+    parsed_page_count: number | null;
+    ocr_page_count: number | null;
+    skipped_page_count: number | null;
   };
   parsed: {
     content: string;

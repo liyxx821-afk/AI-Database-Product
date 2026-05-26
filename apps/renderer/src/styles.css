@@ -977,6 +977,16 @@ button {
   overflow-wrap: anywhere;
 }
 
+.demo-file-preview-image {
+  display: block;
+  width: 100%;
+  max-height: 240px;
+  object-fit: contain;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: #ffffff;
+}
+
 .demo-current-metrics,
 .demo-current-actions {
   display: grid;

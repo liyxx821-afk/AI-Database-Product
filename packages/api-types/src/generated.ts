@@ -157,12 +157,15 @@ export type ApiSchemas = {
   "commit_status": "preview_only" | "committed";
   "parser_profile": string;
   "file_size_bytes"?: number | null;
-  "parser_kind"?: string;
+  "parser_kind"?: "text_input" | "text_file" | "html_text" | "pdf_text" | "pdf_ocr" | "pdf_mixed" | "image_ocr";
   "parser_status"?: string;
   "parser_warnings"?: string[];
   "page_count"?: number | null;
   "image_count"?: number | null;
   "ocr_model_name"?: string | null;
+  "parsed_page_count"?: number | null;
+  "ocr_page_count"?: number | null;
+  "skipped_page_count"?: number | null;
 };
   "Demo1ParsedTextRecord": {
   "content": string;
@@ -1075,12 +1078,15 @@ export type Demo1MetadataRecord = {
   "commit_status": "preview_only" | "committed";
   "parser_profile": string;
   "file_size_bytes"?: number | null;
-  "parser_kind"?: string;
+  "parser_kind"?: "text_input" | "text_file" | "html_text" | "pdf_text" | "pdf_ocr" | "pdf_mixed" | "image_ocr";
   "parser_status"?: string;
   "parser_warnings"?: string[];
   "page_count"?: number | null;
   "image_count"?: number | null;
   "ocr_model_name"?: string | null;
+  "parsed_page_count"?: number | null;
+  "ocr_page_count"?: number | null;
+  "skipped_page_count"?: number | null;
 };
 
 export type Demo1ParsedTextRecord = {

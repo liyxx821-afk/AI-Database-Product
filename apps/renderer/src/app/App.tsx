@@ -163,6 +163,9 @@ type DemoIngestionResult = {
     pageCount: number | null;
     imageCount: number | null;
     ocrModelName: string | null;
+    parsedPageCount: number | null;
+    ocrPageCount: number | null;
+    skippedPageCount: number | null;
   };
   parsed: DemoParsedTextRecord;
   semanticParsing: DemoSemanticParsingRecord;
@@ -488,6 +491,7 @@ function DemoIngestionPage() {
   const [result, setResult] = useState<DemoIngestionResult | null>(null);
   const [demoErrorCode, setDemoErrorCode] = useState<string | null>(null);
   const [textMode, setTextMode] = useState(false);
+  const [selectedFilePreviewUrl, setSelectedFilePreviewUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const inputCharCount = countTextChars(inputText);
@@ -502,10 +506,21 @@ function DemoIngestionPage() {
     result?.parsed.content ||
     inputText ||
     "文件预览会在解析完成后显示。PDF 显示提取文本，图片和截图显示 OCR 文本。";
+  const selectedFileKind = selectedFile ? getDemoFileKind(selectedFile) : null;
   const displayStatuses = productizeDemoPipelineStatuses(
     result?.pipelineStatuses ?? createDemoPipelineStatuses(processingStatus),
     processingStatus
   );
+
+  useEffect(() => {
+    if (!selectedFile || !selectedFile.type.startsWith("image/")) {
+      setSelectedFilePreviewUrl(null);
+      return;
+    }
+    const url = URL.createObjectURL(selectedFile);
+    setSelectedFilePreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [selectedFile]);
 
   async function processText() {
     const rawText = inputText;
@@ -632,6 +647,7 @@ function DemoIngestionPage() {
                 <StatusPill label="file_name" value={selectedFile.name} />
                 <StatusPill label="file_size" value={formatBytes(selectedFile.size)} />
                 <StatusPill label="file_type" value={selectedFile.type || "unknown"} />
+                <StatusPill label="parser" value={selectedFileKind?.parserKind ?? "unknown"} />
                 <button className="icon-command" type="button" onClick={() => setFileForDemo(null)}>
                   <XCircle aria-hidden="true" size={16} />
                   <span>清除文件</span>
@@ -742,10 +758,26 @@ function DemoIngestionPage() {
             {result?.metadata.ocrModelName ? (
               <StatusPill label="OCR" value={result.metadata.ocrModelName} />
             ) : null}
+            {result?.metadata.parsedPageCount != null ? (
+              <StatusPill label="parsed pages" value={String(result.metadata.parsedPageCount)} />
+            ) : null}
+            {result?.metadata.ocrPageCount != null ? (
+              <StatusPill label="OCR pages" value={String(result.metadata.ocrPageCount)} />
+            ) : null}
+            {result?.metadata.skippedPageCount != null ? (
+              <StatusPill label="skipped pages" value={String(result.metadata.skippedPageCount)} />
+            ) : null}
           </div>
         </article>
         <article className="demo-current-card">
           <h3>文件预览 File Preview</h3>
+          {selectedFilePreviewUrl ? (
+            <img className="demo-file-preview-image" src={selectedFilePreviewUrl} alt={selectedFile?.name ?? "uploaded image"} />
+          ) : selectedFile && !result ? (
+            <p className="section-note">
+              {selectedFileKind?.description ?? "已选择文件，点击预处理后显示解析文本。"}
+            </p>
+          ) : null}
           <pre>{previewText.slice(0, 900)}</pre>
         </article>
         <div className="demo-current-actions">
@@ -940,7 +972,10 @@ function mapDemoApiResult(apiResult: Demo1ApiIngestionResult): DemoIngestionResu
       parserWarnings: apiResult.metadata.parser_warnings,
       pageCount: apiResult.metadata.page_count,
       imageCount: apiResult.metadata.image_count,
-      ocrModelName: apiResult.metadata.ocr_model_name
+      ocrModelName: apiResult.metadata.ocr_model_name,
+      parsedPageCount: apiResult.metadata.parsed_page_count,
+      ocrPageCount: apiResult.metadata.ocr_page_count,
+      skippedPageCount: apiResult.metadata.skipped_page_count
     },
     parsed: {
       content: apiResult.parsed.content,
@@ -1323,6 +1358,32 @@ function collectDemoSourceTags(result: DemoIngestionResult | null) {
 
 function scrollToDemoSection(id: string) {
   document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function getDemoFileKind(file: File) {
+  const extension = file.name.toLowerCase().split(".").pop() ?? "";
+  if (["png", "jpg", "jpeg", "webp", "bmp"].includes(extension) || file.type.startsWith("image/")) {
+    return {
+      parserKind: "image_ocr",
+      description: "图片 / 截图将由后端调用 qwen-vl-ocr-latest 做 OCR，再进入清洗、chunk 和 Candidate KU。"
+    };
+  }
+  if (extension === "pdf" || file.type === "application/pdf") {
+    return {
+      parserKind: "pdf_text / pdf_ocr",
+      description: "PDF 会先用 PyMuPDF 提取可复制文本；扫描页会渲染为图片并调用 OCR。"
+    };
+  }
+  if (["html", "htm"].includes(extension)) {
+    return {
+      parserKind: "html_text",
+      description: "HTML 文件会在后端去除标签、脚本和样式后提取正文。"
+    };
+  }
+  return {
+    parserKind: "text_file",
+    description: "文本类文件会在后端按纯文本解析，再进入完整预处理链路。"
+  };
 }
 
 function countTextChars(text: string) {

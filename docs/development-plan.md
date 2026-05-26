@@ -1,5 +1,28 @@
 # 开发计划
 
+## 2026-05-26：Demo 1 多模态文件上传完善
+
+### 目标
+
+将 `/demo1-ingestion` 完善为单文件多模态入库预处理闭环：文本、文本类文件、可复制文本 PDF、扫描 PDF、混合 PDF、图片和截图都能真实解析并进入清洗、chunk、Candidate KU 和预览 / 写入流程。
+
+### 范围
+
+- 后端保持现有 Demo 1 preview / commit API，不新增数据库表。
+- PDF 使用 PyMuPDF；扫描页渲染为 PNG 后调用 `qwen-vl-ocr-latest`。
+- 文本语义清洗和 Candidate KU 使用 `qwen-plus`。
+- 前端只优化 Demo 1 上传、预览、metadata、错误态和 Current File 展示。
+- 本轮不做多文件队列、Office 解析、音频 / 视频、RAG 或最终知识结构化。
+
+### 验证方式
+
+- `.\.venv\Scripts\python.exe -m pytest apps/api/tests/test_demo1_ingestion.py`
+- `.\.venv\Scripts\python.exe -m ruff check apps/api scripts`
+- `corepack pnpm --filter @knowledgebase-dev/api-types build`
+- `corepack pnpm --filter @knowledgebase-dev/renderer typecheck`
+- `corepack pnpm --filter @knowledgebase-dev/renderer build`
+- 浏览器打开 `http://127.0.0.1:5173/demo1-ingestion`，分别验证短文本、可复制 PDF、扫描 PDF、图片 / 截图。
+
 ## 2026-05-22：Demo 1 知识入库预处理页面
 
 ### 增量升级

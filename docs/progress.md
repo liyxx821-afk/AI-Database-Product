@@ -1,5 +1,27 @@
 # 进度记录
 
+## 2026-05-26：Demo 1 多模态文件上传完善
+
+### 当前任务
+
+将 Demo 1 多模态上传完善为单文件闭环：文本 / 文本类文件 / 可复制文本 PDF / 扫描 PDF / 混合 PDF / 图片 / 截图都进入同一条入库预处理链路。
+
+### 已完成
+
+- 后端 PDF 解析已从“扫描 PDF 报错”升级为 PyMuPDF 文本提取 + 扫描页渲染 PNG + `qwen-vl-ocr-latest` OCR。
+- 新增 `pdf_text`、`pdf_ocr`、`pdf_mixed` 三类 PDF parser metadata。
+- metadata 新增 `parsed_page_count`、`ocr_page_count`、`skipped_page_count`，扫描 PDF OCR 默认最多处理 10 页。
+- 前端 Current File 面板增加文件预览、预计 parser、OCR 页数、跳过页数等展示。
+- Demo 1 文档已更新为当前 DashScope / qwen-plus / qwen-vl-ocr-latest 真实链路说明。
+
+### 验证记录
+
+- 已通过 `.\.venv\Scripts\python.exe -m pytest apps/api/tests/test_demo1_ingestion.py`，15 个 Demo 1 用例通过。
+- 已通过 `.\.venv\Scripts\python.exe -m ruff check apps/api scripts`。
+- 已通过 `corepack pnpm --filter @knowledgebase-dev/api-types build`。
+- 已通过 `corepack pnpm --filter @knowledgebase-dev/renderer typecheck`。
+- 已通过 `corepack pnpm --filter @knowledgebase-dev/renderer build`。
+
 ## 2026-05-22：Demo 1 知识入库预处理页面
 
 ### 增量升级

@@ -199,16 +199,32 @@ def test_demo1_preview_parses_text_pdf(monkeypatch, tmp_path):
     body = response.json()
     assert body["metadata"]["parser_kind"] == "pdf_text"
     assert body["metadata"]["page_count"] == 1
+    assert body["metadata"]["parsed_page_count"] == 1
+    assert body["metadata"]["ocr_page_count"] == 0
+    assert body["metadata"]["skipped_page_count"] == 0
     assert body["metadata"]["parser_status"] == "parsed"
     assert "Renaissance PDF text" in body["parsed"]["content"]
     assert body["source"]["candidate_ku_count"] == body["source"]["chunk_count"]
 
 
-def test_demo1_preview_marks_scanned_pdf_without_fake_text(monkeypatch, tmp_path):
+def test_demo1_preview_parses_scanned_pdf_with_vision_ocr(monkeypatch, tmp_path):
     import fitz
 
     monkeypatch.setenv("KB_APP_DATA_DIR", str(tmp_path))
     monkeypatch.setenv("KB_LOCAL_TOKEN", "test-token")
+    monkeypatch.setenv("KB_AI_API_KEY", "test-key")
+    monkeypatch.setattr(
+        demo1_ingestion, "semantic_preprocess_with_model", _mock_semantic_preprocess
+    )
+    monkeypatch.setattr(demo1_ingestion, "analyze_chunks_with_model", _mock_model_analysis)
+    monkeypatch.setattr(
+        demo1_ingestion,
+        "call_vision_ocr_model",
+        lambda config, *, file_bytes, mime_type: {
+            "text": "扫描 PDF OCR 文本：未来主义绘画与速度感。",
+            "warnings": ["low_contrast"],
+        },
+    )
     headers = {"x-kb-local-token": "test-token"}
     document = fitz.open()
     document.new_page()
@@ -227,8 +243,112 @@ def test_demo1_preview_marks_scanned_pdf_without_fake_text(monkeypatch, tmp_path
             },
         )
 
-    assert response.status_code == 409
-    assert response.json()["error"]["code"] == "demo1_pdf_scanned_needs_ocr"
+    assert response.status_code == 200
+    body = response.json()
+    assert body["metadata"]["parser_kind"] == "pdf_ocr"
+    assert body["metadata"]["page_count"] == 1
+    assert body["metadata"]["parsed_page_count"] == 0
+    assert body["metadata"]["ocr_page_count"] == 1
+    assert body["metadata"]["skipped_page_count"] == 0
+    assert body["metadata"]["ocr_model_name"] == "qwen-vl-ocr-latest"
+    assert body["metadata"]["parser_warnings"] == ["page_1_low_contrast"]
+    assert "[page 1 OCR]" in body["parsed"]["content"]
+    assert "扫描 PDF OCR 文本" in body["parsed"]["content"]
+    assert body["source"]["candidate_ku_count"] == body["source"]["chunk_count"]
+
+
+def test_demo1_preview_parses_mixed_pdf_with_text_and_ocr(monkeypatch, tmp_path):
+    import fitz
+
+    monkeypatch.setenv("KB_APP_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("KB_LOCAL_TOKEN", "test-token")
+    monkeypatch.setenv("KB_AI_API_KEY", "test-key")
+    monkeypatch.setattr(
+        demo1_ingestion, "semantic_preprocess_with_model", _mock_semantic_preprocess
+    )
+    monkeypatch.setattr(demo1_ingestion, "analyze_chunks_with_model", _mock_model_analysis)
+    monkeypatch.setattr(
+        demo1_ingestion,
+        "call_vision_ocr_model",
+        lambda config, *, file_bytes, mime_type: {
+            "text": "第二页扫描文字：声音、速度线与机械美学。",
+            "warnings": [],
+        },
+    )
+    headers = {"x-kb-local-token": "test-token"}
+    document = fitz.open()
+    page = document.new_page()
+    page.insert_text((72, 72), "Page one text: Futurism and motion.")
+    document.new_page()
+    pdf_bytes = document.tobytes()
+    document.close()
+
+    with TestClient(create_app()) as client:
+        response = client.post(
+            "/api/demo1/ingestion:preview",
+            headers=headers,
+            json={
+                "file_name": "mixed.pdf",
+                "input_type": "file",
+                "file_content_base64": base64.b64encode(pdf_bytes).decode("ascii"),
+                "content_type": "application/pdf",
+            },
+        )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["metadata"]["parser_kind"] == "pdf_mixed"
+    assert body["metadata"]["page_count"] == 2
+    assert body["metadata"]["parsed_page_count"] == 1
+    assert body["metadata"]["ocr_page_count"] == 1
+    assert "Page one text" in body["parsed"]["content"]
+    assert "第二页扫描文字" in body["parsed"]["content"]
+
+
+def test_demo1_preview_limits_scanned_pdf_ocr_pages(monkeypatch, tmp_path):
+    import fitz
+
+    monkeypatch.setenv("KB_APP_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("KB_LOCAL_TOKEN", "test-token")
+    monkeypatch.setenv("KB_AI_API_KEY", "test-key")
+    monkeypatch.setattr(
+        demo1_ingestion, "semantic_preprocess_with_model", _mock_semantic_preprocess
+    )
+    monkeypatch.setattr(demo1_ingestion, "analyze_chunks_with_model", _mock_model_analysis)
+    monkeypatch.setattr(
+        demo1_ingestion,
+        "call_vision_ocr_model",
+        lambda config, *, file_bytes, mime_type: {
+            "text": "扫描页 OCR 文本",
+            "warnings": [],
+        },
+    )
+    headers = {"x-kb-local-token": "test-token"}
+    document = fitz.open()
+    for _index in range(demo1_ingestion.MAX_DEMO1_PDF_OCR_PAGES + 2):
+        document.new_page()
+    pdf_bytes = document.tobytes()
+    document.close()
+
+    with TestClient(create_app()) as client:
+        response = client.post(
+            "/api/demo1/ingestion:preview",
+            headers=headers,
+            json={
+                "file_name": "many-scanned-pages.pdf",
+                "input_type": "file",
+                "file_content_base64": base64.b64encode(pdf_bytes).decode("ascii"),
+                "content_type": "application/pdf",
+            },
+        )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["metadata"]["parser_kind"] == "pdf_ocr"
+    assert body["metadata"]["page_count"] == demo1_ingestion.MAX_DEMO1_PDF_OCR_PAGES + 2
+    assert body["metadata"]["ocr_page_count"] == demo1_ingestion.MAX_DEMO1_PDF_OCR_PAGES
+    assert body["metadata"]["skipped_page_count"] == 2
+    assert "page_11_skipped_pdf_ocr_page_limit" in body["metadata"]["parser_warnings"]
 
 
 def test_demo1_preview_parses_image_with_vision_ocr(monkeypatch, tmp_path):
@@ -302,6 +422,39 @@ def test_demo1_preview_rejects_image_when_ocr_returns_empty_text(monkeypatch, tm
 
     assert response.status_code == 409
     assert response.json()["error"]["code"] == "demo1_ocr_empty_text"
+
+
+def test_demo1_preview_rejects_scanned_pdf_when_ocr_returns_empty_text(monkeypatch, tmp_path):
+    import fitz
+
+    monkeypatch.setenv("KB_APP_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("KB_LOCAL_TOKEN", "test-token")
+    monkeypatch.setenv("KB_AI_API_KEY", "test-key")
+    monkeypatch.setattr(
+        demo1_ingestion,
+        "call_vision_ocr_model",
+        lambda config, *, file_bytes, mime_type: {"text": "", "warnings": []},
+    )
+    headers = {"x-kb-local-token": "test-token"}
+    document = fitz.open()
+    document.new_page()
+    pdf_bytes = document.tobytes()
+    document.close()
+
+    with TestClient(create_app()) as client:
+        response = client.post(
+            "/api/demo1/ingestion:preview",
+            headers=headers,
+            json={
+                "file_name": "empty-scan.pdf",
+                "input_type": "file",
+                "file_content_base64": base64.b64encode(pdf_bytes).decode("ascii"),
+                "content_type": "application/pdf",
+            },
+        )
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "demo1_pdf_ocr_empty_text"
 
 
 def test_demo1_semantic_cleaning_falls_back_but_keeps_chunks_and_candidates(monkeypatch, tmp_path):
@@ -388,7 +541,7 @@ def test_demo1_clamps_short_text_semantic_quality_score():
     assert demo1_ingestion.normalize_quality_score(1.0, "我是一个大学生。") == 0.35
 
 
-def test_demo1_uses_openai_responses_default_model(monkeypatch, tmp_path):
+def test_demo1_uses_dashscope_chat_completions_default_model(monkeypatch, tmp_path):
     monkeypatch.setenv("KB_APP_DATA_DIR", str(tmp_path))
     monkeypatch.setenv("KB_LOCAL_TOKEN", "test-token")
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")
@@ -404,26 +557,41 @@ def test_demo1_uses_openai_responses_default_model(monkeypatch, tmp_path):
     def fake_urlopen(request, timeout):
         captured["url"] = request.full_url
         captured["body"] = json.loads(request.data.decode("utf-8"))
-        chunk_id = captured["body"]["input"][1]["content"].split('"chunk_id": "')[1].split('"')[0]
+        chunk_id = (
+            captured["body"]["messages"][1]["content"]
+            .split('"chunk_id": "')[1]
+            .split('"')[0]
+        )
         return _FakeModelResponse(
             {
-                "output_text": json.dumps(
+                "choices": [
                     {
-                        "candidate_knowledge_units": [
-                            {
-                                "chunk_id": chunk_id,
-                                "title": "大学生身份候选材料",
-                                "summary": "该 chunk 表达了一个简短身份陈述。",
-                                "keywords": ["大学生"],
-                                "tags": ["#demo1", "#入库预处理", "#candidate-ku", "#pending"],
-                                "confidence": 0.35,
-                                "quality_note": "信息密度较低，建议人工判断是否保留。",
-                                "content_type": "very_short_text",
-                            }
-                        ]
-                    },
-                    ensure_ascii=False,
-                )
+                        "message": {
+                            "content": json.dumps(
+                                {
+                                    "candidate_knowledge_units": [
+                                        {
+                                            "chunk_id": chunk_id,
+                                            "title": "大学生身份候选材料",
+                                            "summary": "该 chunk 表达了一个简短身份陈述。",
+                                            "keywords": ["大学生"],
+                                            "tags": [
+                                                "#demo1",
+                                                "#入库预处理",
+                                                "#candidate-ku",
+                                                "#pending",
+                                            ],
+                                            "confidence": 0.35,
+                                            "quality_note": "信息密度较低，建议人工判断是否保留。",
+                                            "content_type": "very_short_text",
+                                        }
+                                    ]
+                                },
+                                ensure_ascii=False,
+                            )
+                        }
+                    }
+                ]
             }
         )
 
@@ -441,10 +609,10 @@ def test_demo1_uses_openai_responses_default_model(monkeypatch, tmp_path):
 
     assert response.status_code == 200
     body = response.json()
-    assert captured["url"] == "https://api.openai.com/v1/responses"
-    assert captured["body"]["model"] == "gpt-5.4-mini"
+    assert captured["url"] == "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
+    assert captured["body"]["model"] == "qwen-plus"
     assert body["metadata"]["model_status"] == "available"
-    assert body["metadata"]["model_name"] == "gpt-5.4-mini"
+    assert body["metadata"]["model_name"] == "qwen-plus"
     assert body["source"]["candidate_ku_count"] == 1
 
 
