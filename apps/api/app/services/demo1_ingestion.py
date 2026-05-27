@@ -5,7 +5,10 @@ import binascii
 import hashlib
 import html
 import json
+import os
 import re
+import subprocess
+import tempfile
 import unicodedata
 import urllib.error
 import urllib.request
@@ -1274,17 +1277,12 @@ def call_vision_ocr_model(
         },
         ensure_ascii=False,
     ).encode("utf-8")
-    request = urllib.request.Request(
+    payload = post_model_json(
         f"{config['base_url']}/chat/completions",
-        data=request_body,
-        headers={
-            "authorization": f"Bearer {config['api_key']}",
-            "content-type": "application/json; charset=utf-8",
-        },
-        method="POST",
+        config["api_key"],
+        request_body,
+        timeout=90,
     )
-    with urllib.request.urlopen(request, timeout=90) as response:
-        payload = json.loads(response.read().decode("utf-8"))
     content = extract_model_text(payload, "chat_completions")
     return normalize_ocr_model_response(content)
 
@@ -1324,17 +1322,12 @@ def call_responses_api(
             ],
         }
     ).encode("utf-8")
-    request = urllib.request.Request(
+    return post_model_json(
         f"{config['base_url']}/responses",
-        data=request_body,
-        headers={
-            "authorization": f"Bearer {config['api_key']}",
-            "content-type": "application/json",
-        },
-        method="POST",
+        config["api_key"],
+        request_body,
+        timeout=45,
     )
-    with urllib.request.urlopen(request, timeout=45) as response:
-        return json.loads(response.read().decode("utf-8"))
 
 
 def call_chat_completions_api(
@@ -1360,17 +1353,79 @@ def call_chat_completions_api(
             "response_format": {"type": "json_object"},
         }
     ).encode("utf-8")
-    request = urllib.request.Request(
+    return post_model_json(
         f"{config['base_url']}/chat/completions",
+        config["api_key"],
+        request_body,
+        timeout=45,
+    )
+
+
+def post_model_json(url: str, api_key: str, request_body: bytes, *, timeout: int) -> dict[str, Any]:
+    request = urllib.request.Request(
+        url,
         data=request_body,
         headers={
-            "authorization": f"Bearer {config['api_key']}",
-            "content-type": "application/json",
+            "authorization": f"Bearer {api_key}",
+            "content-type": "application/json; charset=utf-8",
         },
         method="POST",
     )
-    with urllib.request.urlopen(request, timeout=45) as response:
-        return json.loads(response.read().decode("utf-8"))
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            return json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError:
+        raise
+    except (urllib.error.URLError, TimeoutError, OSError) as error:
+        if os.name != "nt":
+            raise
+        try:
+            return post_model_json_with_curl(url, api_key, request_body, timeout=timeout)
+        except (subprocess.SubprocessError, OSError, ValueError) as curl_error:
+            message = f"{error}; curl fallback failed: {curl_error}"
+            raise urllib.error.URLError(message) from curl_error
+
+
+def post_model_json_with_curl(
+    url: str,
+    api_key: str,
+    request_body: bytes,
+    *,
+    timeout: int,
+) -> dict[str, Any]:
+    temp_path: Optional[Path] = None
+    try:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".json") as handle:
+            handle.write(request_body)
+            temp_path = Path(handle.name)
+        curl_config = "\n".join(
+            [
+                f'url = "{url}"',
+                'request = "POST"',
+                f'header = "authorization: Bearer {api_key}"',
+                'header = "content-type: application/json; charset=utf-8"',
+                f'data-binary = "@{temp_path.as_posix()}"',
+                "silent",
+                "show-error",
+                "fail-with-body",
+            ]
+        )
+        process = subprocess.run(
+            ["curl.exe", "--config", "-"],
+            input=f"{curl_config}\n".encode(),
+            capture_output=True,
+            timeout=timeout + 15,
+            check=False,
+        )
+        stdout = process.stdout.decode("utf-8", errors="replace")
+        stderr = process.stderr.decode("utf-8", errors="replace").strip()
+        if process.returncode != 0:
+            message = stderr or stdout[:300] or f"curl exited with code {process.returncode}"
+            raise ValueError(message)
+        return json.loads(stdout)
+    finally:
+        if temp_path is not None:
+            temp_path.unlink(missing_ok=True)
 
 
 def extract_model_text(payload: dict[str, Any], endpoint: str) -> str:
