@@ -5,7 +5,6 @@ import binascii
 import hashlib
 import html
 import json
-import os
 import re
 import unicodedata
 import urllib.error
@@ -17,6 +16,7 @@ from typing import Any, Optional
 
 from app.core.errors import AppError
 from app.db.sqlite import db, json_dumps
+from app.services.ai_model_settings import configured_ai_model_runtime
 
 DEMO1_PROFILE = "demo1_model_ingestion_preprocess_v1"
 DEFAULT_OPENAI_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
@@ -1225,32 +1225,14 @@ def analyze_chunks_with_model(
 
 
 def demo1_model_config() -> dict[str, str]:
-    base_url = (
-        os.environ.get("KB_AI_BASE_URL")
-        or os.environ.get("OPENAI_BASE_URL")
-        or DEFAULT_OPENAI_BASE_URL
-    ).strip().rstrip("/")
-    endpoint = os.environ.get("KB_AI_ENDPOINT", "").strip()
-    if not endpoint:
-        endpoint = "responses" if "api.openai.com" in base_url else "chat_completions"
-    api_key = os.environ.get("KB_AI_API_KEY") or os.environ.get("OPENAI_API_KEY") or ""
-    return {
-        "api_key": api_key.strip(),
-        "base_url": base_url,
-        "model": (
-            os.environ.get("KB_AI_MODEL")
-            or os.environ.get("OPENAI_MODEL")
-            or DEFAULT_DEMO1_MODEL
-        ).strip(),
-        "endpoint": endpoint,
-    }
+    return configured_ai_model_runtime()
 
 
 def demo1_vision_model_config() -> dict[str, str]:
     config = demo1_model_config()
     return {
         **config,
-        "model": (os.environ.get("KB_AI_VISION_MODEL") or DEFAULT_DEMO1_VISION_MODEL).strip(),
+        "model": config.get("vision_model", DEFAULT_DEMO1_VISION_MODEL).strip(),
         "endpoint": "chat_completions",
     }
 

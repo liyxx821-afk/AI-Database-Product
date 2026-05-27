@@ -5,10 +5,12 @@ import csv
 import hashlib
 import io
 import json
+import os
 import zipfile
 
 from app.db.sqlite import db
 from app.main import create_app
+from app.services import demo1_ingestion
 from fastapi.testclient import TestClient
 
 
@@ -66,6 +68,95 @@ def test_settings_language_persistence_and_validation(monkeypatch, tmp_path):
         )
         assert unknown.status_code == 422
         assert unknown.json()["error"]["code"] == "validation_error"
+
+
+def test_ai_model_settings_do_not_expose_plaintext_key(monkeypatch, tmp_path):
+    monkeypatch.setenv("KB_APP_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("KB_LOCAL_TOKEN", "test-token")
+    monkeypatch.delenv("KB_AI_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("KB_AI_BASE_URL", raising=False)
+    monkeypatch.delenv("OPENAI_BASE_URL", raising=False)
+    monkeypatch.delenv("KB_AI_MODEL", raising=False)
+    monkeypatch.delenv("OPENAI_MODEL", raising=False)
+    monkeypatch.delenv("KB_AI_VISION_MODEL", raising=False)
+    monkeypatch.delenv("KB_AI_ENDPOINT", raising=False)
+    headers = {"x-kb-local-token": "test-token"}
+
+    with TestClient(create_app()) as client:
+        defaults = client.get("/api/settings/ai-model", headers=headers)
+        assert defaults.status_code == 200
+        assert defaults.json()["key_status"] == "missing"
+        assert "api_key" not in defaults.text
+
+        payload = {
+            "provider": "dashscope",
+            "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+            "text_model": "qwen-plus",
+            "vision_model": "qwen-vl-ocr-latest",
+            "endpoint": "chat_completions",
+            "api_key": "test-secret-key",
+        }
+        saved = client.patch("/api/settings/ai-model", headers=headers, json=payload)
+        if os.name != "nt":
+            assert saved.status_code == 409
+            assert saved.json()["error"]["code"] == "model_secret_storage_unavailable"
+            return
+
+        assert saved.status_code == 200
+        body = saved.json()
+        assert body["key_status"] == "configured"
+        assert body["key_source"] == "encrypted_local"
+        assert "test-secret-key" not in saved.text
+
+        config_text = (tmp_path / "config.json").read_text(encoding="utf-8")
+        assert "test-secret-key" not in config_text
+        assert "qwen-plus" in config_text
+
+        loaded = client.get("/api/settings/ai-model", headers=headers)
+        assert loaded.status_code == 200
+        assert loaded.json()["key_status"] == "configured"
+        assert "test-secret-key" not in loaded.text
+        config = demo1_ingestion.demo1_model_config()
+        assert config["api_key"] == "test-secret-key"
+        assert config["model"] == "qwen-plus"
+
+        deleted = client.delete("/api/settings/ai-model/key", headers=headers)
+        assert deleted.status_code == 200
+        assert deleted.json()["key_status"] == "missing"
+
+
+def test_ai_model_environment_overrides_saved_config(monkeypatch, tmp_path):
+    monkeypatch.setenv("KB_APP_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("KB_LOCAL_TOKEN", "test-token")
+    monkeypatch.setenv("KB_AI_API_KEY", "env-key")
+    monkeypatch.setenv("KB_AI_BASE_URL", "https://example.test/v1")
+    monkeypatch.setenv("KB_AI_MODEL", "env-text-model")
+    monkeypatch.setenv("KB_AI_VISION_MODEL", "env-vision-model")
+    monkeypatch.setenv("KB_AI_ENDPOINT", "chat_completions")
+    headers = {"x-kb-local-token": "test-token"}
+
+    with TestClient(create_app()) as client:
+        saved = client.patch(
+            "/api/settings/ai-model",
+            headers=headers,
+            json={
+                "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+                "text_model": "saved-text-model",
+                "vision_model": "saved-vision-model",
+                "endpoint": "chat_completions",
+            },
+        )
+        assert saved.status_code == 200
+        assert saved.json()["key_source"] == "environment"
+
+    config = demo1_ingestion.demo1_model_config()
+    vision_config = demo1_ingestion.demo1_vision_model_config()
+    assert config["api_key"] == "env-key"
+    assert config["base_url"] == "https://example.test/v1"
+    assert config["model"] == "env-text-model"
+    assert config["endpoint"] == "chat_completions"
+    assert vision_config["model"] == "env-vision-model"
 
 
 def test_space_tag_metadata_filters(monkeypatch, tmp_path):

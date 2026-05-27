@@ -222,6 +222,60 @@ class SettingsPatchRequest(BaseModel):
     language: LanguageCode
 
 
+AIModelKeyStatus = Literal["configured", "missing"]
+AIModelKeySource = Literal["environment", "encrypted_local", "none"]
+AIModelStorageStatus = Literal["windows_dpapi", "unavailable"]
+AIModelEndpoint = Literal["chat_completions", "responses"]
+
+
+class AIModelLastTestRecord(BaseModel):
+    tested_at: Optional[str] = None
+    text_model_status: Optional[str] = None
+    vision_model_status: Optional[str] = None
+    ok: Optional[bool] = None
+    error_code: Optional[str] = None
+    error_message: Optional[str] = None
+
+
+class AIModelSettingsResponse(BaseModel):
+    provider: str
+    provider_label: str
+    base_url: str
+    text_model: str
+    vision_model: str
+    endpoint: AIModelEndpoint
+    key_status: AIModelKeyStatus
+    key_source: AIModelKeySource
+    storage_status: AIModelStorageStatus
+    last_test: Optional[AIModelLastTestRecord] = None
+    updated_at: Optional[str] = None
+
+
+class AIModelSettingsPatchRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    provider: Optional[str] = Field(default=None, min_length=1, max_length=80)
+    base_url: Optional[str] = Field(default=None, min_length=1, max_length=240)
+    text_model: Optional[str] = Field(default=None, min_length=1, max_length=120)
+    vision_model: Optional[str] = Field(default=None, min_length=1, max_length=120)
+    endpoint: Optional[AIModelEndpoint] = None
+    api_key: Optional[str] = Field(default=None, max_length=400)
+
+
+class AIModelTestResponse(BaseModel):
+    tested_at: str
+    provider: str
+    base_url: str
+    text_model: str
+    vision_model: str
+    endpoint: AIModelEndpoint
+    text_model_status: str
+    vision_model_status: str
+    ok: bool
+    error_code: Optional[str] = None
+    error_message: Optional[str] = None
+
+
 class TextImportRequest(BaseModel):
     title: str = Field(min_length=1, max_length=160)
     content: str = Field(min_length=1)

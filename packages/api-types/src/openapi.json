@@ -167,6 +167,96 @@
         }
       }
     },
+    "/api/settings/ai-model": {
+      "get": {
+        "summary": "Get Ai Model Settings Route",
+        "operationId": "get_ai_model_settings_route_api_settings_ai_model_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AIModelSettingsResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "summary": "Patch Ai Model Settings Route",
+        "operationId": "patch_ai_model_settings_route_api_settings_ai_model_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AIModelSettingsPatchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AIModelSettingsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/settings/ai-model:test": {
+      "post": {
+        "summary": "Test Ai Model Settings Route",
+        "operationId": "test_ai_model_settings_route_api_settings_ai_model_test_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AIModelTestResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/settings/ai-model/key": {
+      "delete": {
+        "summary": "Delete Ai Model Key Route",
+        "operationId": "delete_ai_model_key_route_api_settings_ai_model_key_delete",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AIModelSettingsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/projects": {
       "get": {
         "summary": "Get Projects",
@@ -3330,6 +3420,334 @@
   },
   "components": {
     "schemas": {
+      "AIModelLastTestRecord": {
+        "properties": {
+          "tested_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tested At"
+          },
+          "text_model_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text Model Status"
+          },
+          "vision_model_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vision Model Status"
+          },
+          "ok": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ok"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "error_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Message"
+          }
+        },
+        "type": "object",
+        "title": "AIModelLastTestRecord"
+      },
+      "AIModelSettingsPatchRequest": {
+        "properties": {
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
+          },
+          "base_url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 240,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Url"
+          },
+          "text_model": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 120,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text Model"
+          },
+          "vision_model": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 120,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vision Model"
+          },
+          "endpoint": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "chat_completions",
+                  "responses"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Endpoint"
+          },
+          "api_key": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 400
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Api Key"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "AIModelSettingsPatchRequest"
+      },
+      "AIModelSettingsResponse": {
+        "properties": {
+          "provider": {
+            "type": "string",
+            "title": "Provider"
+          },
+          "provider_label": {
+            "type": "string",
+            "title": "Provider Label"
+          },
+          "base_url": {
+            "type": "string",
+            "title": "Base Url"
+          },
+          "text_model": {
+            "type": "string",
+            "title": "Text Model"
+          },
+          "vision_model": {
+            "type": "string",
+            "title": "Vision Model"
+          },
+          "endpoint": {
+            "type": "string",
+            "enum": [
+              "chat_completions",
+              "responses"
+            ],
+            "title": "Endpoint"
+          },
+          "key_status": {
+            "type": "string",
+            "enum": [
+              "configured",
+              "missing"
+            ],
+            "title": "Key Status"
+          },
+          "key_source": {
+            "type": "string",
+            "enum": [
+              "environment",
+              "encrypted_local",
+              "none"
+            ],
+            "title": "Key Source"
+          },
+          "storage_status": {
+            "type": "string",
+            "enum": [
+              "windows_dpapi",
+              "unavailable"
+            ],
+            "title": "Storage Status"
+          },
+          "last_test": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AIModelLastTestRecord"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "provider",
+          "provider_label",
+          "base_url",
+          "text_model",
+          "vision_model",
+          "endpoint",
+          "key_status",
+          "key_source",
+          "storage_status"
+        ],
+        "title": "AIModelSettingsResponse"
+      },
+      "AIModelTestResponse": {
+        "properties": {
+          "tested_at": {
+            "type": "string",
+            "title": "Tested At"
+          },
+          "provider": {
+            "type": "string",
+            "title": "Provider"
+          },
+          "base_url": {
+            "type": "string",
+            "title": "Base Url"
+          },
+          "text_model": {
+            "type": "string",
+            "title": "Text Model"
+          },
+          "vision_model": {
+            "type": "string",
+            "title": "Vision Model"
+          },
+          "endpoint": {
+            "type": "string",
+            "enum": [
+              "chat_completions",
+              "responses"
+            ],
+            "title": "Endpoint"
+          },
+          "text_model_status": {
+            "type": "string",
+            "title": "Text Model Status"
+          },
+          "vision_model_status": {
+            "type": "string",
+            "title": "Vision Model Status"
+          },
+          "ok": {
+            "type": "boolean",
+            "title": "Ok"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "error_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "tested_at",
+          "provider",
+          "base_url",
+          "text_model",
+          "vision_model",
+          "endpoint",
+          "text_model_status",
+          "vision_model_status",
+          "ok"
+        ],
+        "title": "AIModelTestResponse"
+      },
       "AuthStatusResponse": {
         "properties": {
           "auth_enabled": {

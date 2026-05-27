@@ -1,5 +1,29 @@
 # 开发计划
 
+## 2026-05-27：Demo 1 模型配置产品化
+
+### 目标
+
+将 Demo 1 的模型配置从“启动前手动设置环境变量”升级为本机产品化配置：用户在设置页填写一次 DashScope / 百炼 API Key，后端使用 Windows DPAPI 加密保存，Demo 1 自动用于文本语义清洗、Candidate KU 生成、图片 OCR 和扫描 PDF OCR。
+
+### 范围
+
+- 新增 `/api/settings/ai-model` 配置读取、保存、测试和删除密钥接口。
+- `config.json` 只保存 provider、base URL、文本模型、OCR 模型和最近测试结果，不保存明文 API Key。
+- 环境变量 `KB_AI_*` / `OPENAI_*` 继续拥有最高优先级，方便开发和 CI。
+- Renderer `/settings` 新增 AI Provider 配置区；`/demo1-ingestion` 模型未配置时提供“去配置模型”入口。
+- 不新增 RAG、多供应商计费管理或最终知识确认流程。
+
+### 验证方式
+
+- `.\.venv\Scripts\python.exe -m pytest apps/api/tests/test_demo1_ingestion.py apps/api/tests/test_p0_core.py`
+- `.\.venv\Scripts\python.exe -m ruff check apps/api scripts`
+- `corepack pnpm --filter @knowledgebase-dev/api-types build`
+- `corepack pnpm --filter @knowledgebase-dev/desktop-preload typecheck`
+- `corepack pnpm --filter @knowledgebase-dev/desktop-main typecheck`
+- `corepack pnpm --filter @knowledgebase-dev/renderer typecheck`
+- `corepack pnpm --filter @knowledgebase-dev/renderer build`
+
 ## 2026-05-26：Demo 1 多模态文件上传完善
 
 ### 目标

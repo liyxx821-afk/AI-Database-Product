@@ -1,5 +1,31 @@
 # 进度记录
 
+## 2026-05-27：Demo 1 模型配置产品化
+
+### 当前任务
+
+将 Demo 1 模型配置接入设置页与后端安全存储，避免每次启动都手动粘贴环境变量。
+
+### 已完成
+
+- 新增 AI Provider 后端配置服务，默认 DashScope / 百炼：`qwen-plus` 用于文本语义清洗与 Candidate KU，`qwen-vl-ocr-latest` 用于图片 / 扫描 PDF OCR。
+- 新增设置 API：读取、保存、测试连接、删除本机密钥。
+- Windows 下 API Key 使用 DPAPI 加密保存到 app data `secrets/`，`config.json` 不保存明文密钥。
+- Demo 1 模型读取改为环境变量优先、本机加密配置兜底。
+- Renderer `/settings` 新增模型配置区，支持保存配置、测试连接和删除密钥。
+- Demo 1 模型未配置错误增加“去配置模型”入口。
+
+### 验证记录
+
+- 已通过针对性测试：AI 模型设置不返回明文 key、`config.json` 不包含明文 key、环境变量优先级生效、Demo 1 默认 DashScope 模型调用路径不变。
+- 已通过 `.\.venv\Scripts\python.exe -m ruff check apps/api scripts`。
+- 已通过 `corepack pnpm --filter @knowledgebase-dev/api-types build`。
+- 已通过 `corepack pnpm --filter @knowledgebase-dev/renderer typecheck`。
+- 已通过 `corepack pnpm --filter @knowledgebase-dev/desktop-preload typecheck`。
+- 已通过 `corepack pnpm --filter @knowledgebase-dev/desktop-main typecheck`。
+- 已通过 `corepack pnpm --filter @knowledgebase-dev/renderer build`。
+- 已通过浏览器 smoke 打开 `/settings`，确认“模型配置 / AI Provider”、保存配置、测试连接和删除密钥入口可见，页面未显示 API Key。
+
 ## 2026-05-26：Demo 1 多模态文件上传完善
 
 ### 当前任务

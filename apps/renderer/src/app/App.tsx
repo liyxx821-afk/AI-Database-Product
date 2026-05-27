@@ -46,6 +46,8 @@ import type {
   FeedbackRequest,
   FileRecord,
   FolderRecord,
+  AIModelSettingsResponse,
+  AIModelTestResponse,
   KnowledgeRelationCreateRequest,
   KnowledgeRelationPatchRequest,
   KnowledgeRelationRecord,
@@ -74,6 +76,12 @@ import { useKnowledgeExportStore } from "../stores/exportsStore";
 import { useTextToSqlStore } from "../stores/textToSqlStore";
 import { useRelationsStore } from "../stores/relationsStore";
 import { hasBridge } from "../services/apiClient";
+import {
+  deleteAIModelKey,
+  getAIModelSettings,
+  patchAIModelSettings,
+  testAIModelSettings
+} from "../services/settingsApi";
 import {
   commitDemo1Ingestion,
   previewDemo1Ingestion,
@@ -685,6 +693,12 @@ function DemoIngestionPage() {
             <span>
               {demoError.title}：{demoError.description}
             </span>
+            {["demo1_ocr_model_unconfigured", "demo1_model_unconfigured"].includes(demoErrorCode) ? (
+              <a className="icon-command" href="/settings">
+                <Settings aria-hidden="true" size={15} />
+                <span>去配置模型</span>
+              </a>
+            ) : null}
           </div>
         ) : null}
         {result?.modelErrorCode ? (
@@ -5186,6 +5200,7 @@ function SettingsPage() {
           </div>
         ) : null}
       </section>
+      <AIModelSettingsPanel />
       <PageFrame
         state={state}
         title={t("settings.title")}
@@ -5195,6 +5210,241 @@ function SettingsPage() {
           [t("settings.provider"), runtime.status?.vector.fallback_reason ?? t("settings.providerFallback")]
         ]}
       />
+    </section>
+  );
+}
+
+type AIModelSettingsForm = {
+  provider: string;
+  baseUrl: string;
+  textModel: string;
+  visionModel: string;
+  endpoint: "chat_completions" | "responses";
+  apiKey: string;
+};
+
+const defaultAIModelSettingsForm: AIModelSettingsForm = {
+  provider: "dashscope",
+  baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+  textModel: "qwen-plus",
+  visionModel: "qwen-vl-ocr-latest",
+  endpoint: "chat_completions",
+  apiKey: ""
+};
+
+function AIModelSettingsPanel() {
+  const [settings, setSettings] = useState<AIModelSettingsResponse | null>(null);
+  const [form, setForm] = useState<AIModelSettingsForm>(defaultAIModelSettingsForm);
+  const [testResult, setTestResult] = useState<AIModelTestResponse | null>(null);
+  const [state, setState] = useState<UiState>("empty");
+  const [errorCode, setErrorCode] = useState<string | null>(null);
+  const canUseBackend = hasBridge();
+
+  useEffect(() => {
+    void refreshAIModelSettings();
+  }, []);
+
+  async function refreshAIModelSettings() {
+    if (!canUseBackend) {
+      setState("degraded");
+      setErrorCode("desktop_bridge_unavailable");
+      return;
+    }
+    setState("loading");
+    setErrorCode(null);
+    try {
+      const next = await getAIModelSettings();
+      applyAIModelSettings(next);
+      setState("done");
+    } catch (error) {
+      setState("recoverable_error");
+      setErrorCode(resolveErrorCode(error, "ai_model_settings_load_failed"));
+    }
+  }
+
+  function applyAIModelSettings(next: AIModelSettingsResponse) {
+    setSettings(next);
+    setForm({
+      provider: next.provider,
+      baseUrl: next.base_url,
+      textModel: next.text_model,
+      visionModel: next.vision_model,
+      endpoint: next.endpoint,
+      apiKey: ""
+    });
+  }
+
+  async function saveAIModelSettings() {
+    if (!canUseBackend) return;
+    setState("loading");
+    setErrorCode(null);
+    try {
+      const next = await patchAIModelSettings({
+        provider: form.provider,
+        base_url: form.baseUrl,
+        text_model: form.textModel,
+        vision_model: form.visionModel,
+        endpoint: form.endpoint,
+        api_key: form.apiKey.trim() || undefined
+      });
+      applyAIModelSettings(next);
+      setState("done");
+    } catch (error) {
+      setState("recoverable_error");
+      setErrorCode(resolveErrorCode(error, "ai_model_settings_save_failed"));
+    }
+  }
+
+  async function runAIModelTest() {
+    if (!canUseBackend) return;
+    setState("loading");
+    setErrorCode(null);
+    setTestResult(null);
+    try {
+      const result = await testAIModelSettings();
+      setTestResult(result);
+      const next = await getAIModelSettings();
+      applyAIModelSettings(next);
+      setState(result.ok ? "done" : "recoverable_error");
+      setErrorCode(result.ok ? null : result.error_code ?? "ai_model_test_failed");
+    } catch (error) {
+      setState("recoverable_error");
+      setErrorCode(resolveErrorCode(error, "ai_model_test_failed"));
+    }
+  }
+
+  async function removeAIModelKey() {
+    if (!canUseBackend) return;
+    setState("loading");
+    setErrorCode(null);
+    try {
+      const next = await deleteAIModelKey();
+      applyAIModelSettings(next);
+      setTestResult(null);
+      setState("done");
+    } catch (error) {
+      setState("recoverable_error");
+      setErrorCode(resolveErrorCode(error, "ai_model_key_delete_failed"));
+    }
+  }
+
+  const lastTest = settings?.last_test;
+  return (
+    <section className="page-frame">
+      <div className="section-title-row">
+        <div>
+          <h2>模型配置 / AI Provider</h2>
+          <p className="section-note">配置一次 DashScope / 百炼 Key，Demo 1 自动用于语义分析、Candidate KU 和 OCR。</p>
+        </div>
+        <StateChip state={state} />
+      </div>
+      <div className="settings-row">
+        <label className="memory-label">
+          <span>Provider</span>
+          <input
+            className="query-input"
+            value={form.provider}
+            onChange={(event) => setForm({ ...form, provider: event.target.value })}
+          />
+        </label>
+        <label className="memory-label">
+          <span>Base URL</span>
+          <input
+            className="query-input"
+            value={form.baseUrl}
+            onChange={(event) => setForm({ ...form, baseUrl: event.target.value })}
+          />
+        </label>
+      </div>
+      <div className="settings-row">
+        <label className="memory-label">
+          <span>文本模型</span>
+          <input
+            className="query-input"
+            value={form.textModel}
+            onChange={(event) => setForm({ ...form, textModel: event.target.value })}
+          />
+        </label>
+        <label className="memory-label">
+          <span>OCR 模型</span>
+          <input
+            className="query-input"
+            value={form.visionModel}
+            onChange={(event) => setForm({ ...form, visionModel: event.target.value })}
+          />
+        </label>
+      </div>
+      <div className="settings-row">
+        <label className="memory-label">
+          <span>Endpoint</span>
+          <select
+            className="settings-select"
+            value={form.endpoint}
+            onChange={(event) =>
+              setForm({ ...form, endpoint: event.target.value as AIModelSettingsForm["endpoint"] })
+            }
+          >
+            <option value="chat_completions">chat_completions</option>
+            <option value="responses">responses</option>
+          </select>
+        </label>
+        <label className="memory-label">
+          <span>API Key</span>
+          <input
+            className="query-input"
+            type="password"
+            autoComplete="off"
+            placeholder={settings?.key_status === "configured" ? "已保存，可留空" : "粘贴 DashScope / 百炼 Key"}
+            value={form.apiKey}
+            onChange={(event) => setForm({ ...form, apiKey: event.target.value })}
+          />
+        </label>
+      </div>
+      <div className="inline-actions">
+        <StatusPill label="key" value={`${settings?.key_status ?? "missing"} / ${settings?.key_source ?? "none"}`} />
+        <StatusPill label="storage" value={settings?.storage_status ?? "unknown"} />
+        <StatusPill label="text" value={settings?.text_model ?? form.textModel} />
+        <StatusPill label="OCR" value={settings?.vision_model ?? form.visionModel} />
+      </div>
+      {lastTest ? (
+        <div className="row-note">
+          <CheckCircle aria-hidden="true" size={15} />
+          <span>
+            最近测试：文本 {lastTest.text_model_status ?? "unknown"}，OCR{" "}
+            {lastTest.vision_model_status ?? "unknown"}，{lastTest.ok ? "连接可用" : lastTest.error_code}
+          </span>
+        </div>
+      ) : null}
+      {testResult ? (
+        <div className="row-note">
+          <Gauge aria-hidden="true" size={15} />
+          <span>{testResult.ok ? "测试通过，模型可用。" : testResult.error_message ?? testResult.error_code}</span>
+        </div>
+      ) : null}
+      {errorCode ? (
+        <div className="row-note">
+          <AlertCircle aria-hidden="true" size={15} />
+          <span>{errorCode}</span>
+        </div>
+      ) : null}
+      <div className="inline-actions">
+        <button className="icon-command" type="button" disabled={!canUseBackend || state === "loading"} onClick={saveAIModelSettings}>
+          <Save aria-hidden="true" size={15} />
+          <span>保存配置</span>
+        </button>
+        <button className="icon-command" type="button" disabled={!canUseBackend || state === "loading"} onClick={runAIModelTest}>
+          <RefreshCw aria-hidden="true" size={15} />
+          <span>测试连接</span>
+        </button>
+        <button className="icon-command" type="button" disabled={!canUseBackend || state === "loading"} onClick={removeAIModelKey}>
+          <Trash2 aria-hidden="true" size={15} />
+          <span>删除密钥</span>
+        </button>
+      </div>
+      <div className="row-note">
+        <AlertCircle aria-hidden="true" size={15} />
+        <span>API Key 只提交给本机后端加密保存；前端不持久化、不显示、不写入仓库。</span>
+      </div>
     </section>
   );
 }

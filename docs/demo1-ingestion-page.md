@@ -16,7 +16,9 @@ corepack pnpm install --ignore-scripts
 corepack pnpm dev:desktop
 ```
 
-普通浏览器调试时，需要单独启动后端并给 renderer 配置 API 地址：
+桌面模式推荐在 `/settings` 页面填写 DashScope / 百炼 API Key。后端会用 Windows DPAPI 加密保存密钥，后续 Demo 1 自动读取，不需要每次启动都重新设置环境变量。
+
+普通浏览器调试时，需要单独启动后端并给 renderer 配置 API 地址；如不走设置页，也可以继续用环境变量临时覆盖模型配置：
 
 ```powershell
 $env:KB_AI_API_KEY='your-dashscope-api-key'
@@ -28,7 +30,7 @@ $env:VITE_KB_API_BASE_URL='http://127.0.0.1:8765/api'
 corepack pnpm --filter @knowledgebase-dev/renderer dev -- --host 127.0.0.1
 ```
 
-API Key 只由后端进程读取，不写入 `.env`、代码、日志或前端。
+API Key 只由后端进程读取；不会写入 `.env`、代码、日志、前端或 `config.json` 明文字段。
 
 ## 模型配置
 
@@ -46,6 +48,15 @@ Demo 1 默认使用阿里云百炼 / DashScope 的 OpenAI-compatible Chat Comple
 - `KB_AI_MODEL` 或 `OPENAI_MODEL`
 - `KB_AI_VISION_MODEL`
 - `KB_AI_ENDPOINT`，可选：`chat_completions` 或 `responses`
+
+产品化设置：
+
+- `/settings` 页面新增“模型配置 / AI Provider”。
+- `GET /api/settings/ai-model` 只返回 provider、base URL、模型名、密钥状态和最近测试结果，不返回明文 API Key。
+- `PATCH /api/settings/ai-model` 保存 provider / 模型配置；传入 API Key 时后端加密保存。
+- `POST /api/settings/ai-model:test` 用当前配置测试文本模型和 OCR 模型。
+- `DELETE /api/settings/ai-model/key` 删除本机加密保存的 API Key。
+- 环境变量优先级高于本机保存配置，便于开发和 CI 覆盖。
 
 模型未配置或调用失败时，页面必须显示明确错误，不生成假的 Candidate KU。
 
