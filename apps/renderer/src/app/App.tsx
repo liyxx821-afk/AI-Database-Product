@@ -79,6 +79,7 @@ import { hasBridge } from "../services/apiClient";
 import {
   deleteAIModelKey,
   getAIModelSettings,
+  hasSettingsApiRuntime,
   patchAIModelSettings,
   testAIModelSettings
 } from "../services/settingsApi";
@@ -5238,7 +5239,7 @@ function AIModelSettingsPanel() {
   const [testResult, setTestResult] = useState<AIModelTestResponse | null>(null);
   const [state, setState] = useState<UiState>("empty");
   const [errorCode, setErrorCode] = useState<string | null>(null);
-  const canUseBackend = hasBridge();
+  const canUseBackend = hasSettingsApiRuntime();
 
   useEffect(() => {
     void refreshAIModelSettings();
